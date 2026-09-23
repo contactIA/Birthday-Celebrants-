@@ -1,0 +1,37 @@
+# Birthday Celebrants na VPS Hostinger.
+#
+# Mesmo desenho do Clinic Control: o app NÃO publica portas. Quem atende 80/443
+# é o nginx da stack `contactia`, que já está no ar; este container entra na rede
+# dela e o nginx faz proxy para `birthday-celebrants:3000`.
+#
+# Uso: ./deploy/deploy.sh  (ele carrega o .env antes de chamar o compose)
+name: birthday-celebrants
+
+services:
+  app:
+    container_name: birthday-celebrants
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Só entra no build porque a CSP `frame-ancestors` é montada ali (ver
+        # next.config.ts). Vazio = default do next.config.
+        EMBED_HOSTS: ${EMBED_HOSTS:-}
+    restart: unless-stopped
+    # Segredos em runtime: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, LINK_SECRET,
+    # CRON_SECRET. Nenhum é necessário no build.
+    env_file: .env
+    expose:
+      - "3000"
+    # A sincronização da Clinicorp roda até alguns minutos; um deploy no meio
+    # dela não deve cortar a execução no primeiro sinal.
+    stop_grace_period: 30s
+    networks:
+      - contactia
+
+networks:
+  # Rede já criada pela stack `contactia` (api/worker/nginx/postgres).
+  # `external: true` = não criar, só entrar.
+  contactia:
+    name: contactia_default
+    external: true

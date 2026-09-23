@@ -25,7 +25,7 @@ function naoConfigurado() {
   // "não autorizado" — indistinguível de alguém batendo na URL.
   console.error(
     '[cron/sincronizar-clinicorp] CRON_SECRET ausente — a rota rejeita TODA chamada, ' +
-      'inclusive a do próprio Cron. Cadastrar nas variáveis do serviço (console do TurboCloud).'
+      'inclusive a do próprio Cron. Cadastrar no .env do servidor (ver docs/deploy-vps.md).'
   )
   return NextResponse.json({ error: 'Cron não configurado' }, { status: 503 })
 }

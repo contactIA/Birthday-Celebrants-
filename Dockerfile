@@ -1,12 +1,12 @@
-# Imagem de produção para a VPS (deploy pelo TurboCloud, que usa este arquivo
-# quando o encontra na raiz). Passo a passo em docs/deploy-vps.md.
+# Imagem de produção para a VPS da Hostinger, construída pelo docker-compose.yml
+# da raiz. Passo a passo em docs/deploy-vps.md.
 #
 # Multi-stage com `output: 'standalone'`: a imagem final leva só o server.js e
 # as dependências rastreadas pelo build, sem o node_modules inteiro.
 #
 # SEGREDOS NÃO ENTRAM AQUI. SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, LINK_SECRET
-# e CRON_SECRET são lidos em runtime e vêm do ambiente do container (console do
-# TurboCloud). Nenhum deles é necessário no build.
+# e CRON_SECRET são lidos em runtime e vêm do .env do servidor (`env_file` no
+# compose). Nenhum deles é necessário no build.
 
 # Mesma major do .nvmrc.
 ARG NODE_VERSION=24

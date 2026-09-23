@@ -68,7 +68,7 @@ function negar(request: NextRequest, motivo: MotivoDeRecusa) {
 function naoConfigurado(request: NextRequest) {
   console.error(
     '[proxy] LINK_SECRET ausente — o app rejeita TODO acesso, de propósito. ' +
-      'Cadastrar nas variáveis do serviço (console do TurboCloud); o .env.local não vale em produção. ' +
+      'Cadastrar no .env do servidor (ver docs/deploy-vps.md); o .env.local não vale em produção. ' +
       'O MESMO valor precisa estar no Clinic Control, que emite os links.'
   )
   const corpo = { error: 'Painel não configurado', motivo: 'sem-segredo' }
