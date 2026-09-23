@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { Aviso, Estado, EsqueletoDeLinha, Vazio } from '@/ui/primitivos'
 import { PainelDeEnvio } from './PainelDeEnvio'
 import { estadoDoEnvio, temMensagemValida } from '@/ui/statusDoEnvio'
+import { formatarTelefoneBR, paraE164BR } from '@/shared/telefone/e164'
 import {
   MESES_TITULO,
   aniversarioParaExibicao,
@@ -46,8 +47,13 @@ interface Resposta {
 }
 
 /** Telefone só é "a corrigir" quando o cadastro não tem número utilizável. */
+/**
+ * Telefone utilizável pelo MESMO critério do agendamento (`paraE164BR`). Antes
+ * a tela só contava dígitos, e um número que o servidor recusa ("000000000000",
+ * DDD inexistente) aparecia selecionável e falhava na hora de agendar.
+ */
 function temTelefone(p: Aniversariante) {
-  return p.telefone !== null && p.telefone.replace(/\D/g, '').length >= 10
+  return paraE164BR(p.telefone) !== null
 }
 
 /**
@@ -202,7 +208,7 @@ export function Agenda() {
   ]
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-5">
+    <div className={clsx('mx-auto flex max-w-6xl flex-col gap-5', pacientesSelecionados.length > 0 && 'pb-20 lg:pb-0')}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold tracking-[-0.01em] text-ink">
@@ -325,7 +331,8 @@ export function Agenda() {
                       <span className="tnum text-xs text-muted">
                         {grupo.pessoas.length} {grupo.pessoas.length === 1 ? 'pessoa' : 'pessoas'}
                       </span>
-                      {selecionaveisDoDia.length > 0 && (
+                      {/* Só com 2+: num dia de uma pessoa o botão repete a caixa da linha. */}
+                      {selecionaveisDoDia.length > 1 && (
                         <button
                           onClick={() => alternarDia(grupo.pessoas)}
                           aria-label={
@@ -348,6 +355,9 @@ export function Agenda() {
                           hoje={hoje}
                           marcado={selecionados.has(p.id)}
                           aoAlternar={() => alternar(p.id)}
+                          // Dentro de "Sem mensagem", a etiqueta igual em toda
+                          // linha é ruído — só o que foge da regra aparece.
+                          ocultarSemMensagem={filtro === 'pendentes'}
                         />
                       ))}
                     </ul>
@@ -356,12 +366,45 @@ export function Agenda() {
               })}
           </div>
 
-          <PainelDeEnvio
-            selecionados={pacientesSelecionados}
-            semTelefone={grupos.corrigir.length}
-            aoAgendar={recarregar}
-            aoConcluir={() => setSelecionados(new Set())}
-          />
+          {/* Em tela larga o painel acompanha a rolagem: numa lista de centenas de
+              linhas ele sumia de vista junto com o topo da página. */}
+          <div id="painel-de-envio" className="w-full scroll-mt-4 lg:sticky lg:top-0 lg:w-auto lg:self-start">
+            <PainelDeEnvio
+              selecionados={pacientesSelecionados}
+              semTelefone={grupos.corrigir.length}
+              aoAgendar={recarregar}
+              aoConcluir={() => setSelecionados(new Set())}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Tela estreita: o painel de envio fica DEPOIS da lista — com centenas de
+          aniversariantes, o botão de agendar ficava a centenas de linhas de
+          distância. A barra leva até ele. Em tela larga o painel já está ao
+          lado, e a barra não aparece. */}
+      {pacientesSelecionados.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-6xl items-center gap-3">
+            <p className="tnum text-sm text-ink">
+              <span className="font-semibold">{pacientesSelecionados.length}</span>{' '}
+              {pacientesSelecionados.length === 1 ? 'selecionado' : 'selecionados'}
+            </p>
+            <button
+              onClick={() => setSelecionados(new Set())}
+              className="text-[13px] text-ink-2 hover:text-ink hover:underline"
+            >
+              Limpar
+            </button>
+            <button
+              onClick={() =>
+                document.getElementById('painel-de-envio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+              className="ml-auto inline-flex h-9 items-center rounded-full bg-accent px-4 text-sm font-medium text-white hover:bg-accent-ink"
+            >
+              Revisar e agendar
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -373,11 +416,13 @@ function Linha({
   hoje,
   marcado,
   aoAlternar,
+  ocultarSemMensagem,
 }: {
   paciente: Aniversariante
   hoje: DataDaClinica
   marcado: boolean
   aoAlternar: () => void
+  ocultarSemMensagem: boolean
 }) {
   const idade = idadeQueFaz(paciente.datanascimento, hoje)
   const agendado = estaAgendado(paciente)
@@ -404,7 +449,7 @@ function Linha({
       </div>
 
       <span className="tnum hidden w-40 shrink-0 truncate text-sm text-ink-2 sm:block">
-        {paciente.telefone ?? '—'}
+        {paciente.telefone ? formatarTelefoneBR(paciente.telefone) : '—'}
       </span>
 
       <div className="w-36 shrink-0 text-right">
@@ -423,7 +468,7 @@ function Linha({
           <Estado tom="parado">Já passou</Estado>
         ) : !paciente.agendavel ? (
           <Estado tom="parado">É hoje</Estado>
-        ) : (
+        ) : ocultarSemMensagem ? null : (
           <Estado tom="neutro">Sem mensagem</Estado>
         )}
       </div>

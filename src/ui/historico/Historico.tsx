@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Aviso, Botao, Carregando, Estado, Vazio } from '@/ui/primitivos'
 import { estadoDoEnvio } from '@/ui/statusDoEnvio'
+import { formatarTelefoneBR } from '@/shared/telefone/e164'
 
 // O histórico de envios, paginado.
 //
@@ -93,7 +94,8 @@ export function Historico() {
   const totalDePaginas = dados ? Math.max(1, Math.ceil(dados.total / dados.porPagina)) : 1
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-5">
+    // Mesma largura das outras telas: trocar de aba não pode mover a margem.
+    <div className="mx-auto flex max-w-6xl flex-col gap-5">
       <div>
         <h1 className="text-lg font-semibold tracking-[-0.01em] text-ink">Histórico de envios</h1>
         <p className="mt-0.5 text-sm text-muted">
@@ -124,7 +126,34 @@ export function Historico() {
 
       {!carregando && dados && dados.itens.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-[12px] border border-line bg-surface">
+          {/* Tela estreita (aba lateral, celular): cartões. A tabela, rolando de
+              lado, escondia a situação e o botão Cancelar fora da tela. */}
+          <ul className="flex flex-col gap-2 sm:hidden">
+            {dados.itens.map((item) => {
+              const status = estadoDoEnvio(item.status)
+              return (
+                <li key={item.id} className="rounded-[12px] border border-line bg-surface px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 text-sm font-medium text-ink">{item.pacienteNome}</p>
+                    <Estado tom={status.tom}>{status.rotulo}</Estado>
+                  </div>
+                  <p className="tnum mt-1 text-xs text-muted">
+                    {formatarTelefoneBR(item.pacienteTelefone)} · {formatarData(item.agendadoPara)}
+                  </p>
+                  {item.podeCancelar && (
+                    <div className="mt-2.5">
+                      <BotaoCancelar
+                        cancelando={cancelando === item.id}
+                        aoCancelar={() => cancelar(item.id)}
+                      />
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-[12px] border border-line bg-surface sm:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line-soft text-left text-xs text-muted">
@@ -142,7 +171,7 @@ export function Historico() {
                     <tr key={item.id} className="border-b border-line-soft last:border-b-0">
                       <td className="px-4 py-3 font-medium text-ink">{item.pacienteNome}</td>
                       <td className="tnum px-4 py-3 whitespace-nowrap text-ink-2">
-                        {item.pacienteTelefone}
+                        {formatarTelefoneBR(item.pacienteTelefone)}
                       </td>
                       <td className="tnum px-4 py-3 whitespace-nowrap text-ink-2">
                         {formatarData(item.agendadoPara)}
@@ -152,14 +181,10 @@ export function Historico() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {item.podeCancelar && (
-                          <Botao
-                            variante="secundario"
-                            tamanho="sm"
-                            onClick={() => cancelar(item.id)}
-                            disabled={cancelando === item.id}
-                          >
-                            {cancelando === item.id ? 'Cancelando…' : 'Cancelar'}
-                          </Botao>
+                          <BotaoCancelar
+                            cancelando={cancelando === item.id}
+                            aoCancelar={() => cancelar(item.id)}
+                          />
                         )}
                       </td>
                     </tr>
@@ -195,5 +220,13 @@ export function Historico() {
         </>
       )}
     </div>
+  )
+}
+
+function BotaoCancelar({ cancelando, aoCancelar }: { cancelando: boolean; aoCancelar: () => void }) {
+  return (
+    <Botao variante="secundario" tamanho="sm" onClick={aoCancelar} disabled={cancelando}>
+      {cancelando ? 'Cancelando…' : 'Cancelar'}
+    </Botao>
   )
 }

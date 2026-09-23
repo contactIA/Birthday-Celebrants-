@@ -63,7 +63,9 @@ export function Modelos() {
   }, [tentativa])
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-5">
+    // Mesma largura e margem esquerda das outras telas; a coluna de texto fica
+    // estreita (max-w-3xl) porque é lida, não varrida.
+    <div className="mx-auto flex max-w-6xl flex-col gap-5 [&>*]:max-w-3xl">
       <div>
         <h1 className="text-lg font-semibold tracking-[-0.01em] text-ink">Modelos de mensagem</h1>
         <p className="mt-0.5 text-sm text-muted">
