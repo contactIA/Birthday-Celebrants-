@@ -1,0 +1,73 @@
+import { aniversarioJaPassou } from '@/shared/data/agendamento'
+import { anoNoTimezone } from '@/shared/data/fuso'
+import { mesDiaDe } from '@/shared/data/parse'
+import type { StatusEnvio } from '@/shared/db'
+import type { Aniversariante } from '@/providers/prontuario'
+
+// A regra da tela de aniversariantes, separada de onde os dados vêm.
+//
+// As dependências entram por parâmetro para que cada caminho seja testável sem
+// rede e sem banco: o provedor de prontuário e a consulta de envios são as
+// duas únicas coisas que esta fatia não faz sozinha.
+
+/** O que a tela precisa saber sobre um agendamento já feito. */
+export interface EnvioResumo {
+  pacienteId: string
+  status: StatusEnvio
+  scheduledFor: string | null
+}
+
+export interface ItemDaLista extends Aniversariante {
+  /** Aniversário anterior a hoje no fuso da clínica: não é agendável. */
+  jaPassou: boolean
+  /** O agendamento deste ano, se existir. */
+  envio: EnvioResumo | null
+}
+
+export interface Dependencias {
+  listarDoProntuario: (mes: number) => Promise<Aniversariante[]>
+  buscarEnvios: (ano: number) => Promise<EnvioResumo[]>
+}
+
+export interface Consulta {
+  mes: number
+  timezone: string
+  agora: Date
+}
+
+export async function listarAniversariantes(
+  consulta: Consulta,
+  deps: Dependencias
+): Promise<ItemDaLista[]> {
+  // O MESMO ano que o agendamento usa para gravar a chave única. Se as duas
+  // fatias divergirem, a tela mostra "sem mensagem" para quem acabou de ser
+  // agendado — por isso a regra mora em `shared`.
+  const ano = anoNoTimezone(consulta.timezone, consulta.agora)
+
+  // As duas buscas são independentes — não há razão para esperar uma para
+  // começar a outra. A do prontuário costuma ser a lenta.
+  const [doProntuario, envios] = await Promise.all([
+    deps.listarDoProntuario(consulta.mes),
+    deps.buscarEnvios(ano),
+  ])
+
+  const envioPorPaciente = new Map(envios.map((e) => [e.pacienteId, e]))
+
+  return doProntuario
+    .map((paciente) => ({
+      ...paciente,
+      jaPassou: aniversarioJaPassou(
+        mesDiaDe(paciente.aniversario).mes,
+        mesDiaDe(paciente.aniversario).dia,
+        consulta.timezone,
+        consulta.agora
+      ),
+      envio: envioPorPaciente.get(paciente.id) ?? null,
+    }))
+    // Ordenado por dia aqui, e não na tela: é a ordem em que a lista faz
+    // sentido para qualquer consumidor, não uma preferência de layout.
+    .sort((a, b) => {
+      const diff = mesDiaDe(a.aniversario).dia - mesDiaDe(b.aniversario).dia
+      return diff !== 0 ? diff : a.nome.localeCompare(b.nome, 'pt-BR')
+    })
+}

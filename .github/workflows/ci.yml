@@ -1,0 +1,55 @@
+# Verificação de PR. Espelha o ci.yml do Clinic-Control, com uma diferença que
+# importa: aqui existe suíte de testes, e ela roda antes do build.
+#
+# Processo compartilhado entre os repos:
+# https://github.com/g4bs2006/Clinic-Control/blob/main/CONTRIBUTING.md
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          # Fixada também em .nvmrc — no repositório anterior a versão de
+          # produção não estava declarada em lugar nenhum.
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tipos
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Testes
+        # O kernel em src/shared é função pura: roda sem banco, sem rede e sem
+        # variável de ambiente.
+        run: npm test
+
+      - name: Build
+        # `next build` executa código de módulo, então as variáveis precisam
+        # existir — não serem válidas. Valores de fachada evitam depender de
+        # secrets.
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+          CRON_SECRET: ci-cron-secret
+          LINK_SECRET: ci-link-secret
+        run: npm run build

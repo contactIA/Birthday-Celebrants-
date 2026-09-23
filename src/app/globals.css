@@ -1,0 +1,108 @@
+@import 'tailwindcss';
+
+/*
+  TEMA ÚNICO, CLARO — e isso é escolha, não omissão.
+
+  O painel roda dentro de um iframe na plataforma do cliente. De dentro do
+  iframe não dá para saber o tema do host, e `prefers-color-scheme` responde
+  pelo sistema operacional da pessoa, não pela página que nos embute. Seguir a
+  preferência do SO deixaria um painel escuro dentro de um host claro — que é
+  pior que não ter tema escuro.
+
+  Se um dia o host passar o tema (por query string ou postMessage), é aqui que
+  entra o segundo conjunto de tokens.
+*/
+
+@theme {
+  /* Neutros com viés levemente frio: é o terreno de chrome de SaaS, e o
+     painel precisa parecer parte do host, não uma ilha. */
+  --color-ground: #f6f7fa;
+  --color-surface: #ffffff;
+  --color-sunk: #eef0f5;
+  --color-line: #e3e7ee;
+  --color-line-soft: #eef1f6;
+
+  --color-ink: #191c25;
+  --color-ink-2: #565e70;
+  --color-muted: #868da0;
+
+  /* Acento em UM lugar. Trocar o white label é trocar estas três linhas. */
+  --color-accent: #6d3be4;
+  --color-accent-ink: #5325c4;
+  --color-accent-soft: #f2ecfe;
+
+  /* Cores de ESTADO, separadas do acento de propósito: "agendado" não pode
+     depender da cor da marca, senão trocar a marca muda o significado. */
+  --color-ok: #0f7b54;
+  --color-ok-soft: #e4f4ec;
+  --color-atencao: #96560a;
+  --color-atencao-soft: #fbeedb;
+  --color-parado: #6b7280;
+  --color-parado-soft: #eef0f3;
+  --color-erro: #b3261e;
+  --color-erro-soft: #fbe9e7;
+
+  /* Pilha do sistema: Segoe UI no Windows, SF no Mac — o que o chrome do host
+     já usa. Sem webfont: menos uma requisição dentro do iframe e nenhuma
+     dependência de rede no build. */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+
+  --radius-card: 12px;
+}
+
+html {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  /* Fundo explícito: o iframe compõe sobre o que o host pintar, e um body
+     transparente pega emprestado o fundo dele. */
+  background: var(--color-ground);
+}
+
+/* Números em colunas precisam alinhar — contagens, horários, datas. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Barra de rolagem discreta: dentro do iframe a barra padrão do Windows
+   compete com a do host e o painel parece uma janela dentro da janela. */
+.rolagem-discreta {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+.rolagem-discreta::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.rolagem-discreta::-webkit-scrollbar-thumb {
+  background-color: var(--color-line);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+.rolagem-discreta::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

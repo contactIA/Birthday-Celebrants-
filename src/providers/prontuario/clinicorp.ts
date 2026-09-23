@@ -1,0 +1,74 @@
+import type { Clinica } from '@/shared/clinica/repositorio'
+import { db, type PacienteCacheRow } from '@/shared/db'
+import type { Aniversariante, ProvedorDeProntuario } from './porta'
+
+// Adapter da Clinicorp: lê o NOSSO cache, não a API deles.
+//
+// POR QUE. A API da Clinicorp só tem "aniversariantes de UM dia", e o status do
+// paciente (ACTIVE/INACTIVE/DELETED) vem em outra chamada, uma por paciente.
+// Reconstruir "o mês" ao vivo custaria até ~31 requests de aniversário mais um
+// por paciente encontrado, a cada carregamento de tela.
+//
+// ┌──────────────────────────────────────────────────────────────────────────┐
+// │ DEPENDÊNCIA ENTRE FATIAS — a única do sistema.                           │
+// │                                                                          │
+// │ Quem ESCREVE este cache é `features/sincronizar-clinicorp` (cron diário).│
+// │ Quem LÊ é este adapter. As duas precisam concordar sobre o conteúdo da   │
+// │ tabela `aniversariantes_pacientes_cache`, e nada no compilador garante   │
+// │ isso — a tabela é a interface. Mexeu numa, olhe a outra.                 │
+// └──────────────────────────────────────────────────────────────────────────┘
+
+/** Status vindo do `patient/get` da Clinicorp, gravado no cache pelo sync. */
+const SITUACOES_EXCLUIDAS = new Set(['INACTIVE', 'DELETED'])
+
+export function provedorClinicorp(clinica: Clinica): ProvedorDeProntuario {
+  return {
+    async listarDoMes(mes: number): Promise<Aniversariante[]> {
+      const { data, error } = await db()
+        .from('aniversariantes_pacientes_cache')
+        .select('*')
+        .eq('clinica_id', clinica.id)
+        .eq('mes_aniversario', mes)
+
+      if (error) throw new Error(`Erro ao ler o cache de pacientes: ${error.message}`)
+      return normalizar((data ?? []) as PacienteCacheRow[])
+    },
+
+    async buscarPorIds(ids: string[]): Promise<Aniversariante[]> {
+      if (ids.length === 0) return []
+      const { data, error } = await db()
+        .from('aniversariantes_pacientes_cache')
+        .select('*')
+        .eq('clinica_id', clinica.id)
+        .in('paciente_id', ids)
+
+      if (error) throw new Error(`Erro ao ler o cache de pacientes: ${error.message}`)
+      return normalizar((data ?? []) as PacienteCacheRow[])
+    },
+  }
+}
+
+/** Uma normalização só, para listar e buscar não divergirem. */
+function normalizar(linhas: PacienteCacheRow[]): Aniversariante[] {
+  const itens: Aniversariante[] = []
+
+  for (const linha of linhas) {
+    // `situacao` null = não verificado (a chamada de status falhou no sync).
+    // Não filtramos: mesmo espírito informativo do outro provedor — esconder
+    // paciente por falha nossa é pior que mostrar a mais.
+    if (linha.situacao && SITUACOES_EXCLUIDAS.has(linha.situacao)) continue
+
+    const [ano, mesStr, diaStr] = (linha.datanascimento ?? '').split('-')
+
+    itens.push({
+      id: linha.paciente_id,
+      nome: linha.nome,
+      telefone: linha.telefone,
+      aniversario: `${String(linha.mes_aniversario).padStart(2, '0')}/${String(linha.dia_aniversario).padStart(2, '0')}`,
+      datanascimento: ano && mesStr && diaStr ? `${diaStr}/${mesStr}/${ano}` : '',
+      situacao: linha.situacao ?? '',
+    })
+  }
+
+  return itens
+}

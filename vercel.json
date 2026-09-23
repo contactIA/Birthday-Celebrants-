@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/sincronizar-clinicorp",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/reconciliar-status",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}
