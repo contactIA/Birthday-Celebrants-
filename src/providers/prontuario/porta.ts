@@ -67,6 +67,16 @@ export interface ProvedorDeProntuario {
    * que dizer sobre eles.
    */
   buscarPorIds(ids: string[]): Promise<Aniversariante[]>
+
+  /**
+   * `true` quando o provedor ainda não tem dado nenhum desta clínica — e por
+   * isso uma lista vazia NÃO significa "ninguém faz aniversário".
+   *
+   * Opcional: só faz sentido para quem lê de um cache preenchido por fora
+   * (Clinicorp). Quem consulta ao vivo (e-Clínica) não implementa — lista
+   * vazia ali é resposta de verdade.
+   */
+  aguardandoPrimeiraSincronizacao?(): Promise<boolean>
 }
 
 /**

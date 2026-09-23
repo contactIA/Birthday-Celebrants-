@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
-import { listarAniversariantes, type Dependencias, type EnvioResumo } from './consulta'
+import {
+  aguardandoPrimeiraSincronizacao,
+  listarAniversariantes,
+  type Dependencias,
+  type EnvioResumo,
+  type ItemDaLista,
+} from './consulta'
 import type { Aniversariante } from '@/providers/prontuario'
 
 const SP = 'America/Sao_Paulo'
@@ -124,5 +130,27 @@ describe('repasse ao provedor', () => {
   it('mês sem aniversariante devolve lista vazia, não erro', async () => {
     const itens = await listarAniversariantes({ mes: 2, timezone: SP, agora: AGORA }, deps([]))
     expect(itens).toEqual([])
+  })
+})
+
+describe('aguardandoPrimeiraSincronizacao', () => {
+  const item = { id: '1' } as ItemDaLista
+
+  it('lista vazia + provedor sem dado nenhum = aguardando', async () => {
+    expect(await aguardandoPrimeiraSincronizacao([], async () => true)).toBe(true)
+  })
+
+  it('lista vazia + provedor com dado = ninguém faz aniversário mesmo', async () => {
+    expect(await aguardandoPrimeiraSincronizacao([], async () => false)).toBe(false)
+  })
+
+  it('com itens nem pergunta ao provedor', async () => {
+    const verificar = vi.fn(async () => true)
+    expect(await aguardandoPrimeiraSincronizacao([item], verificar)).toBe(false)
+    expect(verificar).not.toHaveBeenCalled()
+  })
+
+  it('provedor ao vivo (sem o método) nunca está aguardando', async () => {
+    expect(await aguardandoPrimeiraSincronizacao([], undefined)).toBe(false)
   })
 })

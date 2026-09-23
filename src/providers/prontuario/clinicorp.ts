@@ -45,6 +45,26 @@ export function provedorClinicorp(clinica: Clinica): ProvedorDeProntuario {
       if (error) throw new Error(`Erro ao ler o cache de pacientes: ${error.message}`)
       return normalizar((data ?? []) as PacienteCacheRow[])
     },
+
+    /**
+     * Cache sem NENHUMA linha da clínica, em mês nenhum: a sincronização ainda
+     * não rodou para ela (clínica recém-cadastrada, ou sync sempre falhando).
+     *
+     * Heurística, e o limite dela fica registrado: uma clínica sem nenhum
+     * aniversariante nos dois meses sincronizados também cairia aqui. Numa
+     * base real de consultório isso não acontece; se acontecer, a tela diz
+     * "aguardando sincronização" em vez de "ninguém faz aniversário" — erra
+     * para o lado que manda alguém olhar.
+     */
+    async aguardandoPrimeiraSincronizacao(): Promise<boolean> {
+      const { count, error } = await db()
+        .from('aniversariantes_pacientes_cache')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinica_id', clinica.id)
+
+      if (error) throw new Error(`Erro ao ler o cache de pacientes: ${error.message}`)
+      return (count ?? 0) === 0
+    },
   }
 }
 

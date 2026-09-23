@@ -35,6 +35,11 @@ interface Resposta {
   itens: Aniversariante[]
   mes: number
   hoje: DataDaClinica
+  /**
+   * O prontuário ainda não tem dado nenhum desta clínica (Clinicorp antes da
+   * primeira sincronização). Lista vazia aqui NÃO é "ninguém faz aniversário".
+   */
+  aguardandoSincronizacao?: boolean
 }
 
 /** Telefone só é "a corrigir" quando o cadastro não tem número utilizável. */
@@ -177,7 +182,11 @@ export function Agenda() {
             {mes !== null ? MESES_TITULO[mes - 1] : 'Aniversariantes'}
           </h1>
           <p className="mt-0.5 text-sm text-muted">
-            {carregando ? 'Buscando aniversariantes…' : resumo || 'Nenhum aniversariante neste mês'}
+            {carregando
+              ? 'Buscando aniversariantes…'
+              : dados?.aguardandoSincronizacao
+                ? 'Aguardando a primeira sincronização com o prontuário'
+                : resumo || 'Nenhum aniversariante neste mês'}
           </p>
         </div>
 
@@ -260,7 +269,14 @@ export function Agenda() {
               </div>
             )}
 
-            {!carregando && porDia.length === 0 && (
+            {!carregando && dados?.aguardandoSincronizacao && (
+              <Vazio titulo="Aguardando a primeira sincronização">
+                Os aniversariantes desta clínica vêm do sistema de prontuário numa sincronização que roda
+                todo dia de madrugada. Assim que ela acontecer, eles aparecem aqui.
+              </Vazio>
+            )}
+
+            {!carregando && !dados?.aguardandoSincronizacao && porDia.length === 0 && (
               <Vazio titulo={filtro === 'todos' ? 'Nenhum aniversariante neste mês' : 'Nada nesta lista'}>
                 {filtro === 'todos'
                   ? 'Nenhum paciente da base faz aniversário no mês selecionado.'

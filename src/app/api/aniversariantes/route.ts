@@ -4,7 +4,7 @@ import { buscarClinica } from '@/shared/clinica/repositorio'
 import { hojeNoTimezone } from '@/shared/data/fuso'
 import { lerMes, responderErro } from '@/shared/http'
 import { provedorDe } from '@/providers/prontuario'
-import { listarAniversariantes } from '@/features/listar-aniversariantes/consulta'
+import { aguardandoPrimeiraSincronizacao, listarAniversariantes } from '@/features/listar-aniversariantes/consulta'
 import { buscarEnviosDoAno } from '@/features/listar-aniversariantes/dados'
 
 // GET /api/aniversariantes?mes=MM
@@ -25,10 +25,11 @@ export async function GET(request: NextRequest) {
     const hoje = hojeNoTimezone(clinica.timezone, agora)
     const mes = lerMes(request.nextUrl.searchParams.get('mes')) ?? hoje.mes
 
+    const prontuario = provedorDe(clinica)
     const itens = await listarAniversariantes(
       { mes, timezone: clinica.timezone, agora },
       {
-        listarDoProntuario: (m) => provedorDe(clinica).listarDoMes(m),
+        listarDoProntuario: (m) => prontuario.listarDoMes(m),
         buscarEnvios: (ano) => buscarEnviosDoAno(clinica, ano),
       }
     )
@@ -36,7 +37,12 @@ export async function GET(request: NextRequest) {
     // `hoje` no fuso DA CLÍNICA vai junto para a tela poder dizer "Hoje" e
     // "Amanhã" e calcular idade sem refazer conta de fuso no navegador — que é
     // de onde vinham os erros de um dia. O browser só compara números.
-    return NextResponse.json({ itens, mes, hoje })
+    const aguardandoSincronizacao = await aguardandoPrimeiraSincronizacao(
+      itens,
+      prontuario.aguardandoPrimeiraSincronizacao?.bind(prontuario)
+    )
+
+    return NextResponse.json({ itens, mes, hoje, aguardandoSincronizacao })
   } catch (err) {
     return responderErro('api/aniversariantes', err)
   }

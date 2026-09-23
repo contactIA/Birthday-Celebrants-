@@ -1,11 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { sincronizarClinica, type RelatorioDaClinica } from '@/features/sincronizar-clinicorp/sincronizacao'
-import { clienteClinicorp } from '@/providers/prontuario/clinicorp-api'
-import {
-  clinicasClinicorp,
-  gravarLote,
-  removerObsoletos,
-} from '@/features/sincronizar-clinicorp/dados'
+import type { RelatorioDaClinica } from '@/features/sincronizar-clinicorp/sincronizacao'
+import { clinicasClinicorp } from '@/features/sincronizar-clinicorp/dados'
+import { executarSincronizacao } from '@/features/sincronizar-clinicorp/executar'
 
 // GET /api/cron/sincronizar-clinicorp — 1x/dia pelo crontab da VPS
 // (ver docs/deploy-vps.md).
@@ -56,15 +52,11 @@ export async function GET(request: NextRequest) {
   const relatorios = await Promise.all(
     clinicas.map(async (clinica): Promise<RelatorioDaClinica> => {
       try {
-        const api = clienteClinicorp(clinica)
-        return await sincronizarClinica(clinica, agora, {
-          buscarAniversariantesDoDia: (data) => api.aniversariantesDoDia(data),
-          buscarStatus: (id) => api.statusDoPaciente(id),
-          gravarLote: (linhas) => gravarLote(clinica, linhas, carimbo),
-          removerObsoletos: () => removerObsoletos(clinica, carimbo),
-        })
+        // Mesma execução do botão "Sincronizar agora" do setup, e mesma trava.
+        return await executarSincronizacao(clinica, agora, carimbo)
       } catch (err) {
-        // Uma clínica mal configurada não derruba o cron das outras.
+        // Só chega aqui se o setup estiver sincronizando esta clínica agora —
+        // ela está sendo renovada, só não por este cron.
         return {
           companyId: clinica.companyId,
           diasConsultados: 0,

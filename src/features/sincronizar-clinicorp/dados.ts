@@ -69,3 +69,22 @@ export async function removerObsoletos(clinica: Clinica, carimbo: string): Promi
 
   if (error) throw new Error(`Erro ao limpar o cache: ${error.message}`)
 }
+
+export interface ResumoDoCache {
+  pacientes: number
+  /** Carimbo da última execução que gravou algo. `null` = nunca sincronizou. */
+  sincronizadoEm: string | null
+}
+
+/** O estado do cache da clínica, para a área de setup mostrar. */
+export async function resumoDoCache(clinica: Clinica): Promise<ResumoDoCache> {
+  const { data, count, error } = await db()
+    .from('aniversariantes_pacientes_cache')
+    .select('synced_at', { count: 'exact' })
+    .eq('clinica_id', clinica.id)
+    .order('synced_at', { ascending: false })
+    .limit(1)
+
+  if (error) throw new Error(`Erro ao ler o cache: ${error.message}`)
+  return { pacientes: count ?? 0, sincronizadoEm: data?.[0]?.synced_at ?? null }
+}

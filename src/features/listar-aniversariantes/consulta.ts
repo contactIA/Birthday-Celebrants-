@@ -71,3 +71,18 @@ export async function listarAniversariantes(
       return diff !== 0 ? diff : a.nome.localeCompare(b.nome, 'pt-BR')
     })
 }
+
+/**
+ * A lista veio vazia porque o prontuário ainda não tem dado desta clínica?
+ *
+ * Só pergunta ao provedor quando a lista está vazia: com itens, a resposta é
+ * óbvia e a consulta extra seria desperdício. Sem a pergunta, "clínica
+ * recém-cadastrada" e "ninguém faz aniversário" chegavam iguais à tela.
+ */
+export async function aguardandoPrimeiraSincronizacao(
+  itens: ItemDaLista[],
+  verificar: (() => Promise<boolean>) | undefined
+): Promise<boolean> {
+  if (itens.length > 0 || !verificar) return false
+  return verificar()
+}

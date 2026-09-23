@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Aviso, Botao, Carregando, Estado } from '@/ui/primitivos'
 import { FUSOS_SUPORTADOS } from '@/shared/data/fuso'
 import { chamarApi, NOME_DO_FUSO, NOME_DO_SISTEMA, type ClinicaNoSetup } from './api'
@@ -318,6 +318,11 @@ export function FormularioDeClinica({ id }: { id?: string }) {
 
       {teste && <ResultadoDoTesteDeConexao teste={teste} />}
 
+      {/* Pela clínica SALVA, não pelo formulário: trocar o sistema no select
+          sem salvar não pode oferecer sincronizar com credenciais que o
+          servidor ainda não tem. */}
+      {editando && salva!.sistemaProntuario === 'clinicorp' && <Sincronizacao id={id!} />}
+
       {editando && <LinkDoPainel id={id!} />}
 
       <div className="fixed inset-x-0 bottom-0 border-t border-line bg-surface/95 backdrop-blur">
@@ -338,6 +343,136 @@ export function FormularioDeClinica({ id }: { id?: string }) {
         </div>
       </div>
     </form>
+  )
+}
+
+interface EstadoDaSincronizacao {
+  emAndamento: boolean
+  ultimaExecucao: {
+    inicio: string
+    fim: string | null
+    relatorio: { pacientes: number; diasConsultados: number; erros: string[]; obsoletosRemovidos: boolean } | null
+  } | null
+  cache: { pacientes: number; sincronizadoEm: string | null }
+}
+
+function dataHora(iso: string): string {
+  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+/**
+ * Sincronização com a Clinicorp. O botão dispara e a tela acompanha — a
+ * execução leva minutos (ver a rota), e segurar a requisição congelaria a tela.
+ */
+function Sincronizacao({ id }: { id: string }) {
+  const [estado, setEstado] = useState<EstadoDaSincronizacao | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const [disparando, setDisparando] = useState(false)
+
+  const consultar = useCallback(
+    () =>
+      chamarApi<EstadoDaSincronizacao>(`/api/setup/clinicas/${id}/sincronizar`)
+        .then(setEstado)
+        .catch((e: Error) => setErro(e.message)),
+    [id]
+  )
+
+  useEffect(() => {
+    consultar()
+  }, [consultar])
+
+  // Enquanto roda, consulta a cada 3s. Para sozinho quando termina.
+  const emAndamento = estado?.emAndamento ?? false
+  useEffect(() => {
+    if (!emAndamento) return
+    const t = setInterval(consultar, 3000)
+    return () => clearInterval(t)
+  }, [emAndamento, consultar])
+
+  async function sincronizar() {
+    setDisparando(true)
+    setErro(null)
+    try {
+      setEstado(await chamarApi<EstadoDaSincronizacao>(`/api/setup/clinicas/${id}/sincronizar`, { method: 'POST' }))
+    } catch (e) {
+      setErro((e as Error).message)
+    }
+    setDisparando(false)
+  }
+
+  const execucao = estado?.ultimaExecucao
+  const relatorio = execucao?.relatorio
+
+  return (
+    <Secao
+      titulo="Sincronização com a Clinicorp"
+      descricao="O painel lê os aniversariantes de um cache, renovado todo dia às 03:00 (Brasília). Use o botão para não esperar — por exemplo, logo depois de cadastrar a clínica."
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1 text-sm">
+          {!estado ? (
+            <Carregando>Consultando…</Carregando>
+          ) : estado.cache.sincronizadoEm ? (
+            <p className="text-ink">
+              <span className="tnum font-medium">{estado.cache.pacientes}</span>{' '}
+              {estado.cache.pacientes === 1 ? 'paciente' : 'pacientes'} no cache ·{' '}
+              <span className="text-ink-2">última sincronização {dataHora(estado.cache.sincronizadoEm)}</span>
+            </p>
+          ) : (
+            <p className="text-ink-2">Nunca sincronizada — o painel desta clínica aparece vazio até a primeira.</p>
+          )}
+        </div>
+        <Botao
+          type="button"
+          variante="discreto"
+          onClick={sincronizar}
+          disabled={!estado || emAndamento || disparando}
+        >
+          {emAndamento ? 'Sincronizando…' : 'Sincronizar agora'}
+        </Botao>
+      </div>
+
+      {emAndamento && (
+        <Aviso tom="neutro">
+          Sincronizando desde {execucao ? dataHora(execucao.inicio) : 'agora'}. Leva alguns minutos — são
+          dezenas de consultas à Clinicorp. Pode sair desta tela; a sincronização continua.
+        </Aviso>
+      )}
+
+      {!emAndamento && relatorio && (
+        <Aviso
+          tom={relatorio.erros.length === 0 ? 'neutro' : relatorio.pacientes > 0 ? 'atencao' : 'erro'}
+          titulo={
+            relatorio.erros.length === 0
+              ? `Concluída — ${relatorio.pacientes} pacientes em ${relatorio.diasConsultados} dias consultados`
+              : relatorio.pacientes > 0
+                ? `Concluída com ${relatorio.erros.length} ${relatorio.erros.length === 1 ? 'falha' : 'falhas'} — ${relatorio.pacientes} pacientes gravados`
+                : 'A sincronização falhou'
+          }
+        >
+          {relatorio.erros.length > 0 && (
+            <>
+              <ul className="mt-1 list-inside list-disc font-mono text-xs">
+                {relatorio.erros.slice(0, 3).map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+              {relatorio.erros.some((e) => e.includes('HTTP 429')) && (
+                <p className="mt-2">
+                  HTTP 429 é o limite de requisições da Clinicorp, não erro de credencial. Tente de novo mais
+                  tarde; os dados já gravados não se perdem.
+                </p>
+              )}
+              {!relatorio.obsoletosRemovidos && relatorio.pacientes > 0 && (
+                <p className="mt-2">Algum dia falhou, então a limpeza de pacientes antigos ficou para a próxima.</p>
+              )}
+            </>
+          )}
+        </Aviso>
+      )}
+
+      {erro && <Aviso tom="erro">{erro}</Aviso>}
+    </Secao>
   )
 }
 
