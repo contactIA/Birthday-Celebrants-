@@ -112,8 +112,16 @@ docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
 
 ## 6. Crons
 
-Mesmos horários da Vercel, que são UTC — e a VPS já está em UTC. 06:00 UTC é
-03:00 em Brasília.
+Horários em UTC, e a VPS já está em UTC. 06:00 UTC é 03:00 em Brasília.
+
+- **Sincronização da Clinicorp:** 1x/dia, de madrugada. Faz ~61 chamadas por
+  clínica, contra uma cota de 500/hora por usuário de API.
+- **Reconciliação de status:** a cada 15 min. Traz "enviada/entregue/lida"
+  de volta da plataforma. Só consulta a plataforma quando há envio com
+  horário vencido e sem status final, então as execuções sem nada pendente
+  não custam chamada nenhuma. Uma vez por dia (o horário original, herdado da
+  Vercel) deixava mensagem entregue aparecendo como "Agendado" até a
+  madrugada seguinte.
 
 ```bash
 crontab -e
@@ -122,9 +130,9 @@ crontab -e
 Acrescentar, sem mexer nas linhas que já existem:
 
 ```cron
-# Birthday Celebrants — sincroniza o cache da Clinicorp; a reconciliação roda depois.
+# Birthday Celebrants — sincroniza o cache da Clinicorp; reconcilia status a cada 15 min.
 0 6 * * * /home/contactia/birthday-celebrants/app/deploy/cron.sh sincronizar-clinicorp >> /home/contactia/birthday-celebrants/cron.log 2>&1
-0 7 * * * /home/contactia/birthday-celebrants/app/deploy/cron.sh reconciliar-status >> /home/contactia/birthday-celebrants/cron.log 2>&1
+*/15 * * * * /home/contactia/birthday-celebrants/app/deploy/cron.sh reconciliar-status >> /home/contactia/birthday-celebrants/cron.log 2>&1
 ```
 
 `deploy/cron.sh` lê o `CRON_SECRET` do mesmo `.env` do container e fala com o
