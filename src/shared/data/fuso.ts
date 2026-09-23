@@ -23,8 +23,8 @@ export interface DataLocal {
 /**
  * A data de "hoje" no fuso da clínica.
  *
- * `agora` é parâmetro, não `Date.now()` interno: o servidor roda em UTC na
- * Vercel e a regra de "já passou" muda de resposta conforme a hora do dia.
+ * `agora` é parâmetro, não `Date.now()` interno: o container roda em UTC na
+ * VPS e a regra de "já passou" muda de resposta conforme a hora do dia.
  * Injetar o instante é o que permite testar a virada de meia-noite sem relógio.
  */
 export function hojeNoTimezone(timezone: string, agora: Date): DataLocal {

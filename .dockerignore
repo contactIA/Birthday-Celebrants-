@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.github
+.vercel
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# Segredos nunca entram no contexto de build.
+.env*
+!.env.example
+
+# Capturas de referência: podem conter dados reais de pacientes.
+captura
+refs

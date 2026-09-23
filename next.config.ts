@@ -12,6 +12,12 @@ const EMBED_HOSTS = (process.env.EMBED_HOSTS ?? 'app.fluxodonto.com')
 const frameAncestors = ["'self'", ...EMBED_HOSTS.flatMap((h) => [`https://${h}`, `https://*.${h}`])]
 
 const nextConfig: NextConfig = {
+  // Deploy por Docker na VPS: gera `.next/standalone` com um `server.js` e só as
+  // dependências rastreadas, sem precisar de `node_modules` na imagem final.
+  output: 'standalone',
+  // ATENÇÃO: `headers()` é avaliado no `next build`, não a cada request. Mudar
+  // EMBED_HOSTS no ambiente do container altera o proxy, mas a CSP só muda com
+  // um novo build (o Dockerfile aceita EMBED_HOSTS como build arg).
   async headers() {
     return [
       {

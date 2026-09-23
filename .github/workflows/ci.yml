@@ -47,8 +47,7 @@ jobs:
         # existir — não serem válidas. Valores de fachada evitam depender de
         # secrets.
         env:
-          NEXT_PUBLIC_SUPABASE_URL: https://ci.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+          SUPABASE_URL: https://ci.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
           CRON_SECRET: ci-cron-secret
           LINK_SECRET: ci-link-secret

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     // nove dias de job parado sem ninguém notar.
     console.error(
       '[cron/reconciliar-status] CRON_SECRET ausente — a rota rejeita TODA chamada, ' +
-        'inclusive a do próprio Cron. Cadastrar em Project Settings > Environment Variables.'
+        'inclusive a do próprio Cron. Cadastrar nas variáveis do serviço (console do TurboCloud).'
     )
     return NextResponse.json({ error: 'Cron não configurado' }, { status: 503 })
   }

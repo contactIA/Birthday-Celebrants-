@@ -179,11 +179,15 @@ let cliente: SupabaseClient<Database> | null = null
 function conectar(): SupabaseClient<Database> {
   if (cliente) return cliente
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  // `SUPABASE_URL`, SEM o prefixo `NEXT_PUBLIC_`. O prefixo faz o Next congelar
+  // o valor no `next build` — inclusive no código de servidor. No deploy por
+  // Docker o build roda sem os valores reais, e a URL congelada seria vazia.
+  // Nada no browser fala com o Supabase, então não há motivo para o prefixo.
+  const url = process.env.SUPABASE_URL
   const chave = process.env.SUPABASE_SERVICE_ROLE_KEY
   // Falha alto e cedo: sem service role não há leitura nenhuma, e um erro claro
   // aqui é melhor que um PGRST na primeira query.
-  if (!url) throw new Error('NEXT_PUBLIC_SUPABASE_URL não configurada')
+  if (!url) throw new Error('SUPABASE_URL não configurada')
   if (!chave) throw new Error('SUPABASE_SERVICE_ROLE_KEY não configurada')
 
   cliente = createClient<Database>(url, chave, {

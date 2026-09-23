@@ -7,7 +7,8 @@ import {
   removerObsoletos,
 } from '@/features/sincronizar-clinicorp/dados'
 
-// GET /api/cron/sincronizar-clinicorp — 1x/dia pelo Vercel Cron.
+// GET /api/cron/sincronizar-clinicorp — 1x/dia pelo crontab da VPS
+// (ver docs/deploy-vps.md).
 //
 // Fica FORA do gate de acesso (ver o matcher em `proxy.ts`): tem autenticação
 // própria e roda para todas as clínicas, não no escopo de uma.
@@ -24,7 +25,7 @@ function naoConfigurado() {
   // "não autorizado" — indistinguível de alguém batendo na URL.
   console.error(
     '[cron/sincronizar-clinicorp] CRON_SECRET ausente — a rota rejeita TODA chamada, ' +
-      'inclusive a do próprio Cron. Cadastrar em Project Settings > Environment Variables.'
+      'inclusive a do próprio Cron. Cadastrar nas variáveis do serviço (console do TurboCloud).'
   )
   return NextResponse.json({ error: 'Cron não configurado' }, { status: 503 })
 }
