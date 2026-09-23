@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "setup:senha": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/gerar-hash-setup.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",

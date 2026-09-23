@@ -1,5 +1,6 @@
 import { hojeNoTimezone } from '@/shared/data/fuso'
 import { parseDataYMD, mesDiaDe } from '@/shared/data/parse'
+import type { PacienteBruto } from '@/providers/prontuario/clinicorp-api'
 
 // O cron diário que reconstrói o cache de aniversariantes da Clinicorp.
 //
@@ -18,17 +19,12 @@ import { parseDataYMD, mesDiaDe } from '@/shared/data/parse'
  * Era 6, e a Clinicorp respondeu 429 em massa já na primeira execução na VPS
  * (duas clínicas em paralelo = 12 chamadas ao mesmo tempo). O 6 vinha do teto
  * de 300s da Vercel; na VPS não há teto, e ir devagar é mais barato que
- * retentar. As retentativas de 429 ficam no cliente HTTP (`api.ts`).
+ * retentar. As retentativas de 429 ficam no cliente HTTP
+ * (`providers/prontuario/clinicorp-api.ts`).
  */
 export const CONCORRENCIA = 2
 
-/** Um paciente como a API de aniversariantes o devolve. */
-export interface PacienteBruto {
-  PatientId: number | string
-  Name: string
-  BirthDate: string | null
-  MobilePhone: string | null
-}
+export type { PacienteBruto }
 
 export interface LinhaDeCache {
   pacienteId: string

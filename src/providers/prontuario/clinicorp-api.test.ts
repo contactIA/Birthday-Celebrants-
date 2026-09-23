@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Clinica } from '@/shared/clinica/repositorio'
-import { clienteClinicorp, ehDiaSemAniversariante, esperaAntesDaTentativa, TENTATIVAS } from './api'
+import { clienteClinicorp, ehDiaSemAniversariante, esperaAntesDaTentativa, TENTATIVAS } from './clinicorp-api'
 
 const CLINICA = {
   id: 'id-1',

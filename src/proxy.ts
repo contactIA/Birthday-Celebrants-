@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { decidir, type MotivoDeRecusa } from '@/acesso/decisao'
+import { decidirSetup, ehRotaDeSetup } from '@/acesso/decisao-setup'
+import { COOKIE_SETUP, segredosDoSetup } from '@/acesso/setup'
 import { HEADER_COMPANY_ID, segredoDoAmbiente } from '@/acesso/token'
 
 // Gate de acesso do app. Toda a REGRA vive em `@/acesso/decisao` — este arquivo
@@ -82,7 +84,56 @@ function naoConfigurado(request: NextRequest) {
       })
 }
 
+/**
+ * Gate da área de setup — um acesso à parte, que NÃO passa pelo escopo de
+ * clínica. A área grava credenciais de todas as clínicas, então o que a abre é
+ * a senha da equipe, nunca o link ou o cookie de uma clínica.
+ */
+function proxySetup(request: NextRequest) {
+  const segredos = segredosDoSetup()
+  if (!segredos) {
+    // Configuração, não ataque — mesma distinção do LINK_SECRET acima.
+    console.error(
+      '[proxy] SETUP_PASSWORD_HASH ou LINK_SECRET ausente — a área de setup fica fechada. ' +
+        'Gerar o hash com `npm run setup:senha` e cadastrar no .env do servidor.'
+    )
+    return ehApi(request)
+      ? NextResponse.json({ error: 'Setup não configurado', codigo: 'SETUP_NAO_CONFIGURADO' }, { status: 503 })
+      : new NextResponse('Setup não configurado neste servidor.', {
+          status: 503,
+          headers: { 'content-type': 'text/plain; charset=utf-8' },
+        })
+  }
+
+  const decisao = decidirSetup({
+    caminho: request.nextUrl.pathname,
+    metodo: request.method,
+    tokenDoCookie: request.cookies.get(COOKIE_SETUP)?.value ?? null,
+    agora: new Date(),
+    ...segredos,
+  })
+
+  if (decisao.tipo === 'negar') {
+    return NextResponse.json({ error: 'Sessão de setup ausente ou expirada', codigo: 'SEM_SESSAO_SETUP' }, { status: 401 })
+  }
+  if (decisao.tipo === 'entrar') {
+    const entrar = request.nextUrl.clone()
+    entrar.pathname = '/setup/entrar'
+    entrar.search = ''
+    entrar.searchParams.set('volta', request.nextUrl.pathname)
+    return NextResponse.redirect(entrar)
+  }
+
+  // Tira o header de escopo de clínica, se o cliente mandou um: nenhuma rota de
+  // setup deve decidir nada por ele, e deixá-lo passar seria convite a usar.
+  const headers = new Headers(request.headers)
+  headers.delete(HEADER_COMPANY_ID)
+  return NextResponse.next({ request: { headers } })
+}
+
 export function proxy(request: NextRequest) {
+  if (ehRotaDeSetup(request.nextUrl.pathname)) return proxySetup(request)
+
   let segredo: string
   try {
     segredo = segredoDoAmbiente()

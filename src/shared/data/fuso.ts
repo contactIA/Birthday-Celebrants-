@@ -10,6 +10,12 @@ const OFFSET_UTC_FIXO: Record<string, number> = {
 
 export const OFFSET_PADRAO = -3
 
+/**
+ * Os fusos que o cálculo conhece. Qualquer outro cai no OFFSET_PADRAO em
+ * silêncio — por isso o cadastro de clínica só oferece estes.
+ */
+export const FUSOS_SUPORTADOS = Object.keys(OFFSET_UTC_FIXO)
+
 export function offsetDe(timezone: string): number {
   return OFFSET_UTC_FIXO[timezone] ?? OFFSET_PADRAO
 }

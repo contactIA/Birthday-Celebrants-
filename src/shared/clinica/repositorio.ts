@@ -1,4 +1,4 @@
-import { db, type ClinicaRow, type SistemaProntuario } from '@/shared/db'
+import { db, type ClinicaInsert, type ClinicaRow, type SistemaProntuario } from '@/shared/db'
 
 // O acessor de `aniversariantes_clinicas`.
 //
@@ -139,4 +139,179 @@ export async function buscarClinicaPublica(companyId: string): Promise<ClinicaPu
   if (error) throw new Error(`Erro ao buscar clínica: ${error.message}`)
   if (!data) throw new ClinicaNaoProvisionadaError(companyId)
   return { id: data.id, companyId: data.slug, nome: data.nome }
+}
+
+// ─── Área de setup ──────────────────────────────────────────────────────────
+//
+// As únicas escritas deste app nesta tabela. Quem chama é a área de setup, que
+// exige a senha da equipe (ver `acesso/setup.ts`) — NUNCA uma rota do painel,
+// que responde a acesso de clínica. A mesma regra de `listarTodasAsClinicas`
+// vale aqui: se uma rota escopada a uma clínica precisar disto, o escopo se
+// perdeu.
+
+/**
+ * A clínica como a área de setup a mostra: tudo, MENOS o valor dos segredos.
+ *
+ * Tokens viram "configurado sim/não". Identificadores que não dão acesso
+ * sozinhos (usuário API, subscriber ID, número remetente) aparecem, porque
+ * conferi-los é metade do diagnóstico de uma integração quebrada.
+ */
+export interface ClinicaNoSetup {
+  id: string
+  companyId: string
+  nome: string
+  sistemaProntuario: SistemaProntuario
+  timezone: string
+  criadaEm: string
+  eclinica: { tokenConfigurado: boolean; baseUrl: string }
+  clinicorp: {
+    usuarioApi: string | null
+    tokenConfigurado: boolean
+    subscriberId: string | null
+    baseUrl: string
+  }
+  mensageria: { tokenConfigurado: boolean; from: string | null; channelId: string | null }
+}
+
+function paraSetup(row: ClinicaRow): ClinicaNoSetup {
+  return {
+    id: row.id,
+    companyId: row.slug,
+    nome: row.nome,
+    sistemaProntuario: row.sistema_prontuario,
+    timezone: row.timezone,
+    criadaEm: row.created_at,
+    eclinica: { tokenConfigurado: !!row.eclinica_token, baseUrl: row.eclinica_base_url },
+    clinicorp: {
+      usuarioApi: row.clinicorp_usuario_api,
+      tokenConfigurado: !!row.clinicorp_token_api,
+      subscriberId: row.clinicorp_subscriber_id,
+      baseUrl: row.clinicorp_base_url,
+    },
+    mensageria: {
+      tokenConfigurado: !!row.helena_token,
+      from: row.helena_from,
+      channelId: row.helena_channel_id,
+    },
+  }
+}
+
+function paraLinha(clinica: Clinica): ClinicaInsert {
+  const { eclinica, clinicorp, mensageria } = clinica.credenciais
+  return {
+    slug: clinica.companyId,
+    nome: clinica.nome,
+    timezone: clinica.timezone,
+    sistema_prontuario: clinica.sistemaProntuario,
+    eclinica_token: eclinica.token,
+    eclinica_base_url: eclinica.baseUrl,
+    clinicorp_usuario_api: clinicorp.usuarioApi,
+    clinicorp_token_api: clinicorp.tokenApi,
+    clinicorp_subscriber_id: clinicorp.subscriberId,
+    clinicorp_base_url: clinicorp.baseUrl,
+    helena_token: mensageria.token,
+    helena_from: mensageria.from,
+    helena_channel_id: mensageria.channelId,
+  }
+}
+
+export class ClinicaNaoEncontradaError extends Error {
+  readonly status = 404
+  readonly codigo = 'CLINICA_NAO_ENCONTRADA' as const
+  constructor() {
+    super('Clínica não encontrada')
+    this.name = 'ClinicaNaoEncontradaError'
+  }
+}
+
+/** Recusa do banco traduzida para frase — 409 para duplicata, 400 para o resto. */
+export class ClinicaRecusadaError extends Error {
+  readonly codigo = 'CLINICA_RECUSADA' as const
+  constructor(
+    mensagem: string,
+    readonly status: 400 | 409
+  ) {
+    super(mensagem)
+    this.name = 'ClinicaRecusadaError'
+  }
+}
+
+/**
+ * Traduz a recusa do Postgres.
+ *
+ * A regra de "credenciais completas para o sistema escolhido" NÃO é repetida em
+ * TypeScript: ela vive na check constraint, e uma cópia aqui divergiria dela na
+ * primeira mudança (ADR 0002). O banco recusa; aqui só se dá nome à recusa.
+ */
+function traduzirRecusa(error: { code?: string; message: string }): Error {
+  if (error.code === '23505') {
+    return new ClinicaRecusadaError('Já existe uma clínica com este company_id', 409)
+  }
+  if (error.code === '23514' && error.message.includes('credenciais')) {
+    return new ClinicaRecusadaError(
+      'Credenciais do prontuário incompletas para o sistema escolhido. ' +
+        'e-Clínica exige o token; Clinicorp exige usuário API, token API e subscriber ID.',
+      400
+    )
+  }
+  if (error.code === '23514') {
+    return new ClinicaRecusadaError('Valor fora do permitido em algum campo', 400)
+  }
+  return new Error(`Erro ao gravar clínica: ${error.message}`)
+}
+
+export async function listarClinicasNoSetup(): Promise<ClinicaNoSetup[]> {
+  const { data, error } = await db().from('aniversariantes_clinicas').select('*').order('nome')
+  if (error) throw new Error(`Erro ao listar clínicas: ${error.message}`)
+  return (data ?? []).map(paraSetup)
+}
+
+async function linhaPorId(id: string): Promise<ClinicaRow> {
+  // Id que não é UUID nem chega ao banco: o Postgres responderia erro de tipo,
+  // que viraria 500 em vez de 404.
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new ClinicaNaoEncontradaError()
+  const { data, error } = await db().from('aniversariantes_clinicas').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(`Erro ao buscar clínica: ${error.message}`)
+  if (!data) throw new ClinicaNaoEncontradaError()
+  return data
+}
+
+/** Com credenciais — para mesclar edições e testar conexão. Nunca devolver ao browser. */
+export async function buscarClinicaPorId(id: string): Promise<Clinica> {
+  return paraDominio(await linhaPorId(id))
+}
+
+export async function buscarClinicaNoSetup(id: string): Promise<ClinicaNoSetup> {
+  return paraSetup(await linhaPorId(id))
+}
+
+export async function criarClinica(clinica: Clinica): Promise<ClinicaNoSetup> {
+  const { data, error } = await db()
+    .from('aniversariantes_clinicas')
+    .insert(paraLinha(clinica))
+    .select('*')
+    .single()
+  if (error) throw traduzirRecusa(error)
+  return paraSetup(data)
+}
+
+/**
+ * Grava a clínica inteira por cima da linha `id`.
+ *
+ * `slug` fica FORA do update: o company_id é a chave que os links assinados e a
+ * plataforma usam para achar a clínica — trocá-lo órfã todo link já emitido.
+ * Clínica com company_id errado se corrige cadastrando de novo.
+ */
+export async function atualizarClinica(id: string, clinica: Clinica): Promise<ClinicaNoSetup> {
+  const campos: Partial<ClinicaInsert> = paraLinha(clinica)
+  delete campos.slug
+  const { data, error } = await db()
+    .from('aniversariantes_clinicas')
+    .update(campos)
+    .eq('id', id)
+    .select('*')
+    .maybeSingle()
+  if (error) throw traduzirRecusa(error)
+  if (!data) throw new ClinicaNaoEncontradaError()
+  return paraSetup(data)
 }

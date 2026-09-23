@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { sincronizarClinica, type RelatorioDaClinica } from '@/features/sincronizar-clinicorp/sincronizacao'
-import { clienteClinicorp } from '@/features/sincronizar-clinicorp/api'
+import { clienteClinicorp } from '@/providers/prontuario/clinicorp-api'
 import {
   clinicasClinicorp,
   gravarLote,

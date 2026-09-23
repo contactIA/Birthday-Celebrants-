@@ -1,13 +1,15 @@
 import type { Clinica } from '@/shared/clinica/repositorio'
-import { ProntuarioMalConfiguradoError, TIMEOUT_MS } from '@/providers/prontuario'
-import type { PacienteBruto } from './sincronizacao'
+import { ProntuarioMalConfiguradoError, TIMEOUT_MS } from './porta'
 
 // Cliente HTTP da API da Clinicorp.
 //
-// POR QUE ELE VIVE NA FATIA, e não em `providers/`: `providers/` guarda as duas
-// PORTAS que variam, e o adapter Clinicorp que está lá lê o NOSSO cache. Este
-// cliente é uma dependência concreta de um único job — o cron — e nada mais o
-// usa. Pela regra do Vertical Slice, mora com quem o usa.
+// NÃO confundir com `clinicorp.ts`, ao lado: aquele é o adapter da PORTA de
+// prontuário, e lê o NOSSO cache. Este fala com a API deles de verdade.
+//
+// POR QUE MORA EM `providers/`: nasceu dentro da fatia `sincronizar-clinicorp`,
+// que era a única a usá-lo. O teste de conexão da área de setup virou o segundo
+// usuário — e fatias não importam umas das outras (ADR 0001), então ele subiu
+// para cá, junto do adapter do mesmo fornecedor.
 //
 // AUTENTICAÇÃO: HTTP Basic (usuário API + token API), não Bearer. O spec deles
 // chama o scheme de "bearerAuth" mas o `scheme` de fato é "basic" — nome
@@ -53,6 +55,14 @@ const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)
  */
 export function ehDiaSemAniversariante(status: number, corpo: string): boolean {
   return status === 400 && /nenhum paciente/i.test(corpo)
+}
+
+/** Um paciente como a API de aniversariantes o devolve. */
+export interface PacienteBruto {
+  PatientId: number | string
+  Name: string
+  BirthDate: string | null
+  MobilePhone: string | null
 }
 
 interface PacienteDetalhado {

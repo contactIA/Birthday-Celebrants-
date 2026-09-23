@@ -48,6 +48,9 @@ export interface ClinicaRow {
   clinicorp_base_url: string
 }
 
+/** `id` e `created_at` vêm do default do banco. */
+export type ClinicaInsert = Omit<ClinicaRow, 'id' | 'created_at'>
+
 export interface TemplateRow {
   id: string
   clinica_id: string
@@ -157,8 +160,9 @@ interface Tabela<Row, Insert> {
 export type Database = {
   aniversariantes: {
     Tables: {
-      // A tabela com consumidor externo: este app não a cria nem a apaga, só lê.
-      aniversariantes_clinicas: Tabela<ClinicaRow, ClinicaRow>
+      // Lida pelo painel e pelos crons; escrita só pela área de setup, sempre
+      // via `shared/clinica/repositorio.ts`. Nada neste app a apaga.
+      aniversariantes_clinicas: Tabela<ClinicaRow, ClinicaInsert>
       aniversariantes_templates: Tabela<TemplateRow, TemplateInsert>
       aniversariantes_envios: Tabela<EnvioRow, EnvioInsert>
       aniversariantes_pacientes_cache: Tabela<PacienteCacheRow, PacienteCacheInsert>

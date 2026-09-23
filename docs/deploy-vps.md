@@ -147,6 +147,34 @@ curl -sI https://aniversariantes.contactia.com.br/ | grep -i content-security
 Por fim, trocar a URL base do painel no Clinic Control e na configuração da aba
 da plataforma para `https://aniversariantes.contactia.com.br`.
 
+## 8. Área de setup
+
+`https://aniversariantes.contactia.com.br/setup` — onde a equipe cadastra
+clínicas, troca credenciais, testa conexão e gera o link do painel. Decisão em
+[ADR 0003](adr/0003-area-de-setup.md).
+
+**Na sua máquina**, na pasta do projeto (a senha é digitada no terminal e não
+sai dela):
+
+```bash
+npm run setup:senha
+```
+
+Use no mínimo 14 caracteres. O comando imprime `SETUP_PASSWORD_HASH=scrypt.…`.
+
+**Na VPS**, como `contactia`: acrescentar essa linha ao `.env` e redeployar
+(`./deploy/deploy.sh`). Sem ela, `/setup` responde 503 e o painel das clínicas
+segue funcionando.
+
+Trocar a senha = gerar outro hash, substituir no `.env` e redeployar. Toda
+sessão aberta cai.
+
+O log registra login, cadastros e alterações — nomes dos campos, nunca valores:
+
+```bash
+docker logs birthday-celebrants 2>&1 | grep '\[setup'
+```
+
 ## Deploys seguintes
 
 ```bash

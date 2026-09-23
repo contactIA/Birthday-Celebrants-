@@ -30,6 +30,25 @@ const nextConfig: NextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
         ],
       },
+      // Área de setup: NINGUÉM embute — nem a plataforma. Ela grava credenciais
+      // de todas as clínicas, e em iframe alheio vira alvo de clickjacking.
+      // Vem DEPOIS da regra geral: com a mesma chave, a última que casa vence.
+      {
+        source: '/setup/:path*',
+        headers: [{ key: 'Content-Security-Policy', value: "frame-ancestors 'none';" }],
+      },
+      {
+        source: '/setup',
+        headers: [{ key: 'Content-Security-Policy', value: "frame-ancestors 'none';" }],
+      },
+      {
+        source: '/api/setup/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none';" },
+          // Respostas com dados de todas as clínicas não ficam em cache nenhum.
+          { key: 'Cache-Control', value: 'no-store' },
+        ],
+      },
     ]
   },
 }
