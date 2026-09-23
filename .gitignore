@@ -15,3 +15,6 @@ next-env.d.ts
 # capturas de referência: podem conter dados reais de pacientes/conversas
 /captura
 /refs
+
+# Configuração local do Claude Code (servidor de preview etc.)
+/.claude

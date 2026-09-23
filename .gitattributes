@@ -1,0 +1,13 @@
+# Final de linha LF em todo arquivo de texto, em qualquer sistema.
+#
+# Sem isto, o Git do Windows (core.autocrlf=true) converte para CRLF na cópia
+# de trabalho: os scripts de deploy/ correm o risco de chegar à VPS com o CR
+# no fim da linha (o bash falha com "command not found"), e cada commit enche
+# o terminal de avisos de conversão.
+* text=auto eol=lf
+
+# Binários: nunca converter.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
