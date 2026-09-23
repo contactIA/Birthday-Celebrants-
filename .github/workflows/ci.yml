@@ -32,7 +32,11 @@ jobs:
       - run: npm ci
 
       - name: Tipos
-        run: npx tsc --noEmit
+        # `next typegen` ANTES do tsc: `RouteContext` e `PageProps` são tipos
+        # globais que o Next gera em .next/types. Localmente a pasta já existe
+        # de algum build anterior e o tsc passa; no CI, com checkout limpo, não
+        # existe — e este passo ficou vermelho por 9 commits sem ninguém ver.
+        run: npm run typecheck
 
       - name: Lint
         run: npm run lint

@@ -80,7 +80,7 @@ npm run dev
 | Comando | O quê |
 |---|---|
 | `npm test` | testes (Vitest) — o kernel roda sem banco nem rede |
-| `npx tsc --noEmit` | tipos, inclusive o contrato de schema (`src/shared/contrato.ts`) |
+| `npm run typecheck` | tipos (gera os tipos de rota do Next antes), inclusive o contrato de schema |
 | `npm run lint` | ESLint |
 | `npm run build` | build de produção (roda sem nenhuma variável de ambiente) |
 | `npm run setup:senha` | gera o hash da senha da área de setup |
