@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Clinica } from '@/shared/clinica/repositorio'
-import { clienteClinicorp, esperaAntesDaTentativa, TENTATIVAS } from './api'
+import { clienteClinicorp, ehDiaSemAniversariante, esperaAntesDaTentativa, TENTATIVAS } from './api'
 
 const CLINICA = {
   id: 'id-1',
@@ -36,6 +36,22 @@ describe('esperaAntesDaTentativa', () => {
 
   it('Retry-After em formato de data cai para a espera crescente', () => {
     expect(esperaAntesDaTentativa(2, 'Wed, 23 Sep 2026 14:00:00 GMT', 0)).toBe(2000)
+  })
+})
+
+describe('ehDiaSemAniversariante', () => {
+  it('reconhece o 400 de dia vazio pela mensagem', () => {
+    expect(
+      ehDiaSemAniversariante(400, '{"Error":400,"Message":"Nenhum paciente ativo faz aniversário na data informada!"}')
+    ).toBe(true)
+  })
+
+  it('400 de parâmetro faltando continua sendo erro', () => {
+    expect(ehDiaSemAniversariante(400, '{"Error":1,"Message":"Parâmetro obrigatório não informado"}')).toBe(false)
+  })
+
+  it('só vale para 400', () => {
+    expect(ehDiaSemAniversariante(404, 'Nenhum paciente')).toBe(false)
   })
 })
 
@@ -85,6 +101,23 @@ describe('retentativas', () => {
       '/patient/birthdays: HTTP 400'
     )
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('dia sem aniversariante (400 "Nenhum paciente…") é lista vazia, não erro', async () => {
+    // Resposta real da Clinicorp. Tratada como erro, adiava a limpeza do cache
+    // para sempre em toda clínica com um dia vazio no período.
+    fetchMock.mockResolvedValueOnce(
+      resposta(400, { Error: 400, Message: 'Nenhum paciente ativo faz aniversário na data informada!' })
+    )
+
+    await expect(clienteClinicorp(CLINICA).aniversariantesDoDia('2026-09-02')).resolves.toEqual([])
+    expect(console.error).not.toHaveBeenCalled()
+  })
+
+  it('o atalho do 400 vazio NÃO vale para a consulta de status', async () => {
+    fetchMock.mockResolvedValueOnce(resposta(400, { Message: 'Nenhum paciente encontrado' }))
+
+    await expect(clienteClinicorp(CLINICA).statusDoPaciente('7')).rejects.toThrow('HTTP 400')
   })
 
   it('o corpo do erro vai para o log, nunca para a exceção', async () => {

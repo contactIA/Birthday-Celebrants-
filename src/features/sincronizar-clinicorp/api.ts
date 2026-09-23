@@ -42,6 +42,19 @@ export function esperaAntesDaTentativa(
 
 const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+/**
+ * `/patient/birthdays` responde **400** para dia sem aniversariante — o spec
+ * aponta o 400 para a resposta `NotFound`, com corpo
+ * `{"Message":"Nenhum paciente ativo faz aniversário na data informada!"}`.
+ *
+ * Tratar isso como erro adiava a limpeza do cache PARA SEMPRE em toda clínica
+ * que tivesse um dia vazio no período (quase todas). A distinção é pela
+ * mensagem porque parâmetro faltando também volta 400, e esse é erro de verdade.
+ */
+export function ehDiaSemAniversariante(status: number, corpo: string): boolean {
+  return status === 400 && /nenhum paciente/i.test(corpo)
+}
+
 interface PacienteDetalhado {
   Status: 'ACTIVE' | 'INACTIVE' | 'DELETED'
 }
@@ -59,7 +72,12 @@ export function clienteClinicorp(clinica: Clinica): ClienteClinicorp {
 
   const basic = Buffer.from(`${usuarioApi}:${tokenApi}`).toString('base64')
 
-  async function chamar<T>(caminho: string, params: Record<string, string>): Promise<T> {
+  /** `vazio` = o que devolver quando a resposta é o 400 de "nada encontrado". */
+  async function chamar<T>(
+    caminho: string,
+    params: Record<string, string>,
+    vazio?: T
+  ): Promise<T> {
     const query = new URLSearchParams({ subscriber_id: subscriberId!, ...params })
 
     for (let tentativa = 1; ; tentativa++) {
@@ -92,6 +110,7 @@ export function clienteClinicorp(clinica: Clinica): ClienteClinicorp {
       // sobe até o relatório do cron, e o corpo pode trazer dado de paciente.
       // Sem ele não havia como saber por que a Clinicorp recusava dias com 400.
       const corpo = (await resposta.text().catch(() => '')).slice(0, 300)
+      if (vazio !== undefined && ehDiaSemAniversariante(resposta.status, corpo)) return vazio
       console.error(
         `[clinicorp] ${caminho} HTTP ${resposta.status} (tentativa ${tentativa}/${TENTATIVAS}): ${corpo}`
       )
@@ -101,7 +120,7 @@ export function clienteClinicorp(clinica: Clinica): ClienteClinicorp {
 
   return {
     async aniversariantesDoDia(data: string): Promise<PacienteBruto[]> {
-      const lista = await chamar<PacienteBruto[]>('/patient/birthdays', { date: data })
+      const lista = await chamar<PacienteBruto[]>('/patient/birthdays', { date: data }, [])
       return Array.isArray(lista) ? lista : []
     },
 
