@@ -1,4 +1,4 @@
-import { aniversarioJaPassou } from '@/shared/data/agendamento'
+import { aniversarioAgendavel, aniversarioJaPassou } from '@/shared/data/agendamento'
 import { anoNoTimezone } from '@/shared/data/fuso'
 import { mesDiaDe } from '@/shared/data/parse'
 import type { StatusEnvio } from '@/shared/db'
@@ -18,8 +18,15 @@ export interface EnvioResumo {
 }
 
 export interface ItemDaLista extends Aniversariante {
-  /** Aniversário anterior a hoje no fuso da clínica: não é agendável. */
+  /** Aniversário anterior a hoje no fuso da clínica. */
   jaPassou: boolean
+  /**
+   * Dá para agendar: aniversário DEPOIS de hoje. Não é o contrário de
+   * `jaPassou` — o de hoje não passou e também não é agendável. A MESMA regra
+   * que o agendamento aplica (shared/data/agendamento.ts), para a tela não
+   * oferecer o que o servidor vai recusar.
+   */
+  agendavel: boolean
   /** O agendamento deste ano, se existir. */
   envio: EnvioResumo | null
 }
@@ -54,16 +61,15 @@ export async function listarAniversariantes(
   const envioPorPaciente = new Map(envios.map((e) => [e.pacienteId, e]))
 
   return doProntuario
-    .map((paciente) => ({
-      ...paciente,
-      jaPassou: aniversarioJaPassou(
-        mesDiaDe(paciente.aniversario).mes,
-        mesDiaDe(paciente.aniversario).dia,
-        consulta.timezone,
-        consulta.agora
-      ),
-      envio: envioPorPaciente.get(paciente.id) ?? null,
-    }))
+    .map((paciente) => {
+      const { mes, dia } = mesDiaDe(paciente.aniversario)
+      return {
+        ...paciente,
+        jaPassou: aniversarioJaPassou(mes, dia, consulta.timezone, consulta.agora),
+        agendavel: aniversarioAgendavel(mes, dia, consulta.timezone, consulta.agora),
+        envio: envioPorPaciente.get(paciente.id) ?? null,
+      }
+    })
     // Ordenado por dia aqui, e não na tela: é a ordem em que a lista faz
     // sentido para qualquer consumidor, não uma preferência de layout.
     .sort((a, b) => {

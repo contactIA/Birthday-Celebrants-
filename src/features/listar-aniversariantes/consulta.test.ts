@@ -106,6 +106,24 @@ describe('jaPassou', () => {
   })
 })
 
+describe('agendavel', () => {
+  it('amanhã é agendável; hoje e ontem não', async () => {
+    const itens = await listarAniversariantes(
+      { mes: 9, timezone: SP, agora: AGORA },
+      deps([
+        paciente({ id: 'ontem', aniversario: '09/14' }),
+        paciente({ id: 'hoje', aniversario: '09/15' }),
+        paciente({ id: 'amanha', aniversario: '09/16' }),
+      ])
+    )
+    const por = Object.fromEntries(itens.map((i) => [i.id, i]))
+    expect(por.ontem).toMatchObject({ jaPassou: true, agendavel: false })
+    // Hoje: nem "já passou", nem agendável — a tela mostra "É hoje".
+    expect(por.hoje).toMatchObject({ jaPassou: false, agendavel: false })
+    expect(por.amanha).toMatchObject({ jaPassou: false, agendavel: true })
+  })
+})
+
 describe('ordenação', () => {
   it('ordena por dia, depois por nome', async () => {
     const itens = await listarAniversariantes(

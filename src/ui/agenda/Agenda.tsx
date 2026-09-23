@@ -26,6 +26,8 @@ export interface Aniversariante {
   datanascimento: string
   situacao: string
   jaPassou: boolean
+  /** Aniversário depois de hoje. O de hoje não passou e também não é agendável. */
+  agendavel: boolean
   envio: { status: string; scheduledFor: string | null } | null
 }
 
@@ -51,8 +53,13 @@ function estaAgendado(p: Aniversariante) {
   return p.envio !== null && p.envio.status !== 'canceled'
 }
 
+/**
+ * A regra vem do servidor (`agendavel`), não é recalculada aqui: a tela não
+ * pode oferecer o que o agendamento vai recusar. Aniversário de HOJE fica de
+ * fora — o parabéns precisa ser agendado com antecedência.
+ */
 function podeAgendar(p: Aniversariante) {
-  return temTelefone(p) && !p.jaPassou
+  return temTelefone(p) && p.agendavel
 }
 
 /** Referência estável: `?? []` cria array novo a cada render e invalida memos. */
@@ -147,6 +154,20 @@ export function Agenda() {
         pessoas,
       }))
   }, [visiveis, hoje])
+
+  /** Marca (ou desmarca, se já estão todos) quem é selecionável naquele dia. */
+  function alternarDia(pessoas: Aniversariante[]) {
+    const doDia = pessoas.filter((p) => podeAgendar(p) && !estaAgendado(p)).map((p) => p.id)
+    setSelecionados((anterior) => {
+      const proximo = new Set(anterior)
+      const todos = doDia.every((id) => proximo.has(id))
+      for (const id of doDia) {
+        if (todos) proximo.delete(id)
+        else proximo.add(id)
+      }
+      return proximo
+    })
+  }
 
   function alternar(id: string) {
     setSelecionados((anterior) => {
@@ -286,29 +307,47 @@ export function Agenda() {
 
             {!carregando &&
               hoje &&
-              porDia.map((grupo) => (
-                <section key={grupo.dia} className="mb-6 last:mb-0">
-                  <div className="mb-2 flex items-center gap-3">
-                    <h2 className="text-sm font-semibold text-ink">{grupo.rotulo}</h2>
-                    <span className="h-px flex-1 bg-line" />
-                    <span className="tnum text-xs text-muted">
-                      {grupo.pessoas.length} {grupo.pessoas.length === 1 ? 'pessoa' : 'pessoas'}
-                    </span>
-                  </div>
+              porDia.map((grupo) => {
+                const selecionaveisDoDia = grupo.pessoas.filter((p) => podeAgendar(p) && !estaAgendado(p))
+                const diaTodoMarcado =
+                  selecionaveisDoDia.length > 0 && selecionaveisDoDia.every((p) => selecionados.has(p.id))
+                return (
+                  <section key={grupo.dia} className="mb-6 last:mb-0">
+                    <div className="mb-2 flex items-center gap-3">
+                      <h2 className="text-sm font-semibold text-ink">{grupo.rotulo}</h2>
+                      <span className="h-px flex-1 bg-line" />
+                      <span className="tnum text-xs text-muted">
+                        {grupo.pessoas.length} {grupo.pessoas.length === 1 ? 'pessoa' : 'pessoas'}
+                      </span>
+                      {selecionaveisDoDia.length > 0 && (
+                        <button
+                          onClick={() => alternarDia(grupo.pessoas)}
+                          aria-label={
+                            diaTodoMarcado
+                              ? `Desmarcar os aniversariantes de ${grupo.rotulo}`
+                              : `Selecionar os ${selecionaveisDoDia.length} aniversariantes de ${grupo.rotulo}`
+                          }
+                          className="rounded-full px-2.5 py-0.5 text-xs font-medium text-accent-ink hover:bg-accent-soft"
+                        >
+                          {diaTodoMarcado ? 'Desmarcar dia' : 'Selecionar todos'}
+                        </button>
+                      )}
+                    </div>
 
-                  <ul className="overflow-hidden rounded-[12px] border border-line bg-surface">
-                    {grupo.pessoas.map((p) => (
-                      <Linha
-                        key={p.id}
-                        paciente={p}
-                        hoje={hoje}
-                        marcado={selecionados.has(p.id)}
-                        aoAlternar={() => alternar(p.id)}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              ))}
+                    <ul className="overflow-hidden rounded-[12px] border border-line bg-surface">
+                      {grupo.pessoas.map((p) => (
+                        <Linha
+                          key={p.id}
+                          paciente={p}
+                          hoje={hoje}
+                          marcado={selecionados.has(p.id)}
+                          aoAlternar={() => alternar(p.id)}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                )
+              })}
           </div>
 
           <PainelDeEnvio
@@ -369,6 +408,8 @@ function Linha({
           <Estado tom="atencao">Sem telefone</Estado>
         ) : paciente.jaPassou ? (
           <Estado tom="parado">Já passou</Estado>
+        ) : !paciente.agendavel ? (
+          <Estado tom="parado">É hoje</Estado>
         ) : (
           <Estado tom="neutro">Sem mensagem</Estado>
         )}

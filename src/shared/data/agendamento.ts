@@ -25,6 +25,23 @@ export function aniversarioJaPassou(mes: number, dia: number, timezone: string, 
   return dia < hoje.dia
 }
 
+/**
+ * Dá para agendar o parabéns deste aniversário? Só se ele for DEPOIS de hoje.
+ *
+ * O aniversário de HOJE não é agendável, por decisão da equipe (2026-09-23): a
+ * mensagem precisa ser agendada com antecedência. Antes, hoje era agendável e,
+ * com o horário da clínica já passado, o envio ia para dali a 5 minutos — um
+ * parabéns "de última hora" que não é o que o painel quer oferecer.
+ *
+ * `aniversarioJaPassou` continua existindo à parte: "já passou" e "é hoje" são
+ * estados diferentes para quem lê a tela, embora nenhum dos dois seja agendável.
+ */
+export function aniversarioAgendavel(mes: number, dia: number, timezone: string, agora: Date): boolean {
+  const hoje = hojeNoTimezone(timezone, agora)
+  if (mes !== hoje.mes) return mes > hoje.mes
+  return dia > hoje.dia
+}
+
 export interface ParametrosDeEnvio {
   timezone: string
   /** "HH:MM" no fuso da clínica. */
@@ -34,23 +51,24 @@ export interface ParametrosDeEnvio {
 }
 
 /**
- * O instante do envio neste ano, ou `null` se o aniversário já passou.
+ * O instante do envio neste ano, ou `null` se o aniversário não é agendável
+ * (já passou ou é hoje — ver `aniversarioAgendavel`).
  *
  * `diaEnvio` é aplicado AQUI. No app anterior essa configuração era salva no
  * banco, exibida na tela e nunca lida no cálculo — quem escolhia "3 dias antes"
  * recebia envio no próprio dia.
  */
 export function instanteDoEnvio(mes: number, dia: number, p: ParametrosDeEnvio): Date | null {
-  if (aniversarioJaPassou(mes, dia, p.timezone, p.agora)) return null
+  if (!aniversarioAgendavel(mes, dia, p.timezone, p.agora)) return null
 
   const hoje = hojeNoTimezone(p.timezone, p.agora)
   const [hh, mm] = p.horario.split(':').map(Number)
   const noAniversario = Date.UTC(hoje.ano, mes - 1, dia, (hh ?? 9) - offsetDe(p.timezone), mm ?? 0)
   const alvo = noAniversario - DIAS_DE_ANTECEDENCIA[p.diaEnvio] * 86_400_000
 
-  // A antecedência (ou o horário padrão, quando é hoje) pode cair no passado.
-  // A plataforma rejeita agendamento retroativo, então empurra para daqui a
-  // pouco em vez de pular o envio.
+  // A antecedência pode cair no passado — aniversário amanhã com "3 dias
+  // antes". A plataforma rejeita agendamento retroativo, então empurra para
+  // daqui a pouco em vez de pular o envio.
   if (alvo <= p.agora.getTime()) {
     return new Date(p.agora.getTime() + MINUTOS_DE_MARGEM * 60_000)
   }

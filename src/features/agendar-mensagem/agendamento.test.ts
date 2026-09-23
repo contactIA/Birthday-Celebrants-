@@ -133,6 +133,18 @@ describe('recusas', () => {
     expect(r!.erro).toMatch(/já passou/i)
     expect(d.agendar).not.toHaveBeenCalled()
   })
+
+  it('aniversário de HOJE não é agendável, com frase própria', async () => {
+    const d = deps({ buscarPacientes: vi.fn(async () => [paciente({ aniversario: '09/15' })]) })
+    const [r] = await agendarMensagens(
+      { modeloConfigId: 'config-1', pacienteIds: ['p1'] },
+      CONTEXTO,
+      d
+    )
+    expect(r!.ok).toBe(false)
+    expect(r!.erro).toMatch(/é hoje/i)
+    expect(d.agendar).not.toHaveBeenCalled()
+  })
 })
 
 describe('data e hora manuais', () => {
@@ -244,10 +256,15 @@ describe('lote', () => {
 describe('registro do envio', () => {
   it('grava o ano no fuso da clínica, não o do servidor', async () => {
     // 01:00 UTC de 01/01/2027 ainda é 22:00 de 31/12/2026 em São Paulo.
+    //
+    // Com data e hora manuais: o aniversário de 31/12 é "hoje" na clínica e,
+    // desde que o dia corrente deixou de ser agendável, o cálculo automático o
+    // recusaria. O que este teste prende é o ANO gravado, e o caminho manual
+    // passa pelo mesmo registro.
     const viradaUTC = new Date('2027-01-01T01:00:00Z')
     const d = deps({ buscarPacientes: vi.fn(async () => [paciente({ aniversario: '12/31' })]) })
     await agendarMensagens(
-      { modeloConfigId: 'config-1', pacienteIds: ['p1'] },
+      { modeloConfigId: 'config-1', pacienteIds: ['p1'], quandoManual: '2027-01-01T01:30:00Z' },
       { timezone: SP, agora: viradaUTC },
       d
     )

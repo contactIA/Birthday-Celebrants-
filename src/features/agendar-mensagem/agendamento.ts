@@ -1,4 +1,4 @@
-import { instanteDoEnvio, type DiaEnvio } from '@/shared/data/agendamento'
+import { aniversarioJaPassou, instanteDoEnvio, type DiaEnvio } from '@/shared/data/agendamento'
 import { anoNoTimezone } from '@/shared/data/fuso'
 import { mesDiaDe, paraExibicao } from '@/shared/data/parse'
 import { paraE164BR } from '@/shared/telefone/e164'
@@ -188,10 +188,13 @@ async function agendarUm(
       agora: contexto.agora,
     })
     if (!instante) {
+      const passou = aniversarioJaPassou(mes, dia, contexto.timezone, contexto.agora)
       return {
         ...base,
         ok: false,
-        erro: `O aniversário (${paraExibicao(paciente.aniversario)}) já passou este ano`,
+        erro: passou
+          ? `O aniversário (${paraExibicao(paciente.aniversario)}) já passou este ano`
+          : 'O aniversário é hoje — o parabéns precisa ser agendado com antecedência',
       }
     }
     quando = instante.toISOString()
