@@ -81,6 +81,28 @@ describe('coleta', () => {
   })
 })
 
+describe('cota esgotada', () => {
+  it('para de consultar os dias restantes e grava o que já veio', async () => {
+    // Com a cota da hora zerada, cada dia restante tomaria o mesmo 429 — e em
+    // produção isso eram dezenas de minutos de tentativas inúteis.
+    let chamadas = 0
+    const buscar = vi.fn(async () => {
+      chamadas++
+      if (chamadas === 3) throw Object.assign(new Error('Limite atingido — libera em 39 min'), { interrompeSincronizacao: true })
+      return chamadas < 3 ? [paciente({ PatientId: chamadas })] : []
+    })
+    const d = deps({ buscarAniversariantesDoDia: buscar })
+    const r = await sincronizarClinica(CLINICA, AGORA, d)
+
+    // Com CONCORRENCIA=2, no máximo uma chamada já estava em voo quando parou.
+    expect(buscar.mock.calls.length).toBeLessThanOrEqual(4)
+    expect(r.erros).toEqual(['Limite atingido — libera em 39 min'])
+    expect(r.pacientes).toBe(2)
+    expect(d.gravarLote).toHaveBeenCalled()
+    expect(d.removerObsoletos).not.toHaveBeenCalled()
+  })
+})
+
 describe('ordem das escritas', () => {
   it('grava ANTES de remover obsoletos', async () => {
     // O app anterior apagava o cache e só então reinseria: falha no meio

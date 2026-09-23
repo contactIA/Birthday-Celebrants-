@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Clinica } from '@/shared/clinica/repositorio'
-import { clienteClinicorp, ehDiaSemAniversariante, esperaAntesDaTentativa, TENTATIVAS } from './clinicorp-api'
+import {
+  clienteClinicorp,
+  CotaEsgotadaError,
+  ehDiaSemAniversariante,
+  esperaAntesDaTentativa,
+  TENTATIVAS,
+} from './clinicorp-api'
 
 const CLINICA = {
   id: 'id-1',
@@ -24,8 +30,11 @@ describe('esperaAntesDaTentativa', () => {
     expect(esperaAntesDaTentativa(1, '3')).toBe(3000)
   })
 
-  it('põe teto de 30s num Retry-After exagerado', () => {
-    expect(esperaAntesDaTentativa(1, '3600')).toBe(30_000)
+  it('Retry-After longo = não tentar de novo (null)', () => {
+    // Em produção veio 2286s: a cota da hora acabou. Cortar em 30s e tentar de
+    // novo não passava nunca e alongava a sincronização em dezenas de minutos.
+    expect(esperaAntesDaTentativa(1, '2286')).toBeNull()
+    expect(esperaAntesDaTentativa(1, '30')).toBe(30_000)
   })
 
   it('sem Retry-After, cresce a cada tentativa', () => {
@@ -92,6 +101,18 @@ describe('retentativas', () => {
 
     await verificacao
     expect(fetchMock).toHaveBeenCalledTimes(TENTATIVAS)
+  })
+
+  it('cota da hora esgotada: desiste na PRIMEIRA resposta, sem esperar', async () => {
+    fetchMock.mockResolvedValueOnce(resposta(429, { message: 'API rate limit exceeded' }, { 'retry-after': '2286' }))
+
+    const erro = await clienteClinicorp(CLINICA)
+      .aniversariantesDoDia('2026-09-02')
+      .catch((e: Error) => e)
+
+    expect(erro).toBeInstanceOf(CotaEsgotadaError)
+    expect((erro as CotaEsgotadaError).message).toMatch(/libera em 39 min/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('não tenta de novo um 400 — repetir não muda a resposta', async () => {

@@ -112,10 +112,21 @@ export async function sincronizarClinica(
   const dias = diasParaSincronizar(clinica.timezone, agora)
   const erros: string[] = []
 
+  // Erro marcado com `interrompeSincronizacao` (cota da hora esgotada) para o
+  // lote: os dias restantes tomariam o mesmo 429. Os que já vieram são gravados
+  // normalmente; a limpeza fica adiada, como em qualquer dia que falhou.
+  let interrompida = false
+
   const porDia = await comConcorrenciaLimitada(dias, CONCORRENCIA, async (data) => {
+    if (interrompida) return null
     try {
       return await deps.buscarAniversariantesDoDia(data)
     } catch (err) {
+      if ((err as { interrompeSincronizacao?: boolean }).interrompeSincronizacao) {
+        if (!interrompida) erros.push((err as Error).message)
+        interrompida = true
+        return null
+      }
       erros.push(`aniversariantes de ${data}: ${(err as Error).message}`)
       return null
     }

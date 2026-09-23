@@ -24,22 +24,51 @@ export const TENTATIVAS = 4
 /** Respostas que valem nova tentativa: limite de taxa e indisponibilidade. */
 const RETENTAVEIS = new Set([429, 503])
 
+/** A espera mais longa que vale a pena fazer antes de tentar de novo, em segundos. */
+export const ESPERA_MAXIMA_S = 30
+
 /**
- * Quanto esperar antes da próxima tentativa, em ms.
+ * Quanto esperar antes da próxima tentativa, em ms — ou `null` para NÃO tentar.
  *
- * Respeita o `Retry-After` quando a Clinicorp manda (em segundos), com teto de
- * 30s para uma resposta estranha não travar o cron. Sem ele, espera crescente
- * (1s, 2s, 4s) com um pouco de sorteio — sem o sorteio, as chamadas que
- * tomaram 429 juntas voltariam juntas e tomariam 429 de novo.
+ * Respeita o `Retry-After` quando a Clinicorp manda (em segundos). Se ele pede
+ * mais que ESPERA_MAXIMA_S, a resposta é `null`: a cota da hora acabou (a
+ * Clinicorp limita 500 chamadas/hora por usuário de API) e ela está dizendo
+ * quando volta — em produção veio 2286s. A versão anterior cortava a espera em
+ * 30s e tentava de novo, o que não tinha como passar e só alongava a
+ * sincronização em dezenas de minutos de 429.
+ *
+ * Sem `Retry-After`, espera crescente (1s, 2s, 4s) com um pouco de sorteio —
+ * sem o sorteio, as chamadas que tomaram 429 juntas voltariam juntas.
  */
 export function esperaAntesDaTentativa(
   tentativa: number,
   retryAfter: string | null,
   sorteio: number = Math.random()
-): number {
+): number | null {
   const segundos = retryAfter === null ? NaN : Number(retryAfter)
-  if (Number.isFinite(segundos) && segundos >= 0) return Math.min(segundos, 30) * 1000
+  if (Number.isFinite(segundos) && segundos >= 0) {
+    return segundos > ESPERA_MAXIMA_S ? null : segundos * 1000
+  }
   return 1000 * 2 ** (tentativa - 1) + Math.floor(sorteio * 250)
+}
+
+/**
+ * A cota de chamadas da Clinicorp acabou e só volta daqui a minutos.
+ *
+ * `interrompeSincronizacao`: quem estiver num lote deve PARAR, não seguir
+ * tentando os itens restantes — todos tomariam o mesmo 429. A sincronização lê
+ * esta marca sem conhecer o tipo (ver sincronizacao.ts).
+ */
+export class CotaEsgotadaError extends Error {
+  readonly status = 429
+  readonly codigo = 'COTA_ESGOTADA' as const
+  readonly interrompeSincronizacao = true
+  constructor(readonly liberaEmSegundos: number) {
+    super(
+      `Limite de chamadas por hora da Clinicorp atingido — libera em ${Math.ceil(liberaEmSegundos / 60)} min`
+    )
+    this.name = 'CotaEsgotadaError'
+  }
 }
 
 const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -109,11 +138,19 @@ export function clienteClinicorp(clinica: Clinica): ClienteClinicorp {
 
       if (resposta.ok) return (await resposta.json()) as T
 
-      if (RETENTAVEIS.has(resposta.status) && tentativa < TENTATIVAS) {
-        // Descarta o corpo para liberar a conexão antes de esperar.
-        await resposta.body?.cancel()
-        await esperar(esperaAntesDaTentativa(tentativa, resposta.headers.get('retry-after')))
-        continue
+      if (RETENTAVEIS.has(resposta.status)) {
+        const retryAfter = resposta.headers.get('retry-after')
+        const espera = esperaAntesDaTentativa(tentativa, retryAfter)
+        if (espera === null) {
+          await resposta.body?.cancel()
+          throw new CotaEsgotadaError(Number(retryAfter))
+        }
+        if (tentativa < TENTATIVAS) {
+          // Descarta o corpo para liberar a conexão antes de esperar.
+          await resposta.body?.cancel()
+          await esperar(espera)
+          continue
+        }
       }
 
       // O corpo vai para o LOG, truncado, e nunca para a exceção: a exceção
