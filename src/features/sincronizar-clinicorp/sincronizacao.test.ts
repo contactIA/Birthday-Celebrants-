@@ -75,16 +75,51 @@ describe('coleta', () => {
     expect(d.gravarLote).toHaveBeenCalledWith([expect.objectContaining({ situacao: 'INACTIVE' })])
   })
 
-  it('status que falhou vira null, e o paciente continua no cache', async () => {
+  it('status que falhou fica marcado como NÃO verificado, e o paciente continua no cache', async () => {
+    // Incidente da primeira execução na VPS: 429 em massa gravava `null` por
+    // cima do status conhecido, e paciente excluído voltava a ser agendável. A
+    // marcação é o que deixa a gravação preservar o valor antigo.
     const d = deps({
       buscarAniversariantesDoDia: vi.fn(async () => [paciente()]),
       buscarStatus: vi.fn(async () => {
-        throw new Error('502')
+        throw new Error('/patient/get: HTTP 429')
       }),
     })
     const r = await sincronizarClinica(CLINICA, AGORA, d)
-    expect(d.gravarLote).toHaveBeenCalledWith([expect.objectContaining({ situacao: null })])
+    expect(d.gravarLote).toHaveBeenCalledWith([
+      expect.objectContaining({ situacao: null, situacaoVerificada: false }),
+    ])
     expect(r.erros.length).toBeGreaterThan(0)
+  })
+
+  it('status que a Clinicorp devolveu vazio é verificado — pode sobrescrever', async () => {
+    const d = deps({
+      buscarAniversariantesDoDia: vi.fn(async () => [paciente()]),
+      buscarStatus: vi.fn(async () => null),
+    })
+    const r = await sincronizarClinica(CLINICA, AGORA, d)
+    expect(d.gravarLote).toHaveBeenCalledWith([
+      expect.objectContaining({ situacao: null, situacaoVerificada: true }),
+    ])
+    expect(r.erros).toEqual([])
+  })
+
+  it('marca cada paciente pelo próprio resultado, num lote misto', async () => {
+    const d = deps({
+      buscarAniversariantesDoDia: vi.fn(async () => [
+        paciente({ PatientId: 1 }),
+        paciente({ PatientId: 2 }),
+      ]),
+      buscarStatus: vi.fn(async (id: string) => {
+        if (id === '2') throw new Error('HTTP 429')
+        return 'DELETED'
+      }),
+    })
+    await sincronizarClinica(CLINICA, AGORA, d)
+    expect(d.gravarLote).toHaveBeenCalledWith([
+      expect.objectContaining({ pacienteId: '1', situacao: 'DELETED', situacaoVerificada: true }),
+      expect.objectContaining({ pacienteId: '2', situacao: null, situacaoVerificada: false }),
+    ])
   })
 })
 

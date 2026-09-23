@@ -16,6 +16,32 @@ import type { PacienteBruto } from './sincronizacao'
 
 const BASE_URL_PADRAO = 'https://api.clinicorp.com/rest/v1'
 
+/** Tentativas por chamada, contando a primeira. */
+export const TENTATIVAS = 4
+
+/** Respostas que valem nova tentativa: limite de taxa e indisponibilidade. */
+const RETENTAVEIS = new Set([429, 503])
+
+/**
+ * Quanto esperar antes da próxima tentativa, em ms.
+ *
+ * Respeita o `Retry-After` quando a Clinicorp manda (em segundos), com teto de
+ * 30s para uma resposta estranha não travar o cron. Sem ele, espera crescente
+ * (1s, 2s, 4s) com um pouco de sorteio — sem o sorteio, as chamadas que
+ * tomaram 429 juntas voltariam juntas e tomariam 429 de novo.
+ */
+export function esperaAntesDaTentativa(
+  tentativa: number,
+  retryAfter: string | null,
+  sorteio: number = Math.random()
+): number {
+  const segundos = retryAfter === null ? NaN : Number(retryAfter)
+  if (Number.isFinite(segundos) && segundos >= 0) return Math.min(segundos, 30) * 1000
+  return 1000 * 2 ** (tentativa - 1) + Math.floor(sorteio * 250)
+}
+
+const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 interface PacienteDetalhado {
   Status: 'ACTIVE' | 'INACTIVE' | 'DELETED'
 }
@@ -35,28 +61,42 @@ export function clienteClinicorp(clinica: Clinica): ClienteClinicorp {
 
   async function chamar<T>(caminho: string, params: Record<string, string>): Promise<T> {
     const query = new URLSearchParams({ subscriber_id: subscriberId!, ...params })
-    let resposta: Response
-    try {
-      resposta = await fetch(`${baseUrl || BASE_URL_PADRAO}${caminho}?${query}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          Authorization: `Basic ${basic}`,
-        },
-        cache: 'no-store',
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      })
-    } catch (err) {
-      const causa = (err as Error).name === 'TimeoutError' ? 'timeout' : 'sem resposta'
-      throw new Error(`${caminho}: ${causa}`)
-    }
 
-    if (!resposta.ok) {
-      // O corpo pode trazer dado de paciente: fica no log, não sobe na exceção.
-      console.error(`[clinicorp] ${caminho} HTTP ${resposta.status}`)
+    for (let tentativa = 1; ; tentativa++) {
+      let resposta: Response
+      try {
+        resposta = await fetch(`${baseUrl || BASE_URL_PADRAO}${caminho}?${query}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: `Basic ${basic}`,
+          },
+          cache: 'no-store',
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        })
+      } catch (err) {
+        const causa = (err as Error).name === 'TimeoutError' ? 'timeout' : 'sem resposta'
+        throw new Error(`${caminho}: ${causa}`)
+      }
+
+      if (resposta.ok) return (await resposta.json()) as T
+
+      if (RETENTAVEIS.has(resposta.status) && tentativa < TENTATIVAS) {
+        // Descarta o corpo para liberar a conexão antes de esperar.
+        await resposta.body?.cancel()
+        await esperar(esperaAntesDaTentativa(tentativa, resposta.headers.get('retry-after')))
+        continue
+      }
+
+      // O corpo vai para o LOG, truncado, e nunca para a exceção: a exceção
+      // sobe até o relatório do cron, e o corpo pode trazer dado de paciente.
+      // Sem ele não havia como saber por que a Clinicorp recusava dias com 400.
+      const corpo = (await resposta.text().catch(() => '')).slice(0, 300)
+      console.error(
+        `[clinicorp] ${caminho} HTTP ${resposta.status} (tentativa ${tentativa}/${TENTATIVAS}): ${corpo}`
+      )
       throw new Error(`${caminho}: HTTP ${resposta.status}`)
     }
-    return (await resposta.json()) as T
   }
 
   return {

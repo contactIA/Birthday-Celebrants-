@@ -28,24 +28,35 @@ export async function gravarLote(
   linhas: LinhaDeCache[],
   carimbo: string
 ): Promise<void> {
-  const { error } = await db()
-    .from('aniversariantes_pacientes_cache')
-    .upsert(
-      linhas.map((linha) => ({
-        clinica_id: clinica.id,
-        paciente_id: linha.pacienteId,
-        nome: linha.nome,
-        telefone: linha.telefone,
-        datanascimento: linha.datanascimento,
-        mes_aniversario: linha.mes,
-        dia_aniversario: linha.dia,
-        situacao: linha.situacao,
-        synced_at: carimbo,
-      })),
-      { onConflict: 'clinica_id,paciente_id' }
-    )
+  const base = (linha: LinhaDeCache) => ({
+    clinica_id: clinica.id,
+    paciente_id: linha.pacienteId,
+    nome: linha.nome,
+    telefone: linha.telefone,
+    datanascimento: linha.datanascimento,
+    mes_aniversario: linha.mes,
+    dia_aniversario: linha.dia,
+    synced_at: carimbo,
+  })
 
-  if (error) throw new Error(`Erro ao gravar o cache: ${error.message}`)
+  // Dois upserts porque o PostgREST exige as mesmas colunas em todas as linhas
+  // de um lote. O das não verificadas OMITE `situacao`: no conflito o upsert só
+  // atualiza as colunas enviadas, então o status que o cache já tinha fica — e
+  // paciente novo nasce com `null`, o default da coluna.
+  const verificadas = linhas.filter((l) => l.situacaoVerificada)
+  const naoVerificadas = linhas.filter((l) => !l.situacaoVerificada)
+
+  const lotes = [
+    verificadas.map((l) => ({ ...base(l), situacao: l.situacao })),
+    naoVerificadas.map(base),
+  ].filter((lote) => lote.length > 0)
+
+  for (const lote of lotes) {
+    const { error } = await db()
+      .from('aniversariantes_pacientes_cache')
+      .upsert(lote, { onConflict: 'clinica_id,paciente_id' })
+    if (error) throw new Error(`Erro ao gravar o cache: ${error.message}`)
+  }
 }
 
 /** Remove o que não foi tocado nesta execução. */

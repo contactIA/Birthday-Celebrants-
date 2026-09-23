@@ -12,7 +12,15 @@ import { parseDataYMD, mesDiaDe } from '@/shared/data/parse'
 // │ É a única dependência entre fatias do sistema, e a tabela é a interface.  │
 // └──────────────────────────────────────────────────────────────────────────┘
 
-export const CONCORRENCIA = 6
+/**
+ * Chamadas simultâneas por clínica, em cada fase.
+ *
+ * Era 6, e a Clinicorp respondeu 429 em massa já na primeira execução na VPS
+ * (duas clínicas em paralelo = 12 chamadas ao mesmo tempo). O 6 vinha do teto
+ * de 300s da Vercel; na VPS não há teto, e ir devagar é mais barato que
+ * retentar. As retentativas de 429 ficam no cliente HTTP (`api.ts`).
+ */
+export const CONCORRENCIA = 2
 
 /** Um paciente como a API de aniversariantes o devolve. */
 export interface PacienteBruto {
@@ -31,6 +39,15 @@ export interface LinhaDeCache {
   mes: number
   dia: number
   situacao: string | null
+  /**
+   * `false` quando a consulta de status FALHOU nesta execução.
+   *
+   * Não é o mesmo que `situacao: null`. Sem esta distinção a gravação escrevia
+   * `null` por cima do status que o cache já tinha — e como a tela só esconde
+   * INACTIVE/DELETED, um 429 da Clinicorp fazia paciente excluído reaparecer
+   * como agendável. Quem grava só escreve `situacao` quando isto é `true`.
+   */
+  situacaoVerificada: boolean
 }
 
 export interface RelatorioDaClinica {
@@ -44,7 +61,11 @@ export interface RelatorioDaClinica {
 
 export interface DependenciasDoSync {
   buscarAniversariantesDoDia: (data: string) => Promise<PacienteBruto[]>
-  /** `null` quando não deu para verificar — não é motivo para esconder o paciente. */
+  /**
+   * Lança quando não deu para verificar. `null` = a Clinicorp respondeu, sem
+   * status. Os dois viram "não esconder o paciente", mas só o segundo pode
+   * sobrescrever o que o cache já sabia.
+   */
   buscarStatus: (pacienteId: string) => Promise<string | null>
   gravarLote: (linhas: LinhaDeCache[]) => Promise<void>
   /** Remove do cache desta clínica o que não foi tocado nesta execução. */
@@ -124,6 +145,7 @@ export async function sincronizarClinica(
         mes,
         dia,
         situacao: null,
+        situacaoVerificada: false,
       })
     }
   }
@@ -134,14 +156,15 @@ export async function sincronizarClinica(
   // da base inteira.
   const situacoes = await comConcorrenciaLimitada(linhas, CONCORRENCIA, async (linha) => {
     try {
-      return await deps.buscarStatus(linha.pacienteId)
+      return { verificada: true, valor: await deps.buscarStatus(linha.pacienteId) }
     } catch (err) {
       erros.push(`status de ${linha.pacienteId}: ${(err as Error).message}`)
-      return null
+      return { verificada: false, valor: null }
     }
   })
   linhas.forEach((linha, i) => {
-    linha.situacao = situacoes[i] ?? null
+    linha.situacao = situacoes[i]!.valor
+    linha.situacaoVerificada = situacoes[i]!.verificada
   })
 
   if (linhas.length > 0) await deps.gravarLote(linhas)
