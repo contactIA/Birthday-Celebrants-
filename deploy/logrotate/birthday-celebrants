@@ -1,0 +1,23 @@
+# Rotação do log dos crons do Birthday Celebrants.
+#
+# A reconciliação de status roda a cada 15 min e escreve uma linha por
+# execução; sem rotação o arquivo só cresce. Semanal, 8 semanas guardadas,
+# comprimidas.
+#
+# Instalar (root, uma vez):
+#   cp deploy/logrotate/birthday-celebrants /etc/logrotate.d/birthday-celebrants
+#   logrotate --debug /etc/logrotate.d/birthday-celebrants
+#
+# `copytruncate` porque o cron abre o arquivo a cada execução com `>>` — não há
+# processo para avisar da troca. `su` porque o arquivo e a pasta são do usuário
+# contactia, e o logrotate recusa rodar como root numa pasta de outro dono.
+/home/contactia/birthday-celebrants/cron.log {
+    su contactia contactia
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

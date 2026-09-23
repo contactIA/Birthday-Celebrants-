@@ -183,8 +183,23 @@ O log registra login, cadastros e alterações — nomes dos campos, nunca valor
 docker logs birthday-celebrants 2>&1 | grep '\[setup'
 ```
 
+## 9. Rotação do log dos crons
+
+Como root, uma vez:
+
+```bash
+cp /home/contactia/birthday-celebrants/app/deploy/logrotate/birthday-celebrants /etc/logrotate.d/
+logrotate --debug /etc/logrotate.d/birthday-celebrants
+```
+
 ## Deploys seguintes
 
 ```bash
 cd ~/birthday-celebrants/app && ./deploy/deploy.sh
 ```
+
+Antes do build, o script confere o **contrato de schema** contra o banco real
+(`scripts/verificar-contrato.mjs`, lista em `src/shared/contrato.ts`). Se faltar
+coluna de que o código depende — removida ou renomeada, por exemplo pelo Clinic
+Control —, o deploy para com a lista do que falta, e o container no ar não é
+trocado.

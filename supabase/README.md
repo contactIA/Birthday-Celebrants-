@@ -51,9 +51,13 @@ Um passo que não está em repositório nenhum e é o mais fácil de esquecer:
 **expor o schema no PostgREST** (Dashboard → Settings → API → Exposed schemas).
 Sem isso toda chamada responde `PGRST106`, e o erro não diz o que falta.
 
-## O que ainda não existe
+## Teste de contrato
 
-Teste de contrato — consulta ao `information_schema` que falha quando uma
-coluna do contrato desaparece. O ADR 0006 deixou como opcional; decidimos fazer
-(ver [ADR 0002](../docs/adr/0002-banco-compartilhado.md)), e ele entra junto com
-a fatia que primeiro tocar o banco.
+As colunas de que o código depende estão em `src/shared/contrato.ts`, e o
+compilador exige que batam com os tipos de linha de `src/shared/db.ts`. O
+`deploy.sh` confere a lista contra o banco real antes de cada build
+(`scripts/verificar-contrato.mjs`): se o Clinic Control remover ou renomear uma
+coluna, o deploy para com a lista do que falta.
+
+**Mudou uma coluna?** Migration aqui, tipo em `db.ts`, lista em `contrato.ts` —
+e PR no Clinic Control se for `aniversariantes_clinicas`.

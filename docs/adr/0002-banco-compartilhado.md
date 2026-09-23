@@ -79,6 +79,12 @@ com o banco direto, mas o acoplamento externo fica num arquivo só.
   suíte de testes desde o primeiro commit, fica barato — uma consulta ao
   `information_schema` que falha quando uma coluna do contrato some move a
   descoberta da quebra do runtime em produção para o CI. Decisão: **fazer.**
+
+  *Implementado em 2026-09-23, com dois ajustes:* a lista de colunas mora em
+  `src/shared/contrato.ts` e o **compilador** exige que ela bata com os tipos
+  de linha de `db.ts`; a conferência contra o banco real roda no `deploy.sh`,
+  antes do build — e não no CI, que não tem credencial do banco. Lê as colunas
+  pelo OpenAPI do PostgREST em vez do `information_schema`, que não é exposto.
 - **Constraint duplicada:** `aniversariantes_clinicas_prontuario_credenciais_check`
   existe no banco e de novo em TypeScript no Clinic Control. Não replicamos uma
   terceira cópia aqui.

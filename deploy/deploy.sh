@@ -31,6 +31,18 @@ set +a
 echo "==> git pull"
 git pull --ff-only
 
+# Contrato de schema contra o banco real (ADR 0002): se faltar coluna de que o
+# código depende — removida ou renomeada, por exemplo pelo Clinic Control —, o
+# deploy para AQUI, antes de trocar o container que está no ar. Container Node
+# descartável porque a VPS não tem Node instalado.
+echo "==> contrato de schema"
+docker run --rm \
+  --env-file .env \
+  --volume "$PWD:/app:ro" \
+  --workdir /app \
+  node:24-alpine \
+  node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verificar-contrato.mjs
+
 echo "==> build + troca do container"
 docker compose up -d --build app
 
