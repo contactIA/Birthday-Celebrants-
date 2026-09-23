@@ -12,7 +12,9 @@ rota="${1:?informe a rota: sincronizar-clinicorp ou reconciliar-status}"
 
 # O segredo vem do mesmo .env do container, para não existir uma segunda cópia
 # que possa divergir.
-segredo=$(grep -E '^CRON_SECRET=' .env | cut -d= -f2-)
+# Tira aspas em volta, se houver — o compose as remove ao ler o `env_file`, e o
+# valor aqui precisa bater com o que o container recebeu.
+segredo=$(grep -E '^CRON_SECRET=' .env | tail -1 | cut -d= -f2- | sed -E "s/^([\"'])(.*)\1$/\2/")
 if [ -z "$segredo" ]; then
   echo "$(date -Is) ERRO: CRON_SECRET vazio no .env" >&2
   exit 1
