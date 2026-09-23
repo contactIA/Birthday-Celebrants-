@@ -17,7 +17,6 @@ function paciente(over: Partial<PacienteBruto> = {}): PacienteBruto {
 function deps(over: Partial<DependenciasDoSync> = {}) {
   const d = {
     buscarAniversariantesDoDia: vi.fn(async () => [] as PacienteBruto[]),
-    buscarStatus: vi.fn(async () => 'ACTIVE' as string | null),
     gravarLote: vi.fn(async () => {}),
     removerObsoletos: vi.fn(async () => {}),
     ...over,
@@ -66,60 +65,19 @@ describe('coleta', () => {
     expect(r.pacientes).toBe(1)
   })
 
-  it('anexa o status de cada paciente', async () => {
-    const d = deps({
-      buscarAniversariantesDoDia: vi.fn(async () => [paciente()]),
-      buscarStatus: vi.fn(async () => 'INACTIVE'),
-    })
-    await sincronizarClinica(CLINICA, AGORA, d)
-    expect(d.gravarLote).toHaveBeenCalledWith([expect.objectContaining({ situacao: 'INACTIVE' })])
-  })
-
-  it('status que falhou fica marcado como NÃO verificado, e o paciente continua no cache', async () => {
-    // Incidente da primeira execução na VPS: 429 em massa gravava `null` por
-    // cima do status conhecido, e paciente excluído voltava a ser agendável. A
-    // marcação é o que deixa a gravação preservar o valor antigo.
-    const d = deps({
-      buscarAniversariantesDoDia: vi.fn(async () => [paciente()]),
-      buscarStatus: vi.fn(async () => {
-        throw new Error('/patient/get: HTTP 429')
-      }),
-    })
+  it('grava todo paciente como ACTIVE, sem consulta de status', async () => {
+    // A listagem da Clinicorp só devolve ativos; a consulta por paciente foi
+    // removida (ver o topo de sincronizacao.ts). O que este teste prende: o
+    // sync faz UMA chamada por dia e nenhuma por paciente.
+    const buscar = vi.fn(async () => [paciente({ PatientId: 1 }), paciente({ PatientId: 2 })])
+    const d = deps({ buscarAniversariantesDoDia: buscar })
     const r = await sincronizarClinica(CLINICA, AGORA, d)
+    expect(buscar).toHaveBeenCalledTimes(61)
     expect(d.gravarLote).toHaveBeenCalledWith([
-      expect.objectContaining({ situacao: null, situacaoVerificada: false }),
-    ])
-    expect(r.erros.length).toBeGreaterThan(0)
-  })
-
-  it('status que a Clinicorp devolveu vazio é verificado — pode sobrescrever', async () => {
-    const d = deps({
-      buscarAniversariantesDoDia: vi.fn(async () => [paciente()]),
-      buscarStatus: vi.fn(async () => null),
-    })
-    const r = await sincronizarClinica(CLINICA, AGORA, d)
-    expect(d.gravarLote).toHaveBeenCalledWith([
-      expect.objectContaining({ situacao: null, situacaoVerificada: true }),
+      expect.objectContaining({ pacienteId: '1', situacao: 'ACTIVE' }),
+      expect.objectContaining({ pacienteId: '2', situacao: 'ACTIVE' }),
     ])
     expect(r.erros).toEqual([])
-  })
-
-  it('marca cada paciente pelo próprio resultado, num lote misto', async () => {
-    const d = deps({
-      buscarAniversariantesDoDia: vi.fn(async () => [
-        paciente({ PatientId: 1 }),
-        paciente({ PatientId: 2 }),
-      ]),
-      buscarStatus: vi.fn(async (id: string) => {
-        if (id === '2') throw new Error('HTTP 429')
-        return 'DELETED'
-      }),
-    })
-    await sincronizarClinica(CLINICA, AGORA, d)
-    expect(d.gravarLote).toHaveBeenCalledWith([
-      expect.objectContaining({ pacienteId: '1', situacao: 'DELETED', situacaoVerificada: true }),
-      expect.objectContaining({ pacienteId: '2', situacao: null, situacaoVerificada: false }),
-    ])
   })
 })
 

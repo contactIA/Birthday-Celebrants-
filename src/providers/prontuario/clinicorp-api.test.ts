@@ -74,20 +74,20 @@ describe('retentativas', () => {
   it('tenta de novo depois de um 429 e devolve o resultado', async () => {
     fetchMock
       .mockResolvedValueOnce(resposta(429, {}, { 'retry-after': '1' }))
-      .mockResolvedValueOnce(resposta(200, { Status: 'INACTIVE' }))
+      .mockResolvedValueOnce(resposta(200, [{ PatientId: 7, Name: 'Maria', BirthDate: '1990-09-02', MobilePhone: null }]))
 
-    const promessa = clienteClinicorp(CLINICA).statusDoPaciente('7')
+    const promessa = clienteClinicorp(CLINICA).aniversariantesDoDia('2026-09-02')
     await vi.runAllTimersAsync()
 
-    await expect(promessa).resolves.toBe('INACTIVE')
+    await expect(promessa).resolves.toHaveLength(1)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('desiste depois do limite de tentativas', async () => {
     fetchMock.mockImplementation(async () => resposta(429))
 
-    const promessa = clienteClinicorp(CLINICA).statusDoPaciente('7')
-    const verificacao = expect(promessa).rejects.toThrow('/patient/get: HTTP 429')
+    const promessa = clienteClinicorp(CLINICA).aniversariantesDoDia('2026-09-02')
+    const verificacao = expect(promessa).rejects.toThrow('/patient/birthdays: HTTP 429')
     await vi.runAllTimersAsync()
 
     await verificacao
@@ -112,12 +112,6 @@ describe('retentativas', () => {
 
     await expect(clienteClinicorp(CLINICA).aniversariantesDoDia('2026-09-02')).resolves.toEqual([])
     expect(console.error).not.toHaveBeenCalled()
-  })
-
-  it('o atalho do 400 vazio NÃO vale para a consulta de status', async () => {
-    fetchMock.mockResolvedValueOnce(resposta(400, { Message: 'Nenhum paciente encontrado' }))
-
-    await expect(clienteClinicorp(CLINICA).statusDoPaciente('7')).rejects.toThrow('HTTP 400')
   })
 
   it('o corpo do erro vai para o log, nunca para a exceção', async () => {

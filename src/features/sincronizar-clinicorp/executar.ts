@@ -47,7 +47,6 @@ const rodarDeVerdade: Rodar = (clinica, agora, carimbo) => {
   const api = clienteClinicorp(clinica)
   return sincronizarClinica(clinica, agora, {
     buscarAniversariantesDoDia: (data) => api.aniversariantesDoDia(data),
-    buscarStatus: (id) => api.statusDoPaciente(id),
     gravarLote: (linhas) => gravarLote(clinica, linhas, carimbo),
     removerObsoletos: () => removerObsoletos(clinica, carimbo),
   })

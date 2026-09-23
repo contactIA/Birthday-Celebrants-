@@ -65,13 +65,13 @@ export interface PacienteBruto {
   MobilePhone: string | null
 }
 
-interface PacienteDetalhado {
-  Status: 'ACTIVE' | 'INACTIVE' | 'DELETED'
-}
-
+/**
+ * Só a listagem de aniversariantes. Havia também `statusDoPaciente`
+ * (`/patient/get`), removido: a listagem já só devolve pacientes ativos — ver
+ * o topo de `features/sincronizar-clinicorp/sincronizacao.ts`.
+ */
 export interface ClienteClinicorp {
   aniversariantesDoDia: (data: string) => Promise<PacienteBruto[]>
-  statusDoPaciente: (pacienteId: string) => Promise<string | null>
 }
 
 export function clienteClinicorp(clinica: Clinica): ClienteClinicorp {
@@ -132,11 +132,6 @@ export function clienteClinicorp(clinica: Clinica): ClienteClinicorp {
     async aniversariantesDoDia(data: string): Promise<PacienteBruto[]> {
       const lista = await chamar<PacienteBruto[]>('/patient/birthdays', { date: data }, [])
       return Array.isArray(lista) ? lista : []
-    },
-
-    async statusDoPaciente(pacienteId: string): Promise<string | null> {
-      const p = await chamar<PacienteDetalhado>('/patient/get', { PatientId: pacienteId })
-      return p?.Status ?? null
     },
   }
 }

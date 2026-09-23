@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
   // separa "renovado agora" de "sobrou da execução anterior".
   const carimbo = agora.toISOString()
 
-  // Em PARALELO. Em série, cada clínica somava ~61 chamadas de aniversário mais
-  // uma por paciente encontrado, e a segunda já arriscava o corte por tempo.
+  // Em PARALELO: clínicas diferentes não dividem nada, e cada uma já limita as
+  // próprias chamadas simultâneas (CONCORRENCIA em sincronizacao.ts).
   const relatorios = await Promise.all(
     clinicas.map(async (clinica): Promise<RelatorioDaClinica> => {
       try {

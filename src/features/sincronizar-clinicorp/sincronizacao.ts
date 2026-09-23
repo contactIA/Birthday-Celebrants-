@@ -4,9 +4,18 @@ import type { PacienteBruto } from '@/providers/prontuario/clinicorp-api'
 
 // O cron diário que reconstrói o cache de aniversariantes da Clinicorp.
 //
-// POR QUE EXISTE: a API deles só lista aniversariantes de UM dia, e o status do
-// paciente vem em outra chamada, uma por paciente. Montar "o mês" ao vivo
-// custaria ~31 requests mais um por paciente, a cada carregamento de tela.
+// POR QUE EXISTE: a API deles só lista aniversariantes de UM dia. Montar "o
+// mês" ao vivo custaria ~31 requests a cada carregamento de tela.
+//
+// SEM CONSULTA DE STATUS POR PACIENTE — e por quê, porque ela já existiu.
+// A versão anterior chamava `/patient/get` para cada paciente encontrado, para
+// esconder INACTIVE/DELETED. Em 2026-09-23 os dados mostraram que isso é
+// redundante: `/patient/birthdays` já devolve SÓ pacientes ativos (o próprio
+// 400 de dia vazio diz "Nenhum paciente ATIVO faz aniversário"), e das 527
+// consultas de status que funcionaram em produção, 527 voltaram ACTIVE. A
+// etapa custava uma chamada por paciente (600 numa clínica grande, contra 61
+// da lista de dias), estourava a cota da Clinicorp e levava a sincronização de
+// segundos para dezenas de minutos — sem esconder ninguém.
 //
 // ┌──────────────────────────────────────────────────────────────────────────┐
 // │ Esta fatia ESCREVE a tabela que `providers/prontuario/clinicorp.ts` LÊ.   │
@@ -14,7 +23,7 @@ import type { PacienteBruto } from '@/providers/prontuario/clinicorp-api'
 // └──────────────────────────────────────────────────────────────────────────┘
 
 /**
- * Chamadas simultâneas por clínica, em cada fase.
+ * Consultas de dia simultâneas por clínica.
  *
  * Era 6, e a Clinicorp respondeu 429 em massa já na primeira execução na VPS
  * (duas clínicas em paralelo = 12 chamadas ao mesmo tempo). O 6 vinha do teto
@@ -23,6 +32,14 @@ import type { PacienteBruto } from '@/providers/prontuario/clinicorp-api'
  * (`providers/prontuario/clinicorp-api.ts`).
  */
 export const CONCORRENCIA = 2
+
+/**
+ * O status gravado no cache. Constante porque `/patient/birthdays` só devolve
+ * pacientes ativos (ver o topo). Gravar o valor, e não `null`, mantém a coluna
+ * dizendo a verdade — e sobrescreve os `null` que a versão antiga deixou
+ * quando a consulta de status tomava 429.
+ */
+export const SITUACAO_DA_LISTAGEM = 'ACTIVE'
 
 export type { PacienteBruto }
 
@@ -34,16 +51,7 @@ export interface LinhaDeCache {
   datanascimento: string
   mes: number
   dia: number
-  situacao: string | null
-  /**
-   * `false` quando a consulta de status FALHOU nesta execução.
-   *
-   * Não é o mesmo que `situacao: null`. Sem esta distinção a gravação escrevia
-   * `null` por cima do status que o cache já tinha — e como a tela só esconde
-   * INACTIVE/DELETED, um 429 da Clinicorp fazia paciente excluído reaparecer
-   * como agendável. Quem grava só escreve `situacao` quando isto é `true`.
-   */
-  situacaoVerificada: boolean
+  situacao: string
 }
 
 export interface RelatorioDaClinica {
@@ -57,12 +65,6 @@ export interface RelatorioDaClinica {
 
 export interface DependenciasDoSync {
   buscarAniversariantesDoDia: (data: string) => Promise<PacienteBruto[]>
-  /**
-   * Lança quando não deu para verificar. `null` = a Clinicorp respondeu, sem
-   * status. Os dois viram "não esconder o paciente", mas só o segundo pode
-   * sobrescrever o que o cache já sabia.
-   */
-  buscarStatus: (pacienteId: string) => Promise<string | null>
   gravarLote: (linhas: LinhaDeCache[]) => Promise<void>
   /** Remove do cache desta clínica o que não foi tocado nesta execução. */
   removerObsoletos: () => Promise<void>
@@ -140,29 +142,12 @@ export async function sincronizarClinica(
         datanascimento: p.BirthDate!.slice(0, 10),
         mes,
         dia,
-        situacao: null,
-        situacaoVerificada: false,
+        situacao: SITUACAO_DA_LISTAGEM,
       })
     }
   }
 
   const linhas = [...encontrados.values()]
-
-  // O status só existe numa chamada por paciente — e só dos encontrados, não
-  // da base inteira.
-  const situacoes = await comConcorrenciaLimitada(linhas, CONCORRENCIA, async (linha) => {
-    try {
-      return { verificada: true, valor: await deps.buscarStatus(linha.pacienteId) }
-    } catch (err) {
-      erros.push(`status de ${linha.pacienteId}: ${(err as Error).message}`)
-      return { verificada: false, valor: null }
-    }
-  })
-  linhas.forEach((linha, i) => {
-    linha.situacao = situacoes[i]!.valor
-    linha.situacaoVerificada = situacoes[i]!.verificada
-  })
-
   if (linhas.length > 0) await deps.gravarLote(linhas)
 
   // A LIMPEZA VEM DEPOIS DA GRAVAÇÃO, e é condicional.

@@ -15,10 +15,11 @@ import {
 // GET  /api/setup/clinicas/:id/sincronizar — andamento e estado do cache.
 //
 // POR QUE DISPARAR E ACOMPANHAR, e não esperar a resposta: a sincronização faz
-// ~61 chamadas de aniversário mais uma por paciente, com retentativa em 429 —
-// passa fácil de minutos. Segurar a requisição esbarraria no timeout do nginx e
-// deixaria a tela congelada. O container é um processo Node que continua vivo
-// depois da resposta, então a execução segue; a tela consulta o GET.
+// ~61 chamadas à Clinicorp, e com o limite de taxa deles (429, com espera e
+// retentativa) pode passar de minuto. Segurar a requisição esbarraria no
+// timeout do nginx e deixaria a tela congelada. O container é um processo Node
+// que continua vivo depois da resposta, então a execução segue; a tela
+// consulta o GET.
 
 class SemSincronizacaoError extends Error {
   readonly status = 400

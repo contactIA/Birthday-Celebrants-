@@ -4,10 +4,8 @@ import type { Aniversariante, ProvedorDeProntuario } from './porta'
 
 // Adapter da Clinicorp: lê o NOSSO cache, não a API deles.
 //
-// POR QUE. A API da Clinicorp só tem "aniversariantes de UM dia", e o status do
-// paciente (ACTIVE/INACTIVE/DELETED) vem em outra chamada, uma por paciente.
-// Reconstruir "o mês" ao vivo custaria até ~31 requests de aniversário mais um
-// por paciente encontrado, a cada carregamento de tela.
+// POR QUE. A API da Clinicorp só tem "aniversariantes de UM dia". Reconstruir
+// "o mês" ao vivo custaria até ~31 requests a cada carregamento de tela.
 //
 // ┌──────────────────────────────────────────────────────────────────────────┐
 // │ DEPENDÊNCIA ENTRE FATIAS — a única do sistema.                           │
@@ -18,7 +16,11 @@ import type { Aniversariante, ProvedorDeProntuario } from './porta'
 // │ isso — a tabela é a interface. Mexeu numa, olhe a outra.                 │
 // └──────────────────────────────────────────────────────────────────────────┘
 
-/** Status vindo do `patient/get` da Clinicorp, gravado no cache pelo sync. */
+/**
+ * Status que escondem o paciente. O sync de hoje só grava ACTIVE (a listagem
+ * da Clinicorp já filtra), então o filtro não pega nada novo — fica como defesa
+ * para linhas antigas e para o caso de a Clinicorp mudar o comportamento.
+ */
 const SITUACOES_EXCLUIDAS = new Set(['INACTIVE', 'DELETED'])
 
 export function provedorClinicorp(clinica: Clinica): ProvedorDeProntuario {
@@ -73,9 +75,9 @@ function normalizar(linhas: PacienteCacheRow[]): Aniversariante[] {
   const itens: Aniversariante[] = []
 
   for (const linha of linhas) {
-    // `situacao` null = não verificado (a chamada de status falhou no sync).
-    // Não filtramos: mesmo espírito informativo do outro provedor — esconder
-    // paciente por falha nossa é pior que mostrar a mais.
+    // `situacao` null = linha gravada pela versão antiga do sync quando a
+    // consulta de status falhou. Não filtramos: esconder paciente por falha
+    // nossa é pior que mostrar a mais. A próxima sincronização grava ACTIVE.
     if (linha.situacao && SITUACOES_EXCLUIDAS.has(linha.situacao)) continue
 
     const [ano, mesStr, diaStr] = (linha.datanascimento ?? '').split('-')
