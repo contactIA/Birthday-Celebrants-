@@ -17,7 +17,9 @@ import { HEADER_COMPANY_ID, segredoDoAmbiente } from '@/acesso/token'
 
 const COOKIE = 'av_escopo'
 
-const HOSTS_PERMITIDOS = (process.env.EMBED_HOSTS ?? 'app.fluxodonto.com')
+// `||`, não `??`: `EMBED_HOSTS=` vazio no .env chega como string vazia e, com
+// `??`, virava lista vazia — nenhum host autorizado a informar a clínica.
+const HOSTS_PERMITIDOS = (process.env.EMBED_HOSTS || 'app.fluxodonto.com')
   .split(',')
   .map((h) => h.trim().toLowerCase())
   .filter(Boolean)

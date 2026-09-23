@@ -4,7 +4,9 @@ import type { NextConfig } from 'next'
 // restringe QUEM pode embutir — a mesma lista que o proxy usa para aceitar a
 // clínica pela URL. Sem isso, qualquer site pode enquadrar o painel, e o cookie
 // de escopo é `SameSite=None` justamente para funcionar em iframe de terceiro.
-const EMBED_HOSTS = (process.env.EMBED_HOSTS ?? 'app.fluxodonto.com')
+// `||`, não `??`: `EMBED_HOSTS=` vazio no .env chega como string vazia, e com
+// `??` a CSP saía só com `'self'` — a plataforma não conseguia embutir o painel.
+const EMBED_HOSTS = (process.env.EMBED_HOSTS || 'app.fluxodonto.com')
   .split(',')
   .map((h) => h.trim())
   .filter(Boolean)
