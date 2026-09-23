@@ -2,7 +2,7 @@ import { hojeNoTimezone } from '@/shared/data/fuso'
 import { provedorEClinica } from '@/providers/prontuario/eclinica'
 import { clienteClinicorp } from '@/providers/prontuario/clinicorp-api'
 import { mensageriaDe } from '@/providers/mensageria'
-import type { DependenciasDoTeste } from './conexao'
+import { conferirRemetente, type DependenciasDoTeste } from './conexao'
 
 // As dependências de verdade do teste de conexão — rede de verdade.
 //
@@ -31,8 +31,11 @@ export function dependenciasReais(agora: Date): DependenciasDoTeste {
     },
 
     async testarMensageria(clinica) {
-      const { modelos } = await mensageriaDe(clinica).listarModelos()
-      return `Plataforma de mensagens conectada — ${plural(modelos.length, 'modelo aprovado', 'modelos aprovados')}`
+      const mensageria = mensageriaDe(clinica)
+      const [{ modelos }, canais] = await Promise.all([mensageria.listarModelos(), mensageria.listarRemetentes()])
+      const remetente = conferirRemetente(clinica.credenciais.mensageria.from, canais)
+      if (!remetente.ok) throw new Error(remetente.mensagem)
+      return `Conectada — ${plural(modelos.length, 'modelo aprovado', 'modelos aprovados')} · ${remetente.mensagem}`
     },
   }
 }

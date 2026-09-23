@@ -1,5 +1,4 @@
-import { aniversarioJaPassou, instanteDoEnvio, type DiaEnvio } from '@/shared/data/agendamento'
-import { anoNoTimezone } from '@/shared/data/fuso'
+import { anoDoAniversario, aniversarioJaPassou, instanteDoEnvio, type DiaEnvio } from '@/shared/data/agendamento'
 import { mesDiaDe, paraExibicao } from '@/shared/data/parse'
 import { paraE164BR } from '@/shared/telefone/e164'
 import { resolverParametros } from '@/shared/template/parametros'
@@ -134,7 +133,6 @@ export async function agendarMensagens(
   const encontrados = await deps.buscarPacientes(ids)
   const porId = new Map(encontrados.map((p) => [p.id, p]))
 
-  const ano = anoNoTimezone(contexto.timezone, contexto.agora)
   const resultados: ResultadoPorPaciente[] = []
 
   // Sequencial de propósito. A API de mensagens tem limite de taxa, e um lote
@@ -152,7 +150,7 @@ export async function agendarMensagens(
       continue
     }
 
-    resultados.push(await agendarUm(paciente, modelo, quandoManual, ano, contexto, deps))
+    resultados.push(await agendarUm(paciente, modelo, quandoManual, contexto, deps))
   }
 
   return resultados
@@ -162,7 +160,6 @@ async function agendarUm(
   paciente: Aniversariante,
   modelo: ConfiguracaoDeModelo,
   quandoManual: string | null,
-  ano: number,
   contexto: Contexto,
   deps: Dependencias
 ): Promise<ResultadoPorPaciente> {
@@ -175,6 +172,10 @@ async function agendarUm(
   }
 
   const { mes, dia } = mesDiaDe(paciente.aniversario)
+  // O ano DESTE aniversário, não o corrente: em dezembro, janeiro é do ano que
+  // vem, e a chave única (clínica, paciente, ano) precisa dizer isso — senão o
+  // parabéns de janeiro sobrescreveria o do janeiro que já passou.
+  const ano = anoDoAniversario(mes, contexto.timezone, contexto.agora)
 
   let quando: string
   if (quandoManual) {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import clsx from 'clsx'
 import { Aviso, Botao, Carregando, Vazio } from '@/ui/primitivos'
 import { CAMPOS_DISPONIVEIS, renderizar } from '@/shared/template/parametros'
 
@@ -100,10 +101,14 @@ export function Modelos() {
 }
 
 function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) {
+  // Modelo ainda não configurado começa SEM campo em cada variável. Antes, todas
+  // vinham como "Primeiro nome": num modelo "completa {{2}} anos" a prévia saía
+  // "completa Marina anos", e um clique em Salvar sem reparar mandava isso a
+  // todos os pacientes.
   const [parametros, setParametros] = useState<Record<string, string>>(
-    modelo.config?.parametros ??
-      Object.fromEntries(modelo.parametrosDoTexto.map((p) => [p, 'primeiro_nome']))
+    modelo.config?.parametros ?? Object.fromEntries(modelo.parametrosDoTexto.map((p) => [p, '']))
   )
+  const faltando = modelo.parametrosDoTexto.filter((p) => !parametros[p])
   const [diaEnvio, setDiaEnvio] = useState(modelo.config?.diaEnvio ?? 'aniversario')
   const [horario, setHorario] = useState(modelo.config?.horarioEnvio ?? '09:00')
   const [ehPadrao, setEhPadrao] = useState(modelo.config?.ehPadrao ?? false)
@@ -140,7 +145,13 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
     }
   }
 
-  const previa = renderizar(modelo.conteudo, parametros, EXEMPLO)
+  // Só as variáveis já ligadas entram na prévia: as que faltam ficam como
+  // `{{n}}` no texto, que é exatamente o que ainda precisa de escolha.
+  const previa = renderizar(
+    modelo.conteudo,
+    Object.fromEntries(Object.entries(parametros).filter(([, campo]) => campo)),
+    EXEMPLO
+  )
 
   return (
     <section className="overflow-hidden rounded-[12px] border border-line bg-surface">
@@ -174,10 +185,16 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
               <label key={p} className="flex items-center gap-2.5">
                 <span className="w-12 shrink-0 font-mono text-xs text-muted">{`{{${p}}}`}</span>
                 <select
-                  value={parametros[p] ?? 'primeiro_nome'}
+                  value={parametros[p] ?? ''}
                   onChange={(e) => setParametros((m) => ({ ...m, [p]: e.target.value }))}
-                  className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 text-sm text-ink focus:outline-none"
+                  className={clsx(
+                    'h-9 min-w-0 flex-1 rounded-lg border bg-surface px-2.5 text-sm focus:outline-none',
+                    parametros[p] ? 'border-line text-ink' : 'border-atencao/50 text-muted'
+                  )}
                 >
+                  <option value="" disabled>
+                    Escolha o campo…
+                  </option>
                   {CAMPOS_DISPONIVEIS.map((campo) => (
                     <option key={campo.valor} value={campo.valor}>
                       {campo.rotulo}
@@ -223,10 +240,16 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
             Usar como modelo padrão
           </label>
 
-          <Botao tamanho="sm" onClick={salvar} disabled={salvando} className="ml-auto">
+          <Botao tamanho="sm" onClick={salvar} disabled={salvando || faltando.length > 0} className="ml-auto">
             {salvando ? 'Salvando…' : 'Salvar configuração'}
           </Botao>
         </div>
+
+        {faltando.length > 0 && (
+          <p className="text-sm text-atencao">
+            Escolha o campo de {faltando.map((p) => `{{${p}}}`).join(', ')} para poder salvar.
+          </p>
+        )}
 
         {resultado && (
           <p className={resultado.ok ? 'text-sm text-ok' : 'text-sm text-erro'}>

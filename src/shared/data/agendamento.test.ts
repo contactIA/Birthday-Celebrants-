@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { aniversarioAgendavel, aniversarioJaPassou, instanteDoEnvio, idadeAtual } from './agendamento'
+import {
+  anoDoAniversario,
+  anoDoAniversarioAPartirDe,
+  aniversarioAgendavel,
+  aniversarioJaPassou,
+  instanteDoEnvio,
+  idadeAtual,
+} from './agendamento'
 
 const SP = 'America/Sao_Paulo'
 // 15/09/2026, 14:00 em São Paulo (17:00 UTC).
@@ -116,5 +123,40 @@ describe('idadeAtual', () => {
 
   it('recusa formato inválido', () => {
     expect(idadeAtual('', SP, AGORA)).toBeNull()
+  })
+})
+
+describe('virada de ano', () => {
+  // 20/12/2026, 12:00 em São Paulo.
+  const DEZEMBRO = new Date('2026-12-20T15:00:00Z')
+  const base = { timezone: SP, horario: '09:00', diaEnvio: 'aniversario' as const, agora: DEZEMBRO }
+
+  it('em dezembro, janeiro é do ano que vem', () => {
+    expect(anoDoAniversario(1, SP, DEZEMBRO)).toBe(2027)
+    expect(anoDoAniversario(12, SP, DEZEMBRO)).toBe(2026)
+  })
+
+  it('fora de dezembro, janeiro é do ano corrente (já passou)', () => {
+    expect(anoDoAniversario(1, SP, AGORA)).toBe(2026)
+    expect(aniversarioAgendavel(1, 5, SP, AGORA)).toBe(false)
+  })
+
+  it('janeiro visto de dezembro é agendável e não "já passou"', () => {
+    expect(aniversarioAgendavel(1, 5, SP, DEZEMBRO)).toBe(true)
+    expect(aniversarioJaPassou(1, 5, SP, DEZEMBRO)).toBe(false)
+  })
+
+  it('agenda janeiro para o ANO QUE VEM', () => {
+    expect(instanteDoEnvio(1, 5, base)?.toISOString()).toBe('2027-01-05T12:00:00.000Z')
+  })
+
+  it('"3 dias antes" de 1º de janeiro cai em dezembro deste ano', () => {
+    const d = instanteDoEnvio(1, 1, { ...base, diaEnvio: '3_dias_antes' })
+    expect(d?.toISOString()).toBe('2026-12-29T12:00:00.000Z')
+  })
+
+  it('a regra da tela é a mesma, a partir do "hoje" já calculado', () => {
+    expect(anoDoAniversarioAPartirDe(1, { ano: 2026, mes: 12, dia: 20 })).toBe(2027)
+    expect(anoDoAniversarioAPartirDe(1, { ano: 2026, mes: 11, dia: 20 })).toBe(2026)
   })
 })

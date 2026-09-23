@@ -5,6 +5,8 @@
 // clínica, e o app anterior usava o fuso do navegador como aproximação — o que
 // produzia "Hoje" no dia errado para quem estivesse viajando.
 
+import { anoDoAniversarioAPartirDe } from '@/shared/data/agendamento'
+
 export interface DataDaClinica {
   ano: number
   mes: number
@@ -41,7 +43,9 @@ export function rotuloDoDia(mes: number, dia: number, hoje: DataDaClinica): stri
     return `Amanhã · ${dataPorExtenso}`
   }
 
-  const diaDaSemana = new Date(Date.UTC(hoje.ano, mes - 1, dia)).getUTCDay()
+  // O ano do aniversário, não o de hoje: em dezembro, "janeiro" é do ano que
+  // vem, e o dia da semana muda com o ano.
+  const diaDaSemana = new Date(Date.UTC(anoDoAniversarioAPartirDe(mes, hoje), mes - 1, dia)).getUTCDay()
   return `${DIAS_DA_SEMANA[diaDaSemana]} · ${dataPorExtenso}`
 }
 
@@ -56,7 +60,9 @@ export function rotuloDoDia(mes: number, dia: number, hoje: DataDaClinica): stri
 export function idadeQueFaz(datanascimento: string, hoje: DataDaClinica): number | null {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(datanascimento)
   if (!m) return null
-  const idade = hoje.ano - Number(m[3])
+  // Idade NESTE aniversário: em dezembro, quem faz aniversário em janeiro
+  // completa a idade do ano que vem.
+  const idade = anoDoAniversarioAPartirDe(Number(m[2]), hoje) - Number(m[3])
   return idade > 0 && idade <= 120 ? idade : null
 }
 

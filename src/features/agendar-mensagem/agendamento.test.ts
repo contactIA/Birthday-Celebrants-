@@ -290,3 +290,18 @@ describe('registro do envio', () => {
     expect(d.registrarEnvio).toHaveBeenCalledWith(expect.objectContaining({ mensagemId: null }))
   })
 })
+
+describe('virada de ano', () => {
+  it('em dezembro, agenda o aniversário de janeiro com a chave do ANO QUE VEM', async () => {
+    // Com o ano corrente, a chave (clínica, paciente, 2026) sobrescreveria o
+    // registro do janeiro que já passou.
+    const d = deps({ buscarPacientes: vi.fn(async () => [paciente({ aniversario: '01/05' })]) })
+    const [r] = await agendarMensagens(
+      { modeloConfigId: 'config-1', pacienteIds: ['p1'] },
+      { timezone: SP, agora: new Date('2026-12-20T15:00:00Z') },
+      d
+    )
+    expect(r!.ok).toBe(true)
+    expect(d.registrarEnvio).toHaveBeenCalledWith(expect.objectContaining({ ano: 2027 }))
+  })
+})

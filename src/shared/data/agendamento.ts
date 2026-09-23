@@ -1,4 +1,4 @@
-import { hojeNoTimezone, offsetDe } from './fuso'
+import { hojeNoTimezone, offsetDe, type DataLocal } from './fuso'
 
 /** Quando enviar, relativo ao aniversário. Espelha a check constraint da tabela. */
 export type DiaEnvio = 'aniversario' | '1_dia_antes' | '3_dias_antes'
@@ -21,8 +21,33 @@ const MINUTOS_DE_MARGEM = 5
  */
 export function aniversarioJaPassou(mes: number, dia: number, timezone: string, agora: Date): boolean {
   const hoje = hojeNoTimezone(timezone, agora)
+  if (anoDoAniversario(mes, timezone, agora) > hoje.ano) return false
   if (mes !== hoje.mes) return mes < hoje.mes
   return dia < hoje.dia
+}
+
+/**
+ * O ano do aniversário de um mês, visto de hoje no fuso da clínica.
+ *
+ * Quase sempre é o ano corrente. A exceção é a virada: em DEZEMBRO, janeiro é
+ * do ano que vem. A lista e o cache já cobrem "mês atual + seguinte", então em
+ * dezembro os aniversariantes de janeiro aparecem — e, com o ano corrente, eram
+ * tratados como "já passou" (janeiro vem antes de dezembro) e não podiam ser
+ * agendados antes da virada.
+ *
+ * UMA função para as duas fatias: a listagem cruza os envios por este ano, e o
+ * agendamento grava a chave única (clínica, paciente, ano) com ele. Se
+ * divergissem, quem acabou de ser agendado apareceria "sem mensagem". E é ano
+ * do FUSO DA CLÍNICA — o servidor roda em UTC, e às 22h de 31/12 em Brasília
+ * já é 1º de janeiro para ele.
+ */
+export function anoDoAniversario(mes: number, timezone: string, agora: Date): number {
+  return anoDoAniversarioAPartirDe(mes, hojeNoTimezone(timezone, agora))
+}
+
+/** A mesma regra, a partir do "hoje" já calculado — é o que a tela recebe da API. */
+export function anoDoAniversarioAPartirDe(mes: number, hoje: DataLocal): number {
+  return hoje.mes === 12 && mes === 1 ? hoje.ano + 1 : hoje.ano
 }
 
 /**
@@ -38,6 +63,7 @@ export function aniversarioJaPassou(mes: number, dia: number, timezone: string, 
  */
 export function aniversarioAgendavel(mes: number, dia: number, timezone: string, agora: Date): boolean {
   const hoje = hojeNoTimezone(timezone, agora)
+  if (anoDoAniversario(mes, timezone, agora) > hoje.ano) return true
   if (mes !== hoje.mes) return mes > hoje.mes
   return dia > hoje.dia
 }
@@ -61,9 +87,9 @@ export interface ParametrosDeEnvio {
 export function instanteDoEnvio(mes: number, dia: number, p: ParametrosDeEnvio): Date | null {
   if (!aniversarioAgendavel(mes, dia, p.timezone, p.agora)) return null
 
-  const hoje = hojeNoTimezone(p.timezone, p.agora)
+  const ano = anoDoAniversario(mes, p.timezone, p.agora)
   const [hh, mm] = p.horario.split(':').map(Number)
-  const noAniversario = Date.UTC(hoje.ano, mes - 1, dia, (hh ?? 9) - offsetDe(p.timezone), mm ?? 0)
+  const noAniversario = Date.UTC(ano, mes - 1, dia, (hh ?? 9) - offsetDe(p.timezone), mm ?? 0)
   const alvo = noAniversario - DIAS_DE_ANTECEDENCIA[p.diaEnvio] * 86_400_000
 
   // A antecedência pode cair no passado — aniversário amanhã com "3 dias

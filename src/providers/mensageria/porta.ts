@@ -73,6 +73,33 @@ export interface ProvedorDeMensageria {
    * mensagens que não criamos — quem chama casa pelos ids que conhece.
    */
   listarAgendadas(janela: { de: string; ate: string }): Promise<MensagemNaPlataforma[]>
+
+  /**
+   * Os números de WhatsApp (canais ativos) da conta, como dígitos com país
+   * ("556231930175"). Usado pelo teste de conexão da área de setup para
+   * conferir o "número remetente" antes de alguém tentar agendar.
+   */
+  listarRemetentes(): Promise<string[]>
+}
+
+/**
+ * O número remetente cadastrado não é um canal desta conta na plataforma.
+ *
+ * Tipo próprio porque a mensagem genérica ("respondeu 500") não dava pista
+ * nenhuma — e o conserto é de configuração, não de insistir: corrigir o número
+ * remetente na área de setup. Nasceu de um caso real: remetente sem o dígito
+ * certo, e todo agendamento da clínica falhando com 500.
+ */
+export class RemetenteNaoEncontradoError extends Error {
+  readonly status = 502
+  readonly codigo = 'REMETENTE_NAO_ENCONTRADO' as const
+  constructor() {
+    super(
+      'O número remetente desta clínica não corresponde a nenhum canal da conta na plataforma de ' +
+        'mensagens. Peça a quem administra a conta para conferir o número remetente.'
+    )
+    this.name = 'RemetenteNaoEncontradoError'
+  }
 }
 
 /** A plataforma recusou ou não respondeu. */

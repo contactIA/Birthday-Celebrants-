@@ -10,7 +10,7 @@ import {
   montarClinica,
   type EntradaDeClinica,
 } from './regras'
-import { testarConexao } from './conexao'
+import { conferirRemetente, testarConexao } from './conexao'
 
 const COMPANY = '7b1a1c2e-3d4f-4a5b-8c6d-0e1f2a3b4c5d'
 
@@ -176,5 +176,34 @@ describe('testarConexao', () => {
       testarMensageria: async () => 'ok',
     })
     expect(r.prontuario).toEqual({ ok: false, mensagem: expect.stringMatching(/inesperada/) })
+  })
+})
+
+describe('conferirRemetente', () => {
+  const CANAL = '556231930175' // como listarRemetentes devolve
+
+  it('aceita o mesmo número escrito de outro jeito', () => {
+    expect(conferirRemetente('(62) 3193-0175', [CANAL])).toMatchObject({ ok: true })
+    expect(conferirRemetente('556231930175', [CANAL])).toMatchObject({ ok: true })
+  })
+
+  it('recusa número que não é canal — e lista os disponíveis', () => {
+    // O caso real: o 9 a mais num número fixo.
+    const r = conferirRemetente('5562931930175', [CANAL])
+    expect(r.ok).toBe(false)
+    expect(r.mensagem).toMatch(/não é um canal desta conta/)
+    expect(r.mensagem).toMatch(/\(62\) 3193-0175/)
+  })
+
+  it('remetente vazio com um canal só: usa o da conta', () => {
+    expect(conferirRemetente('', [CANAL])).toMatchObject({ ok: true, mensagem: expect.stringMatching(/canal da conta/) })
+  })
+
+  it('remetente vazio com vários canais: avisa que falta escolher', () => {
+    expect(conferirRemetente(null, [CANAL, '5562999990000']).mensagem).toMatch(/defina qual usar/)
+  })
+
+  it('conta sem canal ativo falha', () => {
+    expect(conferirRemetente(null, [])).toMatchObject({ ok: false })
   })
 })

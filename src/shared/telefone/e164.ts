@@ -40,3 +40,28 @@ export function paraE164BR(bruto: string | null | undefined): string | null {
 
   return validaNacional(nacional) ? `+55${nacional}` : null
 }
+
+/**
+ * Telefone BR para LEITURA humana: "(62) 98187-8291", "(62) 3193-0175".
+ *
+ * Mesmo telefone, mesma cara em toda tela. Antes a Agenda mostrava o que veio
+ * do prontuário e o Histórico o E.164 cru ("+5562981878291"). Aceita qualquer
+ * formato que `paraE164BR` aceita; o que não reconhece volta como veio — é
+ * exibição, não validação, e esconder o valor sujo esconderia o problema.
+ */
+export function formatarTelefoneBR(bruto: string | null | undefined): string {
+  if (!bruto) return ''
+  const e164 = paraE164BR(bruto)
+  if (!e164) return bruto
+  const nacional = e164.slice(3) // tira "+55"
+  const ddd = nacional.slice(0, 2)
+  const numero = nacional.slice(2)
+  const corte = numero.length - 4
+  return `(${ddd}) ${numero.slice(0, corte)}-${numero.slice(corte)}`
+}
+
+/** Só os dígitos, com o 55 na frente — para comparar números escritos de jeitos diferentes. */
+export function digitosComPais(bruto: string | null | undefined): string | null {
+  const e164 = paraE164BR(bruto)
+  return e164 ? e164.slice(1) : null
+}

@@ -3,6 +3,7 @@ import {
   MensageriaIndisponivelError,
   MensagemNaoEstaAgendadaError,
   RecursoNaoHabilitadoError,
+  RemetenteNaoEncontradoError,
   TIMEOUT_MS,
   type AgendamentoCriado,
   type AgendamentoSolicitado,
@@ -12,6 +13,7 @@ import {
   type ProvedorDeMensageria,
 } from './porta'
 import type { StatusEnvio } from '@/shared/db'
+import { digitosComPais } from '@/shared/telefone/e164'
 
 // Adapter da plataforma de mensagens atual.
 //
@@ -28,6 +30,10 @@ import type { StatusEnvio } from '@/shared/db'
 //  · "App Mensagens agendadas não está habilitado" (ENTITY_NOT_FOUND) é erro de
 //    conta, não de código.
 //  · Cancelar mensagem que já não está agendada devolve ENTITY_ERROR_SAVE.
+//  · Remetente (`from`) que não é canal da conta devolve **500** com
+//    "Canal de comunicação não encontrado (<número>)" — não 4xx. Os canais
+//    estão em `/chat/v1/channel`, com o número em `number` no formato
+//    "+55|6231930175".
 //
 // O nome do fornecedor não aparece em nenhuma string que possa chegar à tela.
 
@@ -122,6 +128,7 @@ export function provedorHelena(clinica: Clinica): ProvedorDeMensageria {
     if (!resposta.ok) {
       console.error(`[mensageria/${rotulo}] HTTP ${resposta.status}: ${corpo}`)
       if (corpo.includes('ENTITY_NOT_FOUND')) throw new RecursoNaoHabilitadoError()
+      if (corpo.includes('Canal de comunicação não encontrado')) throw new RemetenteNaoEncontradoError()
       if (
         corpo.includes('ENTITY_ERROR_SAVE') ||
         corpo.toLowerCase().includes('só é possível cancelar mensagens que estão agendadas')
@@ -231,6 +238,14 @@ export function provedorHelena(clinica: Clinica): ProvedorDeMensageria {
       }
 
       return encontradas
+    },
+
+    async listarRemetentes(): Promise<string[]> {
+      const dados = await chamar('/chat/v1/channel?PageSize=100', { method: 'GET' }, 'listar-canais')
+      return (extrairLista(dados) as { active?: unknown; number?: unknown }[])
+        .filter((canal) => canal?.active !== false)
+        .map((canal) => digitosComPais(typeof canal?.number === 'string' ? canal.number : null))
+        .filter((numero): numero is string => numero !== null)
     },
   }
 }

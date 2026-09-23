@@ -37,18 +37,3 @@ export function hojeNoTimezone(timezone: string, agora: Date): DataLocal {
   const local = new Date(agora.getTime() + offsetDe(timezone) * 3_600_000)
   return { ano: local.getUTCFullYear(), mes: local.getUTCMonth() + 1, dia: local.getUTCDate() }
 }
-
-/**
- * O ano corrente no fuso da clínica.
- *
- * Existe como função própria porque duas fatias precisam do MESMO ano: a
- * listagem, para cruzar com os envios já feitos, e o agendamento, para gravar a
- * chave única (clínica, paciente, ano). Se divergirem, a tela mostra "sem
- * mensagem" para quem acabou de ser agendado.
- *
- * O app anterior usava `new Date().getFullYear()`, que é o ano do SERVIDOR — e
- * ele roda em UTC. Em 31/12 às 22h de Brasília já é 1º de janeiro em UTC.
- */
-export function anoNoTimezone(timezone: string, agora: Date): number {
-  return hojeNoTimezone(timezone, agora).ano
-}

@@ -1,5 +1,4 @@
-import { aniversarioAgendavel, aniversarioJaPassou } from '@/shared/data/agendamento'
-import { anoNoTimezone } from '@/shared/data/fuso'
+import { anoDoAniversario, aniversarioAgendavel, aniversarioJaPassou } from '@/shared/data/agendamento'
 import { mesDiaDe } from '@/shared/data/parse'
 import type { StatusEnvio } from '@/shared/db'
 import type { Aniversariante } from '@/providers/prontuario'
@@ -49,7 +48,7 @@ export async function listarAniversariantes(
   // O MESMO ano que o agendamento usa para gravar a chave única. Se as duas
   // fatias divergirem, a tela mostra "sem mensagem" para quem acabou de ser
   // agendado — por isso a regra mora em `shared`.
-  const ano = anoNoTimezone(consulta.timezone, consulta.agora)
+  const ano = anoDoAniversario(consulta.mes, consulta.timezone, consulta.agora)
 
   // As duas buscas são independentes — não há razão para esperar uma para
   // começar a outra. A do prontuário costuma ser a lenta.

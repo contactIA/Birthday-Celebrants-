@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { paraE164BR } from './e164'
+import { digitosComPais, formatarTelefoneBR, paraE164BR } from './e164'
 
 describe('paraE164BR', () => {
   it.each([
@@ -26,5 +26,33 @@ describe('paraE164BR', () => {
 
   it.each([null, undefined])('recusa entrada ausente', (bruto) => {
     expect(paraE164BR(bruto)).toBeNull()
+  })
+})
+
+describe('formatarTelefoneBR', () => {
+  it.each([
+    ['62981878291', '(62) 98187-8291'],
+    ['+5562981878291', '(62) 98187-8291'],
+    ['556231930175', '(62) 3193-0175'],
+    ['+55|6231930175', '(62) 3193-0175'],
+    ['(51) 99622-5380', '(51) 99622-5380'],
+  ])('%s → %s', (bruto, esperado) => {
+    expect(formatarTelefoneBR(bruto)).toBe(esperado)
+  })
+
+  it('valor não reconhecido volta como veio — é exibição, não validação', () => {
+    expect(formatarTelefoneBR('9977-0408FILHA')).toBe('9977-0408FILHA')
+  })
+
+  it('vazio vira string vazia', () => {
+    expect(formatarTelefoneBR(null)).toBe('')
+  })
+})
+
+describe('digitosComPais', () => {
+  it('iguala o mesmo número escrito de jeitos diferentes', () => {
+    expect(digitosComPais('(62) 3193-0175')).toBe('556231930175')
+    expect(digitosComPais('+55|6231930175')).toBe('556231930175')
+    expect(digitosComPais('556231930175')).toBe('556231930175')
   })
 })

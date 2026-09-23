@@ -71,11 +71,24 @@ describe('ano no fuso da clínica', () => {
   it('respeita fuso diferente de Brasília', async () => {
     const d = deps([])
     await listarAniversariantes(
-      { mes: 1, timezone: 'America/Rio_Branco', agora: new Date('2027-01-01T04:00:00Z') },
+      { mes: 12, timezone: 'America/Rio_Branco', agora: new Date('2027-01-01T04:00:00Z') },
       d
     )
-    // 04:00 UTC = 23:00 de 31/12 no Acre.
+    // 04:00 UTC = 23:00 de 31/12 no Acre: dezembro ainda é de 2026.
     expect(d.buscarEnvios).toHaveBeenCalledWith(2026)
+  })
+
+  it('em dezembro, JANEIRO é do ano que vem', async () => {
+    // A lista cobre o mês seguinte; em dezembro isso é janeiro do próximo ano.
+    // Com o ano corrente, os envios de janeiro eram buscados em 2026 e os
+    // aniversariantes apareciam como "já passou".
+    const d = deps([paciente({ aniversario: '01/05' })])
+    const [item] = await listarAniversariantes(
+      { mes: 1, timezone: SP, agora: new Date('2026-12-20T15:00:00Z') },
+      d
+    )
+    expect(d.buscarEnvios).toHaveBeenCalledWith(2027)
+    expect(item).toMatchObject({ jaPassou: false, agendavel: true })
   })
 })
 
