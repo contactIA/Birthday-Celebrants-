@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { Aviso, Estado, EsqueletoDeLinha, Vazio } from '@/ui/primitivos'
 import { PainelDeEnvio } from './PainelDeEnvio'
+import { estadoDoEnvio, temMensagemValida } from '@/ui/statusDoEnvio'
 import {
   MESES_TITULO,
   aniversarioParaExibicao,
@@ -49,8 +50,13 @@ function temTelefone(p: Aniversariante) {
   return p.telefone !== null && p.telefone.replace(/\D/g, '').length >= 10
 }
 
+/**
+ * Já tem parabéns resolvido este ano: agendado, a caminho ou entregue.
+ * Cancelado e falho ficam de fora — a mensagem não vai sair, e a pessoa volta
+ * para "Sem mensagem" para poder agendar de novo.
+ */
 function estaAgendado(p: Aniversariante) {
-  return p.envio !== null && p.envio.status !== 'canceled'
+  return temMensagemValida(p.envio?.status)
 }
 
 /**
@@ -183,14 +189,14 @@ export function Agenda() {
   const resumo = listaEmPortugues(
     [
       grupos.pendentes.length > 0 && `${grupos.pendentes.length} sem mensagem`,
-      grupos.agendados.length > 0 && `${grupos.agendados.length} agendado${grupos.agendados.length > 1 ? 's' : ''}`,
+      grupos.agendados.length > 0 && `${grupos.agendados.length} com mensagem`,
       grupos.corrigir.length > 0 && `${grupos.corrigir.length} sem telefone`,
     ].filter(Boolean) as string[]
   )
 
   const filtros: { chave: Filtro; rotulo: string; total: number }[] = [
     { chave: 'pendentes', rotulo: 'Sem mensagem', total: grupos.pendentes.length },
-    { chave: 'agendados', rotulo: 'Agendados', total: grupos.agendados.length },
+    { chave: 'agendados', rotulo: 'Com mensagem', total: grupos.agendados.length },
     { chave: 'corrigir', rotulo: 'Sem telefone', total: grupos.corrigir.length },
     { chave: 'todos', rotulo: 'Todos', total: grupos.todos.length },
   ]
@@ -403,7 +409,14 @@ function Linha({
 
       <div className="w-36 shrink-0 text-right">
         {agendado ? (
-          <Estado tom="ok">Agendado</Estado>
+          // O status real (Agendada, Enviada, Entregue, Lida), o mesmo do
+          // Histórico — antes era "Agendado" para qualquer um deles.
+          <Estado tom={estadoDoEnvio(paciente.envio!.status).tom}>
+            {estadoDoEnvio(paciente.envio!.status).rotulo}
+          </Estado>
+        ) : paciente.envio?.status === 'failed' ? (
+          // Falhou: selecionável de novo, e a etiqueta diz por que está aqui.
+          <Estado tom="erro">Falhou</Estado>
         ) : !temTelefone(paciente) ? (
           <Estado tom="atencao">Sem telefone</Estado>
         ) : paciente.jaPassou ? (

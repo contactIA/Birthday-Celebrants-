@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Aviso, Botao, Carregando, Estado, Vazio } from '@/ui/primitivos'
+import { estadoDoEnvio } from '@/ui/statusDoEnvio'
 
 // O histórico de envios, paginado.
 //
@@ -25,27 +26,10 @@ interface Pagina {
   porPagina: number
 }
 
-/**
- * Cada status ganha um rótulo em português e um tom próprio.
- *
- * Todos são alcançáveis: o cron de reconciliação traz o status real da
- * plataforma uma vez por dia. Até ele existir, um envio ficava "Agendada" para
- * sempre — inclusive quando tinha falhado.
- *
- * Consequência para quem lê a tela: o status pode estar até um dia atrasado.
- * É o preço de não ter webhook, e é melhor que a alternativa anterior, que era
- * estar permanentemente errado.
- */
-const STATUS: Record<string, { rotulo: string; tom: 'ok' | 'atencao' | 'parado' | 'erro' | 'neutro' }> =
-  {
-    scheduled: { rotulo: 'Agendada', tom: 'ok' },
-    processed: { rotulo: 'Em processamento', tom: 'neutro' },
-    sent: { rotulo: 'Enviada', tom: 'ok' },
-    delivered: { rotulo: 'Entregue', tom: 'ok' },
-    read: { rotulo: 'Lida', tom: 'ok' },
-    canceled: { rotulo: 'Cancelada', tom: 'parado' },
-    failed: { rotulo: 'Falhou', tom: 'erro' },
-  }
+// Os rótulos de status vêm de `ui/statusDoEnvio.ts`, o mesmo mapa da Agenda.
+// Todos são alcançáveis: a reconciliação traz o status real da plataforma a
+// cada 15 minutos — é o atraso máximo do que esta tela mostra, o preço de não
+// ter webhook.
 
 function formatarData(iso: string | null): string {
   if (!iso) return '—'
@@ -153,7 +137,7 @@ export function Historico() {
               </thead>
               <tbody>
                 {dados.itens.map((item) => {
-                  const status = STATUS[item.status] ?? { rotulo: item.status, tom: 'neutro' as const }
+                  const status = estadoDoEnvio(item.status)
                   return (
                     <tr key={item.id} className="border-b border-line-soft last:border-b-0">
                       <td className="px-4 py-3 font-medium text-ink">{item.pacienteNome}</td>
