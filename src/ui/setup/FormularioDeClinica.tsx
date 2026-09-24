@@ -74,12 +74,23 @@ interface ResultadoDaConexao {
   mensageria: ResultadoDoTeste
 }
 
-export function FormularioDeClinica({ id }: { id?: string }) {
+export function FormularioDeClinica({
+  id,
+  inicial,
+}: {
+  id?: string
+  /** Cadastro vindo de "Interessados": company_id e nome do pedido de vaga. */
+  inicial?: { companyId?: string; nome?: string }
+}) {
   const router = useRouter()
   const editando = !!id
 
   const [salva, setSalva] = useState<ClinicaNoSetup | null>(null)
-  const [form, setForm] = useState<Formulario>(EM_BRANCO)
+  const [form, setForm] = useState<Formulario>(() => ({
+    ...EM_BRANCO,
+    companyId: inicial?.companyId ?? '',
+    nome: inicial?.nome ?? '',
+  }))
   const [erroAoCarregar, setErroAoCarregar] = useState<string | null>(null)
 
   const [salvando, setSalvando] = useState(false)

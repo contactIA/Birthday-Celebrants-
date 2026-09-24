@@ -128,6 +128,21 @@ export interface EnvioInsert {
   scheduled_for: string | null
 }
 
+/** Pedido de vaga no beta, feito na página de quem ainda não tem o app. */
+export interface InteressadoRow {
+  id: string
+  company_id: string
+  nome_clinica: string
+  telefone: string
+  sistema_prontuario: 'clinicorp' | 'eclinica' | 'outro'
+  modelo_mensagem: string
+  consentimento_em: string
+  created_at: string
+  updated_at: string
+}
+
+export type InteressadoInsert = Omit<InteressadoRow, 'id' | 'created_at'>
+
 export interface PacienteCacheInsert {
   clinica_id: string
   paciente_id: string
@@ -166,6 +181,7 @@ export type Database = {
       aniversariantes_templates: Tabela<TemplateRow, TemplateInsert>
       aniversariantes_envios: Tabela<EnvioRow, EnvioInsert>
       aniversariantes_pacientes_cache: Tabela<PacienteCacheRow, PacienteCacheInsert>
+      aniversariantes_interessados: Tabela<InteressadoRow, InteressadoInsert>
     }
     // `{ [_ in never]: never }` — a forma que o codegen do Supabase emite para
     // seções vazias. Preferida a `Record<string, never>`, cujo `keyof` é

@@ -30,6 +30,25 @@ export function SetupShell({ children }: { children: React.ReactNode }) {
         <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
           Setup
         </span>
+        <nav className="ml-3 flex items-center gap-1" aria-label="Seções do setup">
+          {[
+            { href: '/setup', rotulo: 'Clínicas', ativo: caminho === '/setup' || caminho.startsWith('/setup/clinicas') },
+            { href: '/setup/interessados', rotulo: 'Interessados', ativo: caminho === '/setup/interessados' },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={item.ativo ? 'page' : undefined}
+              className={
+                item.ativo
+                  ? 'rounded-full bg-accent-soft px-3 py-1.5 text-sm font-medium text-accent-ink'
+                  : 'rounded-full px-3 py-1.5 text-sm text-ink-2 hover:bg-sunk hover:text-ink'
+              }
+            >
+              {item.rotulo}
+            </Link>
+          ))}
+        </nav>
         <button
           onClick={sair}
           disabled={saindo}

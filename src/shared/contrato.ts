@@ -1,4 +1,4 @@
-import type { ClinicaRow, EnvioRow, PacienteCacheRow, TemplateRow } from './db'
+import type { ClinicaRow, EnvioRow, InteressadoRow, PacienteCacheRow, TemplateRow } from './db'
 
 // O contrato de schema: as colunas de que o código DEPENDE, por tabela.
 //
@@ -74,6 +74,17 @@ export const CONTRATO = {
     'situacao',
     'synced_at',
   ],
+  aniversariantes_interessados: [
+    'id',
+    'company_id',
+    'nome_clinica',
+    'telefone',
+    'sistema_prontuario',
+    'modelo_mensagem',
+    'consentimento_em',
+    'created_at',
+    'updated_at',
+  ],
 } as const
 
 // ─── Verificação em tempo de compilação ─────────────────────────────────────
@@ -86,7 +97,8 @@ const clinicas: Igual<Colunas<'aniversariantes_clinicas'>, keyof ClinicaRow> = t
 const templates: Igual<Colunas<'aniversariantes_templates'>, keyof TemplateRow> = true
 const envios: Igual<Colunas<'aniversariantes_envios'>, keyof EnvioRow> = true
 const cache: Igual<Colunas<'aniversariantes_pacientes_cache'>, keyof PacienteCacheRow> = true
-export const _contratoConfereComOsTipos = [clinicas, templates, envios, cache]
+const interessados: Igual<Colunas<'aniversariantes_interessados'>, keyof InteressadoRow> = true
+export const _contratoConfereComOsTipos = [clinicas, templates, envios, cache, interessados]
 
 /** Colunas do contrato que faltam no banco, por tabela. Vazio = contrato ok. */
 export function colunasFaltando(

@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
+import { PaginaBeta } from '@/ui/beta/PaginaBeta'
 
 // O shell: cabeçalho, navegação das três telas, e a clínica do acesso.
 //
@@ -59,10 +60,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Substitui o shell INTEIRO, incluindo a navegação: Agenda, Modelos e
-  // Histórico não levam a lugar nenhum sem clínica, e deixar a nav visível
-  // convida a três cliques em telas quebradas.
-  if (estado.situacao === 'nao_liberada') return <NaoLiberada />
+  // Clínica ainda não cadastrada: a página de beta substitui o shell INTEIRO,
+  // navegação incluída — Agenda, Modelos e Histórico não levam a lugar nenhum
+  // sem clínica. Antes era um cartão "painel ainda não liberado", sem saída;
+  // agora é pedido de vaga, que cai na área de setup.
+  if (estado.situacao === 'nao_liberada') return <PaginaBeta />
 
   return (
     <ContextoDaClinica.Provider value={estado}>
@@ -106,28 +108,5 @@ function Cabecalho({ estado }: { estado: EstadoDaClinica }) {
         {estado.situacao === 'pronta' ? estado.clinica.nome : ''}
       </span>
     </header>
-  )
-}
-
-/**
- * Acesso válido, clínica ainda não provisionada.
- *
- * Deliberadamente curta: uma frase que diz o que fazer. Nada de explicar que o
- * painel existe, nem de expor identificador de conta — quem lê não precisa de
- * nenhuma das duas coisas para agir, e cada linha extra afasta a única que
- * importa. Sem botão: a ação é humana e fora do app.
- */
-function NaoLiberada() {
-  return (
-    <div className="flex min-h-screen items-center justify-center px-6 py-16">
-      <div className="w-full max-w-sm rounded-[12px] border border-line bg-surface px-8 py-10 text-center">
-        <h1 className="text-[17px] font-semibold leading-snug text-ink">
-          Painel ainda não liberado para esta clínica
-        </h1>
-        <p className="mt-2.5 text-sm leading-relaxed text-muted">
-          Fale com quem administra a conta para liberar o acesso.
-        </p>
-      </div>
-    </div>
   )
 }
