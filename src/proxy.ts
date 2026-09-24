@@ -36,6 +36,23 @@ export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|api/cron).*)'],
 }
 
+/**
+ * Navegação de entrada: o documento chegando de FORA do app. `Sec-Fetch-Mode:
+ * navigate` separa documento de fetch/RSC; `Sec-Fetch-Site` diferente de
+ * `same-origin` separa "veio de fora" (outro site, barra de endereço) de
+ * "clicou num link do próprio app". O navegador preenche os dois e a página
+ * não consegue alterá-los.
+ *
+ * Navegador sem esses cabeçalhos (versões muito antigas) cai em `false` — o
+ * comportamento anterior, com o cookie decidindo. É degradação, não furo: a
+ * checagem de escopo divergente continua valendo.
+ */
+function ehNavegacaoDeEntrada(request: NextRequest): boolean {
+  const modo = request.headers.get('sec-fetch-mode')
+  const origem = request.headers.get('sec-fetch-site')
+  return modo === 'navigate' && origem !== null && origem !== 'same-origin'
+}
+
 function ehApi(request: NextRequest): boolean {
   return request.nextUrl.pathname.startsWith('/api/')
 }
@@ -150,6 +167,7 @@ export function proxy(request: NextRequest) {
     hostsPermitidos: HOSTS_PERMITIDOS,
     agora: new Date(),
     segredo,
+    navegacaoDeEntrada: ehNavegacaoDeEntrada(request),
   })
 
   if (decisao.tipo === 'negar') return negar(request, decisao.motivo)
@@ -182,6 +200,9 @@ export function proxy(request: NextRequest) {
   if (decisao.limparTokenDaUrl && !ehApi(request)) {
     const limpa = request.nextUrl.clone()
     limpa.searchParams.delete('t')
+    // A clínica (sem segredo) fica na URL: a navegação de entrada seguinte e o
+    // F5 exigem escopo explícito — ver `navegacaoDeEntrada` em decisao.ts.
+    limpa.searchParams.set('clinica', decisao.companyId)
     const redirect = NextResponse.redirect(limpa)
     redirect.cookies.set(cookie)
     return redirect

@@ -217,7 +217,7 @@ body {
 
 /* Aberto: a tampa salta e tomba — o momento do pedido enviado. */
 .presente.aberto .presente-tampa {
-  transform: translateY(calc(var(--lado) * -0.75)) translateX(calc(var(--lado) * 0.35)) rotateZ(24deg);
+  transform: translateY(calc(var(--lado) * -0.55)) translateX(calc(var(--lado) * 0.4)) rotateZ(22deg);
 }
 .presente.aberto .presente-gira { animation-play-state: paused; }
 

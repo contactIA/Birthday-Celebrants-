@@ -42,13 +42,21 @@ export function ListaDeInteressados() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-xl font-semibold tracking-[-0.01em] text-ink">Interessados no beta</h1>
-        <p className="mt-1 text-sm text-muted">
-          {lista
-            ? `${pendentes.length} ${pendentes.length === 1 ? 'pedido aguardando cadastro' : 'pedidos aguardando cadastro'}`
-            : 'Clínicas que pediram vaga pela aba do app'}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-[-0.01em] text-ink">Interessados no beta</h1>
+          <p className="mt-1 text-sm text-muted">
+            {lista
+              ? `${pendentes.length} ${pendentes.length === 1 ? 'pedido aguardando cadastro' : 'pedidos aguardando cadastro'}`
+              : 'Clínicas que pediram vaga pela aba do app'}
+          </p>
+        </div>
+        <Link
+          href="/setup/previa-beta"
+          className="inline-flex h-9 items-center rounded-full border border-line bg-surface px-4 text-sm font-medium text-ink-2 hover:bg-sunk"
+        >
+          Ver a página de beta
+        </Link>
       </div>
 
       {erro && <Aviso tom="erro">{erro}</Aviso>}

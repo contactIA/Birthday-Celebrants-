@@ -16,6 +16,7 @@ function entrada(over: Partial<Entrada> = {}): Entrada {
     hostsPermitidos: ['app.fluxodonto.com'],
     agora: AGORA,
     segredo: SEGREDO,
+    navegacaoDeEntrada: false,
     ...over,
   }
 }
@@ -161,5 +162,46 @@ describe('escopo divergente', () => {
     const cookie = assinar(CLINICA_A, null, AGORA, SEGREDO)
     const d = decidir(entrada({ tokenDoCookie: cookie, companyIdDaUrl: '{idaccount}' }))
     expect(d).toEqual({ tipo: 'negar', motivo: 'escopo-divergente' })
+  })
+})
+
+describe('navegação de entrada exige a clínica na URL', () => {
+  // O vazamento que motivou a regra: abrir o endereço sem parâmetro mostrava a
+  // última clínica vista naquele navegador, porque o cookie vencia sozinho.
+  const cookieDaA = assinar(CLINICA_A, null, AGORA, SEGREDO)
+
+  it('entrada sem nada na URL é recusada MESMO com cookie válido', () => {
+    expect(decidir(entrada({ navegacaoDeEntrada: true, tokenDoCookie: cookieDaA }))).toEqual({
+      tipo: 'negar',
+      motivo: 'sem-escopo-na-url',
+    })
+  })
+
+  it('dentro do app (navegação interna, chamadas da tela), o cookie continua valendo', () => {
+    const d = decidir(entrada({ navegacaoDeEntrada: false, tokenDoCookie: cookieDaA }))
+    expect(d).toMatchObject({ tipo: 'seguir', companyId: CLINICA_A })
+  })
+
+  it('entrada com ?clinica= da mesma clínica do cookie segue (F5, link do próprio app)', () => {
+    const d = decidir(entrada({ navegacaoDeEntrada: true, tokenDoCookie: cookieDaA, companyIdDaUrl: CLINICA_A }))
+    expect(d).toMatchObject({ tipo: 'seguir', companyId: CLINICA_A })
+  })
+
+  it('entrada com ?clinica= de OUTRA clínica continua recusada', () => {
+    const d = decidir(entrada({ navegacaoDeEntrada: true, tokenDoCookie: cookieDaA, companyIdDaUrl: CLINICA_B }))
+    expect(d).toEqual({ tipo: 'negar', motivo: 'escopo-divergente' })
+  })
+
+  it('entrada pela aba da plataforma (Referer do host) segue', () => {
+    const d = decidir(
+      entrada({ navegacaoDeEntrada: true, companyIdDaUrl: CLINICA_B, referer: 'https://app.fluxodonto.com/' })
+    )
+    expect(d).toMatchObject({ tipo: 'seguir', companyId: CLINICA_B })
+  })
+
+  it('entrada com link assinado (?t=) segue e pede para trocar o token pela clínica na URL', () => {
+    const token = assinar(CLINICA_A, 3600, AGORA, SEGREDO)
+    const d = decidir(entrada({ navegacaoDeEntrada: true, tokenDaUrl: token }))
+    expect(d).toMatchObject({ tipo: 'seguir', companyId: CLINICA_A, limparTokenDaUrl: true })
   })
 })

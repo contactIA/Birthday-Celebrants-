@@ -13,7 +13,7 @@ export const TTL_ESCOPO_DO_HOST = 60 * 60 * 12
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export type MotivoDeRecusa = 'sem-token' | 'escopo-divergente'
+export type MotivoDeRecusa = 'sem-token' | 'escopo-divergente' | 'sem-escopo-na-url'
 
 export type Decisao =
   | { tipo: 'negar'; motivo: MotivoDeRecusa }
@@ -22,7 +22,11 @@ export type Decisao =
       companyId: string
       /** Token a gravar no cookie. `null` = o cookie atual já serve. */
       novoToken: string | null
-      /** Remover `?t=` da URL por redirect — só quando ele veio na URL. */
+      /**
+       * Trocar `?t=` por `?clinica=` na URL, por redirect — só quando o token
+       * veio na URL. A clínica fica na URL (sem segredo) para o F5 e a
+       * navegação de entrada seguinte continuarem com escopo explícito.
+       */
       limparTokenDaUrl: boolean
     }
 
@@ -37,6 +41,13 @@ export interface Entrada {
   hostsPermitidos: string[]
   agora: Date
   segredo: string
+  /**
+   * A requisição é uma NAVEGAÇÃO DE ENTRADA: o documento chegando de fora do
+   * app — outro site, a plataforma, a barra de endereço, um link colado. O
+   * proxy deriva isto dos cabeçalhos `Sec-Fetch-*`, que a página não forja.
+   * Navegação interna do app e chamadas de API da tela são `false`.
+   */
+  navegacaoDeEntrada: boolean
 }
 
 /**
@@ -73,6 +84,19 @@ function companyIdDoHost(e: Entrada): string | null {
 }
 
 export function decidir(e: Entrada): Decisao {
+  // Entrada SEM clínica na URL: recusa, mesmo com cookie válido.
+  //
+  // Isto existe por causa de um vazamento observado: abrir o endereço sem
+  // parâmetro mostrava a última clínica vista naquele navegador — o cookie
+  // vencia sozinho. Para a recepção de uma clínica só, era a clínica certa;
+  // para quem entra em várias contas (a equipe, uma agência), era a clínica
+  // ERRADA, sem aviso nenhum. O cookie continua valendo para o que acontece
+  // DENTRO do app (navegação interna e chamadas da tela), onde a clínica já
+  // foi decidida na entrada.
+  if (e.navegacaoDeEntrada && !e.tokenDaUrl && !e.companyIdDaUrl) {
+    return { tipo: 'negar', motivo: 'sem-escopo-na-url' }
+  }
+
   // Token novo na URL tem prioridade sobre o cookie: é assim que se troca de
   // clínica, e é o caminho do primeiro acesso, quando cookie ainda não existe.
   let escopo = verificar(e.tokenDaUrl, e.agora, e.segredo)

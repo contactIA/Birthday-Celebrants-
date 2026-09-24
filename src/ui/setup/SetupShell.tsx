@@ -57,9 +57,14 @@ export function SetupShell({ children }: { children: React.ReactNode }) {
           {saindo ? 'Saindo…' : 'Sair'}
         </button>
       </header>
-      <main className="rolagem-discreta flex-1 overflow-y-auto px-6 py-8">
-        <div className="mx-auto w-full max-w-4xl">{children}</div>
-      </main>
+      {caminho === '/setup/previa-beta' ? (
+        // A prévia ocupa a largura toda, como na aba da plataforma.
+        <main className="flex-1">{children}</main>
+      ) : (
+        <main className="rolagem-discreta flex-1 overflow-y-auto px-6 py-8">
+          <div className="mx-auto w-full max-w-4xl">{children}</div>
+        </main>
+      )}
     </div>
   )
 }

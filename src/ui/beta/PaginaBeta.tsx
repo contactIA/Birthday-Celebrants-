@@ -53,8 +53,13 @@ interface Pedido {
 
 type Etapa = { tipo: 'carregando' } | { tipo: 'formulario' } | { tipo: 'na-lista'; pedido: Pedido; agora: boolean }
 
-export function PaginaBeta() {
-  const [etapa, setEtapa] = useState<Etapa>({ tipo: 'carregando' })
+/**
+ * `previa`: a página como uma clínica sem cadastro a vê, aberta pela área de
+ * setup para a equipe conferir ou mostrar. Não consulta nem grava pedido — o
+ * envio só simula o sucesso, com o presente abrindo.
+ */
+export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
+  const [etapa, setEtapa] = useState<Etapa>(previa ? { tipo: 'formulario' } : { tipo: 'carregando' })
   const [nomeClinica, setNomeClinica] = useState('')
   const [telefone, setTelefone] = useState('')
   const [sistema, setSistema] = useState<SistemaDoPedido | null>(null)
@@ -67,11 +72,12 @@ export function PaginaBeta() {
 
   // Já pediu antes? Abre direto no "você está na lista".
   useEffect(() => {
+    if (previa) return
     fetch('/api/interesse')
       .then((r) => r.json())
       .then((corpo) => setEtapa(corpo?.pedido ? { tipo: 'na-lista', pedido: corpo.pedido, agora: false } : { tipo: 'formulario' }))
       .catch(() => setEtapa({ tipo: 'formulario' }))
-  }, [])
+  }, [previa])
 
   function irParaFormulario() {
     secaoFormulario.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -94,6 +100,16 @@ export function PaginaBeta() {
     e.preventDefault()
     setEnviando(true)
     setErro(null)
+    if (previa) {
+      setEtapa({
+        tipo: 'na-lista',
+        pedido: { nomeClinica, telefone, sistemaProntuario: sistema!, modeloMensagem: modelo, pedidoEm: new Date().toISOString() },
+        agora: true,
+      })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      setEnviando(false)
+      return
+    }
     try {
       const resposta = await fetch('/api/interesse', {
         method: 'POST',
@@ -124,6 +140,11 @@ export function PaginaBeta() {
 
   return (
     <div className={clsx(titulo.variable, 'min-h-screen overflow-x-hidden bg-ground')}>
+      {previa && (
+        <p className="bg-ink px-6 py-2 text-center text-[13px] text-white">
+          Prévia — é assim que uma clínica sem cadastro vê a aba do app. Nada do que for enviado aqui é gravado.
+        </p>
+      )}
       {/* ── Topo ─────────────────────────────────────────────────────── */}
       <section className="relative isolate px-6 pt-10 pb-14 sm:pt-14">
         <div
@@ -199,7 +220,7 @@ export function PaginaBeta() {
 
           {/* Espaço acima em tela estreita: aberto, a tampa salta para cima e
               cobriria o texto que fica logo antes do presente. */}
-          <div className={clsx('flex justify-center', naLista && etapa.agora && 'pt-16 lg:pt-0')}>
+          <div className={clsx('flex justify-center', naLista && etapa.agora && 'pt-16')}>
             <Presente3D aberto={naLista && etapa.agora} className="scale-90 sm:scale-100 lg:scale-125" />
           </div>
         </div>

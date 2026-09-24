@@ -86,10 +86,16 @@ function Cabecalho({ estado }: { estado: EstadoDaClinica }) {
       <nav className="flex items-center gap-1" aria-label="Seções">
         {NAVEGACAO.map(({ href, rotulo }) => {
           const ativo = caminho === href
+          // `?clinica=` em todo link interno: a URL de cada tela carrega a
+          // clínica, e o F5 (que o navegador trata como navegação de entrada)
+          // continua com escopo explícito. Sem isso o proxy recusaria o F5 em
+          // Modelos ou Histórico — ver `navegacaoDeEntrada` em acesso/decisao.ts.
+          const destino =
+            estado.situacao === 'pronta' ? `${href}?clinica=${encodeURIComponent(estado.clinica.companyId)}` : href
           return (
             <Link
               key={href}
-              href={href}
+              href={destino}
               aria-current={ativo ? 'page' : undefined}
               className={clsx(
                 'rounded-full px-3 py-1.5 text-sm transition-colors',
