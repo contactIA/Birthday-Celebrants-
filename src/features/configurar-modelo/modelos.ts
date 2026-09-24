@@ -103,7 +103,7 @@ export function validarConfiguracao(config: ConfiguracaoParaSalvar): void {
     throw new ConfiguracaoInvalidaError('Dia de envio inválido')
   }
   if (!HORARIO.test(config.horarioEnvio)) {
-    throw new ConfiguracaoInvalidaError('Horário de envio inválido — use HH:MM')
+    throw new ConfiguracaoInvalidaError('Horário de envio inválido. Use HH:MM')
   }
 
   for (const [parametro, campo] of Object.entries(config.parametros)) {

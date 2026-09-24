@@ -6,8 +6,8 @@ import { lerPedido } from '@/features/entrar-na-lista/regras'
 import { buscarPedido, listarOrdemDaFila, salvarPedido, type Interessado } from '@/features/entrar-na-lista/dados'
 import { etapaDoPedido, posicaoNaFila, situacaoDaTurma } from '@/features/entrar-na-lista/fila'
 
-// GET  /api/interesse — o pedido de vaga desta conta, a fila e a turma.
-// POST /api/interesse — grava ou atualiza o pedido; devolve o mesmo formato.
+// GET  /api/interesse: o pedido de vaga desta conta, a fila e a turma.
+// POST /api/interesse: grava ou atualiza o pedido; devolve o mesmo formato.
 //
 // É a rota da página de beta, que aparece para quem abre a aba sem ter a
 // clínica cadastrada. A conta vem do escopo que o proxy verificou — a mesma
@@ -24,6 +24,8 @@ async function comFila(companyId: string, pedido: Interessado | null) {
     fila: pedido
       ? { etapa: etapaDoPedido(pedido.status, cadastradas.has(companyId.toLowerCase())), posicao, naFrente }
       : null,
+    // Quem ainda não pediu vê em que lugar entraria: os que esperam + 1.
+    posicaoAoEntrar: pedido ? null : naFrente + 1,
     turma: situacaoDaTurma(ordem.length),
   }
 }

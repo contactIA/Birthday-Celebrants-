@@ -15,6 +15,7 @@ interface Interessado {
   nomeClinica: string
   telefone: string
   sistemaProntuario: 'clinicorp' | 'eclinica' | 'outro'
+  sistemaOutro: string | null
   modeloMensagem: string
   pedidoEm: string
   atualizadoEm: string
@@ -118,7 +119,7 @@ function Cartao({
         </div>
         <div className="flex items-center gap-2">
           {i.sistemaProntuario === 'outro' ? (
-            <Estado tom="atencao">○ {NOME_DO_SISTEMA.outro}</Estado>
+            <Estado tom="atencao">○ {i.sistemaOutro ? `Outro: ${i.sistemaOutro}` : NOME_DO_SISTEMA.outro}</Estado>
           ) : (
             <Estado tom="neutro">{NOME_DO_SISTEMA[i.sistemaProntuario]}</Estado>
           )}
@@ -140,7 +141,7 @@ function Cartao({
       {onStatus && !i.cadastrada && <EtapaNaFila interessado={i} onStatus={onStatus} />}
       {i.sistemaProntuario === 'outro' && !i.cadastrada && (
         <p className="mt-2 text-xs text-atencao">
-          Usa um prontuário que o app ainda não integra — não dá para cadastrar por enquanto.
+          Usa um prontuário que o app ainda não integra, então não dá para cadastrar por enquanto.
         </p>
       )}
     </li>

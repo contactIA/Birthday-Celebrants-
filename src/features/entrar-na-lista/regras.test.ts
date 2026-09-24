@@ -15,8 +15,19 @@ describe('lerPedido', () => {
       nomeClinica: 'Clínica Sorriso',
       telefone: '+5562981878291',
       sistemaProntuario: 'clinicorp',
+      sistemaOutro: null,
       modeloMensagem: VALIDO.modeloMensagem,
     })
+  })
+
+  it('"Outro" exige o nome do sistema, e só nesse caso ele é guardado', () => {
+    expect(() => lerPedido({ ...VALIDO, sistemaProntuario: 'outro' })).toThrow(/qual sistema/)
+    expect(() => lerPedido({ ...VALIDO, sistemaProntuario: 'outro', sistemaOutro: '  ' })).toThrow(/qual sistema/)
+    expect(lerPedido({ ...VALIDO, sistemaProntuario: 'outro', sistemaOutro: ' Dental Office ' }).sistemaOutro).toBe('Dental Office')
+    expect(lerPedido({ ...VALIDO, sistemaOutro: 'Dental Office' }).sistemaOutro).toBeNull()
+    expect(() =>
+      lerPedido({ ...VALIDO, sistemaProntuario: 'outro', sistemaOutro: 'x'.repeat(LIMITES.sistemaOutro + 1) })
+    ).toThrow(/muito longo/)
   })
 
   it('ignora company_id no corpo — ele vem do escopo de acesso', () => {

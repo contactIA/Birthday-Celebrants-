@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { LIMITES, type SistemaDoPedido } from '@/features/entrar-na-lista/regras'
 import { formatarTelefoneBR } from '@/shared/telefone/e164'
 import { situacaoDaTurma, type EtapaDaFila, type SituacaoDaTurma } from '@/features/entrar-na-lista/fila'
-import { EtapasDaFila, SelosDaTurma } from './Fila'
+import { EtapasDaFila } from './Fila'
 import { Presente3D } from './Presente3D'
 import { PreviaNoCelular } from './PreviaNoCelular'
 
@@ -49,6 +49,7 @@ interface Pedido {
   nomeClinica: string
   telefone: string
   sistemaProntuario: SistemaDoPedido
+  sistemaOutro: string | null
   modeloMensagem: string
   pedidoEm: string
 }
@@ -66,6 +67,7 @@ type Etapa =
 
 /** Na prévia não há fila de verdade: mostra o formato com números de exemplo. */
 const FILA_DE_EXEMPLO: Fila = { etapa: 'recebido', posicao: 3, naFrente: 2 }
+const POSICAO_DE_EXEMPLO = 3
 
 /**
  * `previa`: a página como uma clínica sem cadastro a vê, aberta pela área de
@@ -77,11 +79,13 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
   const [nomeClinica, setNomeClinica] = useState('')
   const [telefone, setTelefone] = useState('')
   const [sistema, setSistema] = useState<SistemaDoPedido | null>(null)
+  const [sistemaOutro, setSistemaOutro] = useState('')
   const [modelo, setModelo] = useState('')
   const [consentimento, setConsentimento] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [turma, setTurma] = useState<SituacaoDaTurma>(() => situacaoDaTurma(0))
+  const [posicaoAoEntrar, setPosicaoAoEntrar] = useState<number | null>(previa ? POSICAO_DE_EXEMPLO : null)
   const campoModelo = useRef<HTMLTextAreaElement>(null)
   const secaoFormulario = useRef<HTMLElement>(null)
 
@@ -92,6 +96,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
       .then((r) => r.json())
       .then((corpo) => {
         if (corpo?.turma) setTurma(corpo.turma)
+        if (typeof corpo?.posicaoAoEntrar === 'number') setPosicaoAoEntrar(corpo.posicaoAoEntrar)
         setEtapa(corpo?.pedido ? { tipo: 'na-lista', pedido: corpo.pedido, fila: corpo.fila, agora: false } : { tipo: 'formulario' })
       })
       .catch(() => setEtapa({ tipo: 'formulario' }))
@@ -121,7 +126,14 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
     if (previa) {
       setEtapa({
         tipo: 'na-lista',
-        pedido: { nomeClinica, telefone, sistemaProntuario: sistema!, modeloMensagem: modelo, pedidoEm: new Date().toISOString() },
+        pedido: {
+          nomeClinica,
+          telefone,
+          sistemaProntuario: sistema!,
+          sistemaOutro: sistema === 'outro' ? sistemaOutro.trim() : null,
+          modeloMensagem: modelo,
+          pedidoEm: new Date().toISOString(),
+        },
         fila: FILA_DE_EXEMPLO,
         agora: true,
       })
@@ -133,7 +145,14 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
       const resposta = await fetch('/api/interesse', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ nomeClinica, telefone, sistemaProntuario: sistema, modeloMensagem: modelo, consentimento }),
+        body: JSON.stringify({
+          nomeClinica,
+          telefone,
+          sistemaProntuario: sistema,
+          sistemaOutro: sistema === 'outro' ? sistemaOutro : undefined,
+          modeloMensagem: modelo,
+          consentimento,
+        }),
       })
       const corpo = await resposta.json().catch(() => null)
       if (!resposta.ok) throw new Error(corpo?.error ?? 'Não foi possível enviar o pedido. Tente de novo.')
@@ -150,6 +169,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
     setNomeClinica(p.nomeClinica)
     setTelefone(formatarTelefoneBR(p.telefone))
     setSistema(p.sistemaProntuario)
+    setSistemaOutro(p.sistemaOutro ?? '')
     setModelo(p.modeloMensagem)
     setConsentimento(false)
     setEtapa({ tipo: 'formulario' })
@@ -162,7 +182,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
     <div className={clsx(titulo.variable, 'min-h-screen overflow-x-hidden bg-ground')}>
       {previa && (
         <p className="bg-ink px-6 py-2 text-center text-[13px] text-white">
-          Prévia — é assim que uma clínica sem cadastro vê a aba do app. Nada do que for enviado aqui é gravado.
+          Prévia: é assim que uma clínica sem cadastro vê a aba do app. Nada do que for enviado aqui é gravado.
         </p>
       )}
       {/* ── Topo ─────────────────────────────────────────────────────── */}
@@ -200,7 +220,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                 </p>
                 {etapa.fila && (
                   <div className="beta-surge mt-7 max-w-md" style={{ '--atraso': '220ms' } as React.CSSProperties}>
-                    <EtapasDaFila fila={etapa.fila} />
+                    <EtapasDaFila fila={etapa.fila} turma={turma} />
                   </div>
                 )}
                 <button
@@ -228,7 +248,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                 </h1>
                 <p className="beta-surge mt-5 max-w-md text-[15px] leading-relaxed text-ink-2" style={{ '--atraso': '160ms' } as React.CSSProperties}>
                   Um novo app da plataforma traz do seu prontuário quem faz aniversário no mês e agenda o parabéns pelo
-                  WhatsApp da clínica, com o nome de cada paciente. A primeira turma do beta é pequena — e as vagas
+                  WhatsApp da clínica, com o nome de cada paciente. A primeira turma do beta é pequena, e as vagas
                   são liberadas por ordem de pedido.
                 </p>
                 <button
@@ -239,8 +259,8 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                 >
                   Quero participar do beta <span aria-hidden>→</span>
                 </button>
-                <div className="beta-surge mt-6" style={{ '--atraso': '320ms' } as React.CSSProperties}>
-                  <SelosDaTurma turma={turma} />
+                <div className="beta-surge mt-7 max-w-md" style={{ '--atraso': '320ms' } as React.CSSProperties}>
+                  <EtapasDaFila fila={null} posicaoAoEntrar={posicaoAoEntrar} turma={turma} />
                 </div>
               </>
             )}
@@ -282,7 +302,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
               Garanta a vaga da sua clínica
             </h2>
             <p className="mt-2 max-w-lg text-sm leading-relaxed text-ink-2">
-              Escreva como seria o parabéns da sua clínica — a mensagem aparece no celular ao lado enquanto você digita.
+              Escreva como seria o parabéns da sua clínica. A mensagem aparece no celular ao lado enquanto você digita.
             </p>
 
             <form
@@ -336,8 +356,22 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                     ))}
                   </div>
                   {sistema === 'outro' && (
+                    <label className="mt-3 flex flex-col gap-1.5">
+                      <span className="text-[13px] font-medium text-ink-2">Qual sistema a clínica usa?</span>
+                      <input
+                        required
+                        autoFocus
+                        maxLength={LIMITES.sistemaOutro}
+                        value={sistemaOutro}
+                        onChange={(e) => setSistemaOutro(e.target.value)}
+                        placeholder="Nome do sistema de prontuário"
+                        className={clsx(ESTILO_CAMPO, 'max-w-sm')}
+                      />
+                    </label>
+                  )}
+                  {sistema === 'outro' && (
                     <p className="mt-2 rounded-lg bg-vela-soft px-3 py-2 text-[13px] leading-relaxed text-vela-ink">
-                      Nesta primeira fase o app funciona com Clinicorp e e-Clínica. Deixe o pedido mesmo assim — vamos
+                      Nesta primeira fase o app funciona com Clinicorp e e-Clínica. Deixe o pedido mesmo assim: vamos
                       avisar quando chegar ao seu sistema.
                     </p>
                   )}
@@ -432,7 +466,14 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
               <dl className="mt-6 grid max-w-md gap-3 text-sm">
                 <Linha rotulo="Clínica" valor={etapa.pedido.nomeClinica} />
                 <Linha rotulo="Telefone" valor={formatarTelefoneBR(etapa.pedido.telefone)} />
-                <Linha rotulo="Prontuário" valor={SISTEMAS.find((s) => s.valor === etapa.pedido.sistemaProntuario)?.rotulo ?? ''} />
+                <Linha
+                  rotulo="Prontuário"
+                  valor={
+                    etapa.pedido.sistemaProntuario === 'outro'
+                      ? (etapa.pedido.sistemaOutro ?? 'Outro')
+                      : (SISTEMAS.find((s) => s.valor === etapa.pedido.sistemaProntuario)?.rotulo ?? '')
+                  }
+                />
               </dl>
             </div>
             <PreviaNoCelular nomeClinica={etapa.pedido.nomeClinica} modelo={etapa.pedido.modeloMensagem} />

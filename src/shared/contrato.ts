@@ -80,6 +80,7 @@ export const CONTRATO = {
     'nome_clinica',
     'telefone',
     'sistema_prontuario',
+    'sistema_outro',
     'modelo_mensagem',
     'consentimento_em',
     'created_at',

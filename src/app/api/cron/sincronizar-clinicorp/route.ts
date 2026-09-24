@@ -20,7 +20,7 @@ function naoConfigurado() {
   // nunca foi cadastrada, a rota rejeitava a própria plataforma, e o log dizia
   // "não autorizado" — indistinguível de alguém batendo na URL.
   console.error(
-    '[cron/sincronizar-clinicorp] CRON_SECRET ausente — a rota rejeita TODA chamada, ' +
+    '[cron/sincronizar-clinicorp] CRON_SECRET ausente: a rota rejeita TODA chamada, ' +
       'inclusive a do próprio Cron. Cadastrar no .env do servidor (ver docs/deploy-vps.md).'
   )
   return NextResponse.json({ error: 'Cron não configurado' }, { status: 503 })
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     }
     if (!relatorio.obsoletosRemovidos && relatorio.diasConsultados > 0) {
       console.warn(
-        `[cron/sincronizar-clinicorp] ${relatorio.companyId}: limpeza adiada — ` +
+        `[cron/sincronizar-clinicorp] ${relatorio.companyId}: limpeza adiada: ` +
           'algum dia falhou e os pacientes dele não foram renovados.'
       )
     }

@@ -135,6 +135,8 @@ export interface InteressadoRow {
   nome_clinica: string
   telefone: string
   sistema_prontuario: 'clinicorp' | 'eclinica' | 'outro'
+  /** Nome do prontuário quando `sistema_prontuario` é 'outro'; nulo nos demais. */
+  sistema_outro: string | null
   modelo_mensagem: string
   consentimento_em: string
   created_at: string

@@ -111,7 +111,7 @@ describe('retentativas', () => {
       .catch((e: Error) => e)
 
     expect(erro).toBeInstanceOf(CotaEsgotadaError)
-    expect((erro as CotaEsgotadaError).message).toMatch(/libera em 39 min/)
+    expect((erro as CotaEsgotadaError).message).toMatch(/Libera em 39 min/)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 

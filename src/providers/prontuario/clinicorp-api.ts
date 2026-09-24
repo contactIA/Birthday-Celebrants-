@@ -65,7 +65,7 @@ export class CotaEsgotadaError extends Error {
   readonly interrompeSincronizacao = true
   constructor(readonly liberaEmSegundos: number) {
     super(
-      `Limite de chamadas por hora da Clinicorp atingido — libera em ${Math.ceil(liberaEmSegundos / 60)} min`
+      `Limite de chamadas por hora da Clinicorp atingido. Libera em ${Math.ceil(liberaEmSegundos / 60)} min`
     )
     this.name = 'CotaEsgotadaError'
   }

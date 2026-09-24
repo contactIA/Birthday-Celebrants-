@@ -417,7 +417,7 @@ function Sincronizacao({ id }: { id: string }) {
   return (
     <Secao
       titulo="Sincronização com a Clinicorp"
-      descricao="O painel lê os aniversariantes de um cache, renovado todo dia às 03:00 (Brasília). Use o botão para não esperar — por exemplo, logo depois de cadastrar a clínica."
+      descricao="O painel lê os aniversariantes de um cache, renovado todo dia às 03:00 (Brasília). Use o botão para não esperar, por exemplo logo depois de cadastrar a clínica."
     >
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1 text-sm">
@@ -430,7 +430,7 @@ function Sincronizacao({ id }: { id: string }) {
               <span className="text-ink-2">última sincronização {dataHora(estado.cache.sincronizadoEm)}</span>
             </p>
           ) : (
-            <p className="text-ink-2">Nunca sincronizada — o painel desta clínica aparece vazio até a primeira.</p>
+            <p className="text-ink-2">Nunca sincronizada. O painel desta clínica aparece vazio até a primeira.</p>
           )}
         </div>
         <Botao
@@ -445,7 +445,7 @@ function Sincronizacao({ id }: { id: string }) {
 
       {emAndamento && (
         <Aviso tom="neutro">
-          Sincronizando desde {execucao ? dataHora(execucao.inicio) : 'agora'}. Leva alguns minutos — são
+          Sincronizando desde {execucao ? dataHora(execucao.inicio) : 'agora'}. Leva alguns minutos, porque são
           dezenas de consultas à Clinicorp. Pode sair desta tela; a sincronização continua.
         </Aviso>
       )}
@@ -455,9 +455,9 @@ function Sincronizacao({ id }: { id: string }) {
           tom={relatorio.erros.length === 0 ? 'neutro' : relatorio.pacientes > 0 ? 'atencao' : 'erro'}
           titulo={
             relatorio.erros.length === 0
-              ? `Concluída — ${relatorio.pacientes} pacientes em ${relatorio.diasConsultados} dias consultados`
+              ? `Concluída: ${relatorio.pacientes} pacientes em ${relatorio.diasConsultados} dias consultados`
               : relatorio.pacientes > 0
-                ? `Concluída com ${relatorio.erros.length} ${relatorio.erros.length === 1 ? 'falha' : 'falhas'} — ${relatorio.pacientes} pacientes gravados`
+                ? `Concluída com ${relatorio.erros.length} ${relatorio.erros.length === 1 ? 'falha' : 'falhas'}: ${relatorio.pacientes} pacientes gravados`
                 : 'A sincronização falhou'
           }
         >
@@ -503,7 +503,7 @@ function ResultadoDoTesteDeConexao({ teste }: { teste: ResultadoDaConexao }) {
   return (
     <section aria-live="polite" className="rounded-[12px] border border-line bg-surface px-5 py-4">
       <h2 className="text-[15px] font-semibold text-ink">Teste de conexão</h2>
-      <p className="mt-0.5 text-[13px] text-muted">Com os valores do formulário — nada foi salvo.</p>
+      <p className="mt-0.5 text-[13px] text-muted">Com os valores do formulário. Nada foi salvo.</p>
       <ul className="mt-3 flex flex-col gap-2.5">
         {linhas.map((l) => (
           <li key={l.rotulo} className="flex flex-wrap items-start gap-x-3 gap-y-1">

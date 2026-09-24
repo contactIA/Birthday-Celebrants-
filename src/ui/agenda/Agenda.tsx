@@ -449,7 +449,7 @@ function Linha({
       </div>
 
       <span className="tnum hidden w-40 shrink-0 truncate text-sm text-ink-2 sm:block">
-        {paciente.telefone ? formatarTelefoneBR(paciente.telefone) : '—'}
+        {paciente.telefone ? formatarTelefoneBR(paciente.telefone) : 'Sem telefone'}
       </span>
 
       <div className="w-36 shrink-0 text-right">

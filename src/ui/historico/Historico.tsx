@@ -33,7 +33,7 @@ interface Pagina {
 // ter webhook.
 
 function formatarData(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return 'Sem data'
   const d = new Date(iso)
   return d.toLocaleString('pt-BR', {
     day: '2-digit',

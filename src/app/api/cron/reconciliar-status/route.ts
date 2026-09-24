@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     // Configuração ausente NÃO é acesso negado — confundir as duas já custou
     // nove dias de job parado sem ninguém notar.
     console.error(
-      '[cron/reconciliar-status] CRON_SECRET ausente — a rota rejeita TODA chamada, ' +
+      '[cron/reconciliar-status] CRON_SECRET ausente: a rota rejeita TODA chamada, ' +
         'inclusive a do próprio Cron. Cadastrar no .env do servidor (ver docs/deploy-vps.md).'
     )
     return NextResponse.json({ error: 'Cron não configurado' }, { status: 503 })
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     if (r.naoEncontrados > 0) {
       console.warn(
         `[cron/reconciliar-status] ${r.companyId}: ${r.naoEncontrados} de ${r.pendentes} ` +
-          'não foram encontrados na plataforma — pode ser mensagem apagada por lá, ' +
+          'não foram encontrados na plataforma. Pode ser mensagem apagada por lá, ' +
           'mas se persistir revise a janela de consulta ou o casamento de ids.'
       )
     }

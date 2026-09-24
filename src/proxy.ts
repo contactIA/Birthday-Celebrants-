@@ -88,7 +88,7 @@ function negar(request: NextRequest, motivo: MotivoDeRecusa) {
  */
 function naoConfigurado(request: NextRequest) {
   console.error(
-    '[proxy] LINK_SECRET ausente — o app rejeita TODO acesso, de propósito. ' +
+    '[proxy] LINK_SECRET ausente: o app rejeita TODO acesso, de propósito. ' +
       'Cadastrar no .env do servidor (ver docs/deploy-vps.md); o .env.local não vale em produção. ' +
       'O MESMO valor precisa estar no Clinic Control, que emite os links.'
   )
@@ -111,7 +111,7 @@ function proxySetup(request: NextRequest) {
   if (!segredos) {
     // Configuração, não ataque — mesma distinção do LINK_SECRET acima.
     console.error(
-      '[proxy] SETUP_PASSWORD_HASH ou LINK_SECRET ausente — a área de setup fica fechada. ' +
+      '[proxy] SETUP_PASSWORD_HASH ou LINK_SECRET ausente: a área de setup fica fechada. ' +
         'Gerar o hash com `npm run setup:senha` e cadastrar no .env do servidor.'
     )
     return ehApi(request)

@@ -25,7 +25,7 @@ class SemSincronizacaoError extends Error {
   readonly status = 400
   readonly codigo = 'SEM_SINCRONIZACAO' as const
   constructor() {
-    super('Só clínicas Clinicorp usam sincronização — a e-Clínica é consultada ao vivo')
+    super('Só clínicas Clinicorp usam sincronização. A e-Clínica é consultada ao vivo')
     this.name = 'SemSincronizacaoError'
   }
 }

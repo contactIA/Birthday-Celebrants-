@@ -11,13 +11,15 @@ export const SISTEMAS = ['clinicorp', 'eclinica', 'outro'] as const
 export type SistemaDoPedido = (typeof SISTEMAS)[number]
 
 /** Limites de tamanho: o formulário é público dentro da aba — texto sem teto vira depósito de lixo. */
-export const LIMITES = { nome: 120, modelo: 1000 } as const
+export const LIMITES = { nome: 120, modelo: 1000, sistemaOutro: 80 } as const
 
 export interface PedidoDeVaga {
   nomeClinica: string
   /** E.164 — normalizado aqui para a equipe ligar sem adivinhar o formato. */
   telefone: string
   sistemaProntuario: SistemaDoPedido
+  /** Qual é o prontuário, quando a clínica marca "Outro". `null` nos demais. */
+  sistemaOutro: string | null
   modeloMensagem: string
 }
 
@@ -57,13 +59,22 @@ export function lerPedido(corpo: unknown): PedidoDeVaga {
     throw new PedidoDeVagaInvalidoError('Escolha o sistema de prontuário da clínica')
   }
 
+  // "Outro" sem nome não diz nada à equipe: é o dado que decide qual
+  // integração fazer depois.
+  let sistemaOutro: string | null = null
+  if (sistema === 'outro') {
+    sistemaOutro = texto(c.sistemaOutro)
+    if (!sistemaOutro) throw new PedidoDeVagaInvalidoError('Informe qual sistema de prontuário a clínica usa')
+    if (sistemaOutro.length > LIMITES.sistemaOutro) throw new PedidoDeVagaInvalidoError('Nome do sistema muito longo')
+  }
+
   const modeloMensagem = texto(c.modeloMensagem)
   if (!modeloMensagem) throw new PedidoDeVagaInvalidoError('Escreva a mensagem de aniversário que você gostaria de enviar')
   if (modeloMensagem.length > LIMITES.modelo) {
     throw new PedidoDeVagaInvalidoError(`A mensagem pode ter até ${LIMITES.modelo} caracteres`)
   }
 
-  return { nomeClinica, telefone, sistemaProntuario: sistema as SistemaDoPedido, modeloMensagem }
+  return { nomeClinica, telefone, sistemaProntuario: sistema as SistemaDoPedido, sistemaOutro, modeloMensagem }
 }
 
 /**

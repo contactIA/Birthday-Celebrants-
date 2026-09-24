@@ -195,7 +195,7 @@ async function agendarUm(
         ok: false,
         erro: passou
           ? `O aniversário (${paraExibicao(paciente.aniversario)}) já passou este ano`
-          : 'O aniversário é hoje — o parabéns precisa ser agendado com antecedência',
+          : 'O aniversário é hoje, e o parabéns precisa ser agendado com antecedência',
       }
     }
     quando = instante.toISOString()

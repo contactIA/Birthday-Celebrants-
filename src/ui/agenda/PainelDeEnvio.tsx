@@ -208,7 +208,7 @@ export function PainelDeEnvio({
                 ? 'Data escolhida'
                 : QUANDO[modelo?.config?.diaEnvio ?? 'aniversario']}
             </Linha>
-            <Linha rotulo="Horário">{modelo?.config?.horarioEnvio ?? '—'}</Linha>
+            <Linha rotulo="Horário">{modelo?.config?.horarioEnvio ?? 'Não definido'}</Linha>
             <Linha rotulo="Selecionados">
               <span className="tnum">{selecionados.length}</span>
             </Linha>

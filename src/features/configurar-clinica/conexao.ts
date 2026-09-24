@@ -33,7 +33,7 @@ async function testar(fn: () => Promise<string>, contexto: string): Promise<Resu
     // corpo da resposta (que pode ter dado de paciente) — ver clinicorp-api.ts.
     // O log fica com o objeto inteiro para o diagnóstico.
     console.error(`[setup/conexao] ${contexto}:`, err)
-    const mensagem = err instanceof Error && err.message ? err.message : 'Falha inesperada — ver o log do servidor'
+    const mensagem = err instanceof Error && err.message ? err.message : 'Falha inesperada. Veja o log do servidor'
     return { ok: false, mensagem }
   }
 }
@@ -71,7 +71,7 @@ export function conferirRemetente(
       mensagem:
         canais.length === 1
           ? `remetente: o canal da conta, ${disponiveis}`
-          : `remetente não definido — a conta tem ${canais.length} canais (${disponiveis}); defina qual usar`,
+          : `remetente não definido: a conta tem ${canais.length} canais (${disponiveis}); defina qual usar`,
     }
   }
 

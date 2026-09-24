@@ -23,11 +23,11 @@ export function dependenciasReais(agora: Date): DependenciasDoTeste {
       if (clinica.sistemaProntuario === 'clinicorp') {
         const data = `${hoje.ano}-${String(hoje.mes).padStart(2, '0')}-${String(hoje.dia).padStart(2, '0')}`
         const lista = await clienteClinicorp(clinica).aniversariantesDoDia(data)
-        return `Clinicorp conectada — ${plural(lista.length, 'aniversariante', 'aniversariantes')} hoje`
+        return `Clinicorp conectada: ${plural(lista.length, 'aniversariante', 'aniversariantes')} hoje`
       }
 
       const lista = await provedorEClinica(clinica).listarDoMes(hoje.mes)
-      return `e-Clínica conectada — ${plural(lista.length, 'aniversariante', 'aniversariantes')} neste mês`
+      return `e-Clínica conectada: ${plural(lista.length, 'aniversariante', 'aniversariantes')} neste mês`
     },
 
     async testarMensageria(clinica) {
@@ -35,7 +35,7 @@ export function dependenciasReais(agora: Date): DependenciasDoTeste {
       const [{ modelos }, canais] = await Promise.all([mensageria.listarModelos(), mensageria.listarRemetentes()])
       const remetente = conferirRemetente(clinica.credenciais.mensageria.from, canais)
       if (!remetente.ok) throw new Error(remetente.mensagem)
-      return `Conectada — ${plural(modelos.length, 'modelo aprovado', 'modelos aprovados')} · ${remetente.mensagem}`
+      return `Conectada: ${plural(modelos.length, 'modelo aprovado', 'modelos aprovados')} · ${remetente.mensagem}`
     },
   }
 }

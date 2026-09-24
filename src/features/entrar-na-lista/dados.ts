@@ -9,6 +9,7 @@ export interface Interessado {
   nomeClinica: string
   telefone: string
   sistemaProntuario: InteressadoRow['sistema_prontuario']
+  sistemaOutro: string | null
   modeloMensagem: string
   pedidoEm: string
   atualizadoEm: string
@@ -21,6 +22,7 @@ function paraDominio(row: InteressadoRow): Interessado {
     nomeClinica: row.nome_clinica,
     telefone: row.telefone,
     sistemaProntuario: row.sistema_prontuario,
+    sistemaOutro: row.sistema_outro,
     modeloMensagem: row.modelo_mensagem,
     pedidoEm: row.created_at,
     atualizadoEm: row.updated_at,
@@ -41,6 +43,7 @@ export async function salvarPedido(companyId: string, pedido: PedidoDeVaga, agor
         nome_clinica: pedido.nomeClinica,
         telefone: pedido.telefone,
         sistema_prontuario: pedido.sistemaProntuario,
+        sistema_outro: pedido.sistemaOutro,
         modelo_mensagem: pedido.modeloMensagem,
         consentimento_em: agora.toISOString(),
         updated_at: agora.toISOString(),

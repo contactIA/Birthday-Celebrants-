@@ -13,7 +13,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<'/api/setup/
     exigirSessaoDeSetup(request)
     const { companyId } = await ctx.params
     const status = lerStatus(await request.json().catch(() => null))
-    if (!status) throw new ParametroInvalidoError('Etapa inválida — use "recebido" ou "em_analise"')
+    if (!status) throw new ParametroInvalidoError('Etapa inválida. Use "recebido" ou "em_analise"')
 
     await definirStatus(companyId, status)
     console.info(`[setup] pedido de ${companyId} → ${status}`)
