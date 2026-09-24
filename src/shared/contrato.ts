@@ -84,6 +84,7 @@ export const CONTRATO = {
     'consentimento_em',
     'created_at',
     'updated_at',
+    'status',
   ],
 } as const
 

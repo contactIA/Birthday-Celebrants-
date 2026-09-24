@@ -18,6 +18,7 @@ interface Interessado {
   modeloMensagem: string
   pedidoEm: string
   atualizadoEm: string
+  status: 'recebido' | 'em_analise'
   cadastrada: boolean
 }
 
@@ -36,6 +37,10 @@ export function ListaDeInteressados() {
       .then((r) => setLista(r.interessados))
       .catch((e: Error) => setErro(e.message))
   }, [])
+
+  function mudouStatus(companyId: string, status: Interessado['status']) {
+    setLista((atual) => atual?.map((i) => (i.companyId === companyId ? { ...i, status } : i)) ?? null)
+  }
 
   const pendentes = lista?.filter((i) => !i.cadastrada) ?? []
   const cadastrados = lista?.filter((i) => i.cadastrada) ?? []
@@ -71,7 +76,7 @@ export function ListaDeInteressados() {
       {pendentes.length > 0 && (
         <ul className="flex flex-col gap-3">
           {pendentes.map((i) => (
-            <Cartao key={i.companyId} interessado={i} />
+            <Cartao key={i.companyId} interessado={i} onStatus={mudouStatus} />
           ))}
         </ul>
       )}
@@ -92,7 +97,13 @@ export function ListaDeInteressados() {
   )
 }
 
-function Cartao({ interessado: i }: { interessado: Interessado }) {
+function Cartao({
+  interessado: i,
+  onStatus,
+}: {
+  interessado: Interessado
+  onStatus?: (companyId: string, status: Interessado['status']) => void
+}) {
   const cadastrar = `/setup/clinicas/nova?${new URLSearchParams({ companyId: i.companyId, nome: i.nomeClinica })}`
   return (
     <li className="rounded-[12px] border border-line bg-surface px-5 py-4">
@@ -126,11 +137,74 @@ function Cartao({ interessado: i }: { interessado: Interessado }) {
       <blockquote className="mt-3 rounded-[10px] bg-sunk px-4 py-3 text-[13px] leading-relaxed whitespace-pre-wrap text-ink-2">
         {i.modeloMensagem}
       </blockquote>
+      {onStatus && !i.cadastrada && <EtapaNaFila interessado={i} onStatus={onStatus} />}
       {i.sistemaProntuario === 'outro' && !i.cadastrada && (
         <p className="mt-2 text-xs text-atencao">
           Usa um prontuário que o app ainda não integra — não dá para cadastrar por enquanto.
         </p>
       )}
     </li>
+  )
+}
+
+const ETAPAS = [
+  { valor: 'recebido', rotulo: 'Pedido recebido' },
+  { valor: 'em_analise', rotulo: 'Em análise' },
+] as const
+
+/**
+ * A etapa que a clínica vê na fila da página de beta. "Vaga liberada" não tem
+ * botão: aparece sozinha quando a clínica é cadastrada.
+ */
+function EtapaNaFila({
+  interessado: i,
+  onStatus,
+}: {
+  interessado: Interessado
+  onStatus: (companyId: string, status: Interessado['status']) => void
+}) {
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function mudar(status: Interessado['status']) {
+    if (status === i.status) return
+    setSalvando(true)
+    setErro(null)
+    try {
+      await chamarApi(`/api/setup/interessados/${encodeURIComponent(i.companyId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      })
+      onStatus(i.companyId, status)
+    } catch (e) {
+      setErro((e as Error).message)
+    }
+    setSalvando(false)
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted">
+      <span>Etapa que a clínica vê:</span>
+      <div role="radiogroup" aria-label="Etapa na fila" className="inline-flex rounded-full border border-line bg-sunk p-0.5">
+        {ETAPAS.map((e) => (
+          <button
+            key={e.valor}
+            type="button"
+            role="radio"
+            aria-checked={i.status === e.valor}
+            disabled={salvando}
+            onClick={() => mudar(e.valor)}
+            className={
+              i.status === e.valor
+                ? 'rounded-full bg-surface px-3 py-1 font-medium text-ink shadow-sm'
+                : 'rounded-full px-3 py-1 text-ink-2 hover:text-ink disabled:opacity-50'
+            }
+          >
+            {e.rotulo}
+          </button>
+        ))}
+      </div>
+      {erro && <span className="text-erro">{erro}</span>}
+    </div>
   )
 }

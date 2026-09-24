@@ -12,6 +12,7 @@ export interface Interessado {
   modeloMensagem: string
   pedidoEm: string
   atualizadoEm: string
+  status: InteressadoRow['status']
 }
 
 function paraDominio(row: InteressadoRow): Interessado {
@@ -23,6 +24,7 @@ function paraDominio(row: InteressadoRow): Interessado {
     modeloMensagem: row.modelo_mensagem,
     pedidoEm: row.created_at,
     atualizadoEm: row.updated_at,
+    status: row.status,
   }
 }
 
@@ -73,4 +75,39 @@ export async function listarPedidos(): Promise<Interessado[]> {
 
   if (error) throw new Error(`Erro ao listar pedidos: ${error.message}`)
   return (data ?? []).map(paraDominio)
+}
+
+/**
+ * Muda a etapa do pedido — só a área de setup chama. Não mexe em `updated_at`:
+ * ali é "a clínica corrigiu o pedido", e a etapa é decisão nossa.
+ */
+export async function definirStatus(companyId: string, status: InteressadoRow['status']): Promise<void> {
+  const { data, error } = await db()
+    .from('aniversariantes_interessados')
+    .update({ status })
+    .eq('company_id', companyId)
+    .select('id')
+
+  if (error) throw new Error(`Erro ao mudar a etapa do pedido: ${error.message}`)
+  if (!data?.length) throw new PedidoNaoEncontradoError()
+}
+
+export class PedidoNaoEncontradoError extends Error {
+  readonly status = 404
+  readonly codigo = 'PEDIDO_NAO_ENCONTRADO' as const
+  constructor() {
+    super('Pedido de vaga não encontrado')
+    this.name = 'PedidoNaoEncontradoError'
+  }
+}
+
+/** Ordem de chegada de todos os pedidos — só o necessário para calcular a fila. */
+export async function listarOrdemDaFila(): Promise<{ companyId: string; pedidoEm: string }[]> {
+  const { data, error } = await db()
+    .from('aniversariantes_interessados')
+    .select('company_id, created_at')
+    .returns<Pick<InteressadoRow, 'company_id' | 'created_at'>[]>()
+
+  if (error) throw new Error(`Erro ao ler a fila: ${error.message}`)
+  return (data ?? []).map((r) => ({ companyId: r.company_id, pedidoEm: r.created_at }))
 }

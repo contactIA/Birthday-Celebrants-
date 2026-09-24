@@ -315,3 +315,17 @@ export async function atualizarClinica(id: string, clinica: Clinica): Promise<Cl
   if (!data) throw new ClinicaNaoEncontradaError()
   return paraSetup(data)
 }
+
+/**
+ * Os company_ids já cadastrados — para a fila de interessados saber quem já
+ * virou clínica. Só o identificador; nenhuma credencial sai daqui.
+ */
+export async function companyIdsCadastrados(): Promise<Set<string>> {
+  const { data, error } = await db()
+    .from('aniversariantes_clinicas')
+    .select('slug')
+    .returns<Pick<ClinicaRow, 'slug'>[]>()
+
+  if (error) throw new Error(`Erro ao listar clínicas: ${error.message}`)
+  return new Set((data ?? []).map((c) => c.slug.toLowerCase()))
+}

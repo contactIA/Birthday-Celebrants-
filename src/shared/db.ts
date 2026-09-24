@@ -139,9 +139,13 @@ export interface InteressadoRow {
   consentimento_em: string
   created_at: string
   updated_at: string
+  /** Etapa na fila. "Vaga liberada" não é status: é a clínica estar cadastrada. */
+  status: 'recebido' | 'em_analise'
 }
 
-export type InteressadoInsert = Omit<InteressadoRow, 'id' | 'created_at'>
+export type InteressadoInsert = Omit<InteressadoRow, 'id' | 'created_at' | 'status'> & {
+  status?: InteressadoRow['status']
+}
 
 export interface PacienteCacheInsert {
   clinica_id: string

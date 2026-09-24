@@ -5,6 +5,8 @@ import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 import { LIMITES, type SistemaDoPedido } from '@/features/entrar-na-lista/regras'
 import { formatarTelefoneBR } from '@/shared/telefone/e164'
+import { situacaoDaTurma, type EtapaDaFila, type SituacaoDaTurma } from '@/features/entrar-na-lista/fila'
+import { EtapasDaFila, SelosDaTurma } from './Fila'
 import { Presente3D } from './Presente3D'
 import { PreviaNoCelular } from './PreviaNoCelular'
 
@@ -51,7 +53,19 @@ interface Pedido {
   pedidoEm: string
 }
 
-type Etapa = { tipo: 'carregando' } | { tipo: 'formulario' } | { tipo: 'na-lista'; pedido: Pedido; agora: boolean }
+export interface Fila {
+  etapa: EtapaDaFila
+  posicao: number | null
+  naFrente: number
+}
+
+type Etapa =
+  | { tipo: 'carregando' }
+  | { tipo: 'formulario' }
+  | { tipo: 'na-lista'; pedido: Pedido; fila: Fila | null; agora: boolean }
+
+/** Na prévia não há fila de verdade: mostra o formato com números de exemplo. */
+const FILA_DE_EXEMPLO: Fila = { etapa: 'recebido', posicao: 3, naFrente: 2 }
 
 /**
  * `previa`: a página como uma clínica sem cadastro a vê, aberta pela área de
@@ -67,6 +81,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
   const [consentimento, setConsentimento] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [turma, setTurma] = useState<SituacaoDaTurma>(() => situacaoDaTurma(0))
   const campoModelo = useRef<HTMLTextAreaElement>(null)
   const secaoFormulario = useRef<HTMLElement>(null)
 
@@ -75,7 +90,10 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
     if (previa) return
     fetch('/api/interesse')
       .then((r) => r.json())
-      .then((corpo) => setEtapa(corpo?.pedido ? { tipo: 'na-lista', pedido: corpo.pedido, agora: false } : { tipo: 'formulario' }))
+      .then((corpo) => {
+        if (corpo?.turma) setTurma(corpo.turma)
+        setEtapa(corpo?.pedido ? { tipo: 'na-lista', pedido: corpo.pedido, fila: corpo.fila, agora: false } : { tipo: 'formulario' })
+      })
       .catch(() => setEtapa({ tipo: 'formulario' }))
   }, [previa])
 
@@ -104,6 +122,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
       setEtapa({
         tipo: 'na-lista',
         pedido: { nomeClinica, telefone, sistemaProntuario: sistema!, modeloMensagem: modelo, pedidoEm: new Date().toISOString() },
+        fila: FILA_DE_EXEMPLO,
         agora: true,
       })
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -118,7 +137,8 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
       })
       const corpo = await resposta.json().catch(() => null)
       if (!resposta.ok) throw new Error(corpo?.error ?? 'Não foi possível enviar o pedido. Tente de novo.')
-      setEtapa({ tipo: 'na-lista', pedido: corpo.pedido, agora: true })
+      if (corpo.turma) setTurma(corpo.turma)
+      setEtapa({ tipo: 'na-lista', pedido: corpo.pedido, fila: corpo.fila, agora: true })
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       setErro((err as Error).message)
@@ -178,6 +198,11 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                   <strong className="font-semibold whitespace-nowrap text-ink">{formatarTelefoneBR(etapa.pedido.telefone)}</strong>{' '}
                   assim que a vaga for liberada.
                 </p>
+                {etapa.fila && (
+                  <div className="beta-surge mt-7 max-w-md" style={{ '--atraso': '220ms' } as React.CSSProperties}>
+                    <EtapasDaFila fila={etapa.fila} />
+                  </div>
+                )}
                 <button
                   onClick={() => alterarPedido(etapa.pedido)}
                   className="beta-surge mt-6 text-sm font-medium text-accent-ink underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
@@ -203,8 +228,8 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                 </h1>
                 <p className="beta-surge mt-5 max-w-md text-[15px] leading-relaxed text-ink-2" style={{ '--atraso': '160ms' } as React.CSSProperties}>
                   Um novo app da plataforma traz do seu prontuário quem faz aniversário no mês e agenda o parabéns pelo
-                  WhatsApp da clínica, com o nome de cada paciente. Estamos abrindo para poucas clínicas nesta primeira
-                  fase.
+                  WhatsApp da clínica, com o nome de cada paciente. A primeira turma do beta é pequena — e as vagas
+                  são liberadas por ordem de pedido.
                 </p>
                 <button
                   onClick={irParaFormulario}
@@ -214,6 +239,9 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                 >
                   Quero participar do beta <span aria-hidden>→</span>
                 </button>
+                <div className="beta-surge mt-6" style={{ '--atraso': '320ms' } as React.CSSProperties}>
+                  <SelosDaTurma turma={turma} />
+                </div>
               </>
             )}
           </div>
@@ -381,7 +409,11 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                 >
                   {enviando ? 'Enviando…' : 'Quero minha vaga no beta'}
                 </button>
-                {!sistema && <p className="mt-2 text-[12px] text-muted">Escolha o sistema de prontuário para enviar.</p>}
+                {!sistema ? (
+                  <p className="mt-2 text-[12px] text-muted">Escolha o sistema de prontuário para enviar.</p>
+                ) : (
+                  <p className="mt-2 text-[12px] text-muted">Os pedidos são atendidos por ordem de chegada.</p>
+                )}
               </div>
             </form>
           </div>
