@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { Aviso, Estado, EsqueletoDeLinha, Vazio } from '@/ui/primitivos'
 import { PainelDeEnvio } from './PainelDeEnvio'
-import { estadoDoEnvio, temMensagemValida } from '@/ui/statusDoEnvio'
+import { temMensagemValida } from '@/ui/statusDoEnvio'
+import { SituacaoDoEnvio } from '@/ui/SituacaoDoEnvio'
 import { formatarTelefoneBR, paraE164BR } from '@/shared/telefone/e164'
 import {
   MESES_TITULO,
@@ -456,9 +457,7 @@ function Linha({
         {agendado ? (
           // O status real (Agendada, Enviada, Entregue, Lida), o mesmo do
           // Histórico — antes era "Agendado" para qualquer um deles.
-          <Estado tom={estadoDoEnvio(paciente.envio!.status).tom}>
-            {estadoDoEnvio(paciente.envio!.status).rotulo}
-          </Estado>
+          <SituacaoDoEnvio status={paciente.envio!.status} />
         ) : paciente.envio?.status === 'failed' ? (
           // Falhou: selecionável de novo, e a etiqueta diz por que está aqui.
           <Estado tom="erro">Falhou</Estado>

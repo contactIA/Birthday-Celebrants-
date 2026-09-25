@@ -7,8 +7,9 @@ import {
   POR_PAGINA_PADRAO,
   POR_PAGINA_MAXIMO,
 } from '@/features/historico/dados'
+import { lerFiltros } from '@/features/historico/filtros'
 
-// GET /api/historico?pagina=1&porPagina=50
+// GET /api/historico?pagina=1&porPagina=50&busca=&situacao=&ordem=envio&direcao=desc
 //
 // Paginado desde o começo: a tabela cresce um registro por paciente por ano e
 // não para. O app anterior devolvia tudo, sem limite.
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
       POR_PAGINA_MAXIMO
     )
 
-    return NextResponse.json(await buscarHistorico(clinica, pagina, porPagina))
+    return NextResponse.json(await buscarHistorico(clinica, pagina, porPagina, lerFiltros(params)))
   } catch (err) {
     return responderErro('api/historico', err)
   }

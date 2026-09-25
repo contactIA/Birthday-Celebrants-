@@ -41,6 +41,8 @@
   --color-parado-soft: #eef0f3;
   --color-erro: #b3261e;
   --color-erro-soft: #fbe9e7;
+  --color-info: #1f5fbf;
+  --color-info-soft: #e7effc;
 
   /* Pilha do sistema: Segoe UI no Windows, SF no Mac — o que o chrome do host
      já usa. Sem webfont: menos uma requisição dentro do iframe e nenhuma

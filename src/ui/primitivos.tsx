@@ -43,7 +43,7 @@ export function Estado({
   tom,
   children,
 }: {
-  tom: 'ok' | 'atencao' | 'parado' | 'erro' | 'neutro'
+  tom: 'ok' | 'atencao' | 'parado' | 'erro' | 'neutro' | 'info'
   children: React.ReactNode
 }) {
   const estilos = {
@@ -52,6 +52,7 @@ export function Estado({
     parado: 'bg-parado-soft text-parado',
     erro: 'bg-erro-soft text-erro',
     neutro: 'bg-sunk text-ink-2',
+    info: 'bg-info-soft text-info',
   }[tom]
 
   return (
