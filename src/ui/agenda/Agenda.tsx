@@ -458,11 +458,23 @@ function Linha({
   const agendado = estaAgendado(paciente)
   const selecionavel = podeAgendar(paciente) && !agendado
 
+  // A linha inteira seleciona, não só o quadradinho. O clique no próprio
+  // checkbox já é tratado por ele (senão alternaria duas vezes), e arrastar
+  // para copiar o telefone não conta como clique.
+  function aoClicarNaLinha(e: React.MouseEvent<HTMLLIElement>) {
+    if (!selecionavel) return
+    if ((e.target as HTMLElement).closest('input, a, button')) return
+    if (window.getSelection()?.toString()) return
+    aoAlternar()
+  }
+
   return (
     <li
+      onClick={aoClicarNaLinha}
       className={clsx(
         GRADE,
         'border-b border-line-soft py-3 text-sm last:border-b-0',
+        selecionavel && 'cursor-pointer',
         marcado ? 'bg-accent-soft/60' : 'hover:bg-sunk/40'
       )}
     >
