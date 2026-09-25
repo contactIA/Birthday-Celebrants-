@@ -7,10 +7,18 @@ import clsx from 'clsx'
 export const ESTILO_CONTROLE =
   'h-10 appearance-none rounded-[10px] border border-line bg-surface text-sm text-ink placeholder:text-muted focus:border-accent focus:ring-4 focus:ring-accent/10 focus:outline-none'
 
+/**
+ * Primeira letra do primeiro e do último nome. Só LETRAS contam: nomes da
+ * Clinicorp trazem emoji de marcação ("Ana 🟢"), e pegar o primeiro caractere
+ * da última palavra cortava o emoji ao meio e mostrava "A\uFFFD" no avatar.
+ */
 export function iniciais(nome: string): string {
-  const partes = nome.trim().split(/\s+/).filter(Boolean)
-  if (partes.length === 0) return '?'
-  return (partes[0]![0]! + (partes.length > 1 ? partes.at(-1)![0]! : '')).toUpperCase()
+  const letras = nome
+    .split(/\s+/)
+    .map((p) => p.match(/\p{L}/u)?.[0])
+    .filter((l): l is string => !!l)
+  if (letras.length === 0) return '?'
+  return (letras[0]! + (letras.length > 1 ? letras.at(-1)! : '')).toLocaleUpperCase('pt-BR')
 }
 
 /** Avatar com as iniciais, nome e uma linha embaixo (o telefone, em geral). */
