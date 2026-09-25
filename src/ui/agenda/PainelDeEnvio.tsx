@@ -36,6 +36,7 @@ interface ResultadoDeEnvio {
   nome: string | null
   ok: boolean
   erro?: string
+  aviso?: string
 }
 
 const QUANDO: Record<string, string> = {
@@ -270,6 +271,7 @@ function Resultados({
 }) {
   const agendados = resultados.filter((r) => r.ok).length
   const falhas = resultados.filter((r) => !r.ok)
+  const comAviso = resultados.filter((r) => r.ok && r.aviso)
 
   return (
     <div className="flex flex-col gap-2 border-t border-line pt-3">
@@ -286,6 +288,17 @@ function Resultados({
               {/* O motivo por extenso, não só "falhou": quase sempre há algo a
                   fazer (corrigir telefone, escolher outra data). */}
               <span className="text-xs leading-snug text-erro">{r.erro}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {comAviso.length > 0 && (
+        <ul className="rolagem-discreta flex max-h-32 flex-col gap-1.5 overflow-y-auto">
+          {comAviso.map((r) => (
+            <li key={r.pacienteId} className="flex flex-col gap-0.5 rounded-lg bg-atencao-soft px-2.5 py-1.5">
+              <span className="text-xs font-medium text-ink">{r.nome ?? 'Paciente'}</span>
+              <span className="text-xs leading-snug text-atencao">{r.aviso}</span>
             </li>
           ))}
         </ul>

@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
         buscarModelo: (id) => buscarModeloConfig(clinica, id),
         buscarPacientes: (ids) => prontuario.buscarPorIds(ids),
         agendar: (p) => mensageria.agendar(p),
+        salvarContato: (c) => mensageria.salvarContato(c),
         registrarEnvio: (envio) => registrarEnvio(clinica, envio),
       }
     )

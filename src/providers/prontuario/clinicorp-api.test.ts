@@ -17,7 +17,7 @@ const CLINICA = {
   credenciais: {
     eclinica: { token: null, baseUrl: '' },
     clinicorp: { usuarioApi: 'u', tokenApi: 't', subscriberId: 's', baseUrl: 'https://api.teste' },
-    mensageria: { token: 'x', from: null, channelId: null },
+    mensageria: { token: 'x', from: null, channelId: null, campoNascimento: null },
   },
 } satisfies Clinica
 

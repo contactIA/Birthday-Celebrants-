@@ -30,7 +30,13 @@ export interface Clinica {
       subscriberId: string | null
       baseUrl: string
     }
-    mensageria: { token: string; from: string | null; channelId: string | null }
+    mensageria: {
+      token: string
+      from: string | null
+      channelId: string | null
+      /** Chave do campo de nascimento no contato da plataforma. `null` = não preencher. */
+      campoNascimento: string | null
+    }
   }
 }
 
@@ -78,6 +84,7 @@ function paraDominio(row: ClinicaRow): Clinica {
         token: row.helena_token,
         from: row.helena_from,
         channelId: row.helena_channel_id,
+        campoNascimento: row.helena_campo_nascimento,
       },
     },
   }
@@ -170,7 +177,12 @@ export interface ClinicaNoSetup {
     subscriberId: string | null
     baseUrl: string
   }
-  mensageria: { tokenConfigurado: boolean; from: string | null; channelId: string | null }
+  mensageria: {
+    tokenConfigurado: boolean
+    from: string | null
+    channelId: string | null
+    campoNascimento: string | null
+  }
 }
 
 function paraSetup(row: ClinicaRow): ClinicaNoSetup {
@@ -192,6 +204,7 @@ function paraSetup(row: ClinicaRow): ClinicaNoSetup {
       tokenConfigurado: !!row.helena_token,
       from: row.helena_from,
       channelId: row.helena_channel_id,
+      campoNascimento: row.helena_campo_nascimento,
     },
   }
 }
@@ -212,6 +225,7 @@ function paraLinha(clinica: Clinica): ClinicaInsert {
     helena_token: mensageria.token,
     helena_from: mensageria.from,
     helena_channel_id: mensageria.channelId,
+    helena_campo_nascimento: mensageria.campoNascimento,
   }
 }
 

@@ -207,3 +207,22 @@ describe('conferirRemetente', () => {
     expect(conferirRemetente(null, [])).toMatchObject({ ok: false })
   })
 })
+
+describe('campo de nascimento no contato', () => {
+  it('guarda a chave escolhida; em branco limpa; ausente mantém', () => {
+    const c = montarClinica({ ...NOVA, mensageriaCampoNascimento: 'data-de-nascimento' }, null)
+    expect(c.credenciais.mensageria.campoNascimento).toBe('data-de-nascimento')
+    expect(montarClinica({ mensageriaCampoNascimento: '' }, c).credenciais.mensageria.campoNascimento).toBeNull()
+    expect(montarClinica({}, c).credenciais.mensageria.campoNascimento).toBe('data-de-nascimento')
+  })
+
+  it('recusa o que não é chave de campo', () => {
+    expect(() => montarClinica({ ...NOVA, mensageriaCampoNascimento: 'data de nascimento!' }, null)).toThrow(/nascimento/)
+  })
+
+  it('aparece no log de campos alterados', () => {
+    const antes = montarClinica(NOVA, null)
+    const depois = montarClinica({ mensageriaCampoNascimento: 'data-de-nascimento' }, antes)
+    expect(camposAlterados(antes, depois)).toEqual(['mensageriaCampoNascimento'])
+  })
+})

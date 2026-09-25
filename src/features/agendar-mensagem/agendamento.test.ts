@@ -4,6 +4,7 @@ import {
   ModeloNaoEncontradoError,
   PedidoInvalidoError,
   MAXIMO_POR_LOTE,
+  AVISO_CONTATO_NAO_SALVO,
   type ConfiguracaoDeModelo,
   type Dependencias,
 } from './agendamento'
@@ -38,6 +39,7 @@ function deps(over: Partial<Dependencias> = {}) {
     buscarModelo: vi.fn(async () => MODELO as ConfiguracaoDeModelo | null),
     buscarPacientes: vi.fn(async () => [paciente()]),
     agendar: vi.fn(async () => ({ id: 'msg-1' })),
+    salvarContato: vi.fn(async () => 'criado' as const),
     registrarEnvio: vi.fn(async () => {}),
     ...over,
   }
@@ -303,5 +305,48 @@ describe('virada de ano', () => {
     )
     expect(r!.ok).toBe(true)
     expect(d.registrarEnvio).toHaveBeenCalledWith(expect.objectContaining({ ano: 2027 }))
+  })
+})
+
+describe('o contato do paciente é salvo antes da mensagem', () => {
+  it('cria o contato com nome, telefone do prontuário e nascimento, ANTES de agendar', async () => {
+    const ordem: string[] = []
+    const d = deps({
+      salvarContato: vi.fn(async () => {
+        ordem.push('contato')
+        return 'criado' as const
+      }),
+      agendar: vi.fn(async () => {
+        ordem.push('agendar')
+        return { id: 'msg-1' }
+      }),
+    })
+    await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+
+    expect(ordem).toEqual(['contato', 'agendar'])
+    expect(d.salvarContato).toHaveBeenCalledWith({
+      telefone: '+5545999770408',
+      nome: 'Maria Souza',
+      dataNascimento: '20/10/1990',
+    })
+  })
+
+  it('se o contato falhar, agenda mesmo assim e avisa', async () => {
+    const d = deps({ salvarContato: vi.fn(async () => Promise.reject(new Error('fora do ar'))) })
+    const [r] = await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+
+    expect(d.agendar).toHaveBeenCalledTimes(1)
+    expect(r).toMatchObject({ ok: true, aviso: AVISO_CONTATO_NAO_SALVO })
+  })
+
+  it('sem falha no contato, nenhum aviso', async () => {
+    const [r] = await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, deps())
+    expect(r).not.toHaveProperty('aviso')
+  })
+
+  it('telefone inválido não chega a criar contato', async () => {
+    const d = deps({ buscarPacientes: vi.fn(async () => [paciente({ telefone: '000000' })]) })
+    await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+    expect(d.salvarContato).not.toHaveBeenCalled()
   })
 })

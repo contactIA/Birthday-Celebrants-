@@ -7,6 +7,9 @@ import {
   TIMEOUT_MS,
   type AgendamentoCriado,
   type AgendamentoSolicitado,
+  type CampoDeData,
+  type ContatoDoPaciente,
+  type ContatoSalvo,
   type ListagemDeModelos,
   type MensagemNaPlataforma,
   type ModeloDeMensagem,
@@ -34,6 +37,11 @@ import { digitosComPais } from '@/shared/telefone/e164'
 //    "Canal de comunicação não encontrado (<número>)" — não 4xx. Os canais
 //    estão em `/chat/v1/channel`, com o número em `number` no formato
 //    "+55|6231930175".
+//  · Contato inexistente na busca por telefone devolve **500** com "Contato não
+//    encontrado", não 404. O telefone no caminho é aceito em qualquer formato
+//    (com ou sem +55, até sem o nono dígito): a plataforma normaliza.
+//  · Campo personalizado de data volta como LISTA: {"data-de-nascimento":
+//    ["2006/03/01"]}.
 //
 // O nome do fornecedor não aparece em nenhuma string que possa chegar à tela.
 
@@ -72,6 +80,64 @@ const STATUS_CONHECIDOS: ReadonlySet<string> = new Set<StatusEnvio>([
   'canceled',
   'failed',
 ])
+
+/** Contato não existe na plataforma. Interno: é o caminho normal de "criar". */
+class ContatoNaoEncontradoError extends Error {}
+
+interface ContatoBruto {
+  name?: string | null
+  customFields?: Record<string, unknown> | null
+}
+
+/**
+ * Nome que não é nome: vazio ou feito só de caracteres de telefone. É o que a
+ * plataforma mostra quando o número não tem contato, e o que viraria o nome
+ * na mensagem.
+ */
+export function nomeAusente(nome: unknown): boolean {
+  if (typeof nome !== 'string') return true
+  const t = nome.trim()
+  return t === '' || /^[+\d\s().|-]+$/.test(t)
+}
+
+/** "DD/MM/AAAA" do prontuário para o valor de um campo de data. `null` se não der. */
+export function paraCampoDeData(ddmmaaaa: string | null): string | null {
+  const m = ddmmaaaa?.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!m || Number(m[3]) < 1900) return null
+  return `${m[3]}-${m[2]}-${m[1]}`
+}
+
+function campoVazio(valor: unknown): boolean {
+  if (valor === null || valor === undefined) return true
+  if (typeof valor === 'string') return valor.trim() === ''
+  if (Array.isArray(valor)) return valor.every(campoVazio)
+  return false
+}
+
+/**
+ * O que completar num contato que já existe, ou `null` se nada. Só campos
+ * vazios: um nome que a equipe deu na plataforma (ex.: "Marina ortodontia")
+ * fica como está.
+ */
+export function oQueCompletar(
+  existente: ContatoBruto,
+  nome: string,
+  campoNascimento: string | null,
+  nascimento: string | null
+): { fields: ('Name' | 'CustomFields')[]; name?: string; customFields?: Record<string, unknown> } | null {
+  const fields: ('Name' | 'CustomFields')[] = []
+  const corpo: { name?: string; customFields?: Record<string, unknown> } = {}
+
+  if (nomeAusente(existente.name) && nome.trim()) {
+    fields.push('Name')
+    corpo.name = nome.trim()
+  }
+  if (campoNascimento && nascimento && campoVazio(existente.customFields?.[campoNascimento])) {
+    fields.push('CustomFields')
+    corpo.customFields = { [campoNascimento]: nascimento }
+  }
+  return fields.length ? { fields, ...corpo } : null
+}
 
 function normalizarStatus(bruto: unknown): StatusEnvio | null {
   if (typeof bruto !== 'string') return null
@@ -126,6 +192,8 @@ export function provedorHelena(clinica: Clinica): ProvedorDeMensageria {
     const corpo = await resposta.text().catch(() => '')
 
     if (!resposta.ok) {
+      // Antes do log: contato inexistente é o caminho normal de "criar", não erro.
+      if (corpo.includes('Contato não encontrado')) throw new ContatoNaoEncontradoError()
       console.error(`[mensageria/${rotulo}] HTTP ${resposta.status}: ${corpo}`)
       if (corpo.includes('ENTITY_NOT_FOUND')) throw new RecursoNaoHabilitadoError()
       if (corpo.includes('Canal de comunicação não encontrado')) throw new RemetenteNaoEncontradoError()
@@ -238,6 +306,48 @@ export function provedorHelena(clinica: Clinica): ProvedorDeMensageria {
       }
 
       return encontradas
+    },
+
+    async salvarContato(contato: ContatoDoPaciente): Promise<ContatoSalvo> {
+      const campo = clinica.credenciais.mensageria.campoNascimento
+      const nascimento = campo ? paraCampoDeData(contato.dataNascimento) : null
+      const caminho = `/core/v1/contact/phonenumber/${encodeURIComponent(contato.telefone)}`
+
+      let existente: ContatoBruto | null
+      try {
+        existente = (await chamar(`${caminho}?IncludeDetails=CustomFields`, { method: 'GET' }, 'buscar-contato')) as ContatoBruto | null
+      } catch (err) {
+        if (!(err instanceof ContatoNaoEncontradoError)) throw err
+        existente = null
+      }
+
+      if (!existente) {
+        await chamar(
+          '/core/v1/contact',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              name: contato.nome.trim(),
+              phoneNumber: contato.telefone,
+              ...(campo && nascimento ? { customFields: { [campo]: nascimento } } : {}),
+            }),
+          },
+          'criar-contato'
+        )
+        return 'criado'
+      }
+
+      const completar = oQueCompletar(existente, contato.nome, campo, nascimento)
+      if (!completar) return 'mantido'
+      await chamar(caminho, { method: 'PUT', body: JSON.stringify(completar) }, 'completar-contato')
+      return 'completado'
+    },
+
+    async listarCamposDeData(): Promise<CampoDeData[]> {
+      const dados = await chamar('/core/v1/contact/custom-field', { method: 'GET' }, 'listar-campos')
+      return (extrairLista(dados) as { key?: unknown; name?: unknown; type?: unknown; entityType?: unknown }[])
+        .filter((c) => c?.type === 'DATE' && c?.entityType !== 'PANEL' && typeof c?.key === 'string')
+        .map((c) => ({ chave: c.key as string, nome: typeof c.name === 'string' ? c.name.trim() : (c.key as string) }))
     },
 
     async listarRemetentes(): Promise<string[]> {

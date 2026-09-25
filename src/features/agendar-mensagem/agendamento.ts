@@ -3,7 +3,7 @@ import { mesDiaDe, paraExibicao } from '@/shared/data/parse'
 import { paraE164BR } from '@/shared/telefone/e164'
 import { resolverParametros } from '@/shared/template/parametros'
 import type { Aniversariante } from '@/providers/prontuario'
-import type { AgendamentoCriado, AgendamentoSolicitado } from '@/providers/mensageria'
+import type { AgendamentoCriado, AgendamentoSolicitado, ContatoDoPaciente } from '@/providers/mensageria'
 
 // A regra do agendamento.
 //
@@ -60,12 +60,20 @@ export interface ResultadoPorPaciente {
   ok: boolean
   /** Frase para a tela. Presente só quando `ok` é `false`. */
   erro?: string
+  /** Agendou, mas com ressalva que a equipe precisa ver. */
+  aviso?: string
 }
+
+/** A ressalva quando o contato não pôde ser salvo e o agendamento seguiu. */
+export const AVISO_CONTATO_NAO_SALVO =
+  'Agendado, mas o contato não foi salvo na plataforma de mensagens. O nome pode aparecer como o número.'
 
 export interface Dependencias {
   buscarModelo: (modeloConfigId: string) => Promise<ConfiguracaoDeModelo | null>
   buscarPacientes: (ids: string[]) => Promise<Aniversariante[]>
   agendar: (pedido: AgendamentoSolicitado) => Promise<AgendamentoCriado>
+  /** Cria ou completa o contato do paciente na plataforma. Roda ANTES de agendar. */
+  salvarContato: (contato: ContatoDoPaciente) => Promise<unknown>
   registrarEnvio: (envio: EnvioParaGravar) => Promise<void>
 }
 
@@ -201,6 +209,17 @@ async function agendarUm(
     quando = instante.toISOString()
   }
 
+  // O contato ANTES da mensagem: a variável de nome que a plataforma preenche
+  // sai com o número quando o telefone não é um contato salvo. Se falhar, o
+  // parabéns segue mesmo assim, com aviso: perder o envio é pior que o nome
+  // sair como número (decisão do Gabriel, 2026-09-24).
+  let aviso: string | undefined
+  try {
+    await deps.salvarContato({ telefone, nome: paciente.nome, dataNascimento: paciente.datanascimento || null })
+  } catch {
+    aviso = AVISO_CONTATO_NAO_SALVO
+  }
+
   try {
     const criado = await deps.agendar({
       para: telefone,
@@ -224,7 +243,7 @@ async function agendarUm(
       agendadoPara: quando,
     })
 
-    return { ...base, ok: true }
+    return aviso ? { ...base, ok: true, aviso } : { ...base, ok: true }
   } catch (err) {
     // Falha de um paciente não derruba o lote — a tela mostra quem passou e
     // quem não passou, como o fluxo anterior já fazia.

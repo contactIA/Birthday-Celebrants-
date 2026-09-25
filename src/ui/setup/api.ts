@@ -49,7 +49,12 @@ export interface ClinicaNoSetup {
     subscriberId: string | null
     baseUrl: string
   }
-  mensageria: { tokenConfigurado: boolean; from: string | null; channelId: string | null }
+  mensageria: {
+    tokenConfigurado: boolean
+    from: string | null
+    channelId: string | null
+    campoNascimento: string | null
+  }
 }
 
 /** O prontuário tem tudo que o sistema escolhido exige? Espelha a check constraint. */

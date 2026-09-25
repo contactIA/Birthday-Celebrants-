@@ -39,6 +39,8 @@ export interface ClinicaRow {
   helena_token: string
   helena_channel_id: string | null
   helena_from: string | null
+  /** Chave do campo personalizado de data de nascimento no contato. Nulo = não preencher. */
+  helena_campo_nascimento: string | null
   timezone: string
   created_at: string
   sistema_prontuario: SistemaProntuario

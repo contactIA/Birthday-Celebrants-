@@ -27,6 +27,7 @@ export const CONTRATO = {
     'helena_token',
     'helena_channel_id',
     'helena_from',
+    'helena_campo_nascimento',
     'timezone',
     'created_at',
     'sistema_prontuario',

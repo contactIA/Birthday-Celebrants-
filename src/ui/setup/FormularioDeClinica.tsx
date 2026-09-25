@@ -30,6 +30,7 @@ interface Formulario {
   mensageriaToken: string
   mensageriaFrom: string
   mensageriaChannelId: string
+  mensageriaCampoNascimento: string
 }
 
 const EM_BRANCO: Formulario = {
@@ -46,6 +47,7 @@ const EM_BRANCO: Formulario = {
   mensageriaToken: '',
   mensageriaFrom: '',
   mensageriaChannelId: '',
+  mensageriaCampoNascimento: '',
 }
 
 function doSalvo(c: ClinicaNoSetup): Formulario {
@@ -61,6 +63,7 @@ function doSalvo(c: ClinicaNoSetup): Formulario {
     clinicorpBaseUrl: c.clinicorp.baseUrl,
     mensageriaFrom: c.mensageria.from ?? '',
     mensageriaChannelId: c.mensageria.channelId ?? '',
+    mensageriaCampoNascimento: c.mensageria.campoNascimento ?? '',
   }
 }
 
@@ -325,6 +328,11 @@ export function FormularioDeClinica({
             onChange={(e) => mudar('mensageriaChannelId', e.target.value)}
           />
         </div>
+        <CampoDeNascimento
+          id={editando ? id! : null}
+          valor={form.mensageriaCampoNascimento}
+          aoMudar={(v) => mudar('mensageriaCampoNascimento', v)}
+        />
       </Secao>
 
       {teste && <ResultadoDoTesteDeConexao teste={teste} />}
@@ -608,5 +616,60 @@ function LinkDoPainel({ id }: { id: string }) {
         </div>
       )}
     </Secao>
+  )
+}
+
+/**
+ * Qual campo de data do contato recebe o nascimento do paciente. Ao agendar,
+ * o app cria ou completa o contato (nome e nascimento) antes da mensagem.
+ *
+ * A lista vem da conta de mensagens com o token salvo, por isso só aparece
+ * para clínica já cadastrada.
+ */
+function CampoDeNascimento({
+  id,
+  valor,
+  aoMudar,
+}: {
+  id: string | null
+  valor: string
+  aoMudar: (v: string) => void
+}) {
+  const [campos, setCampos] = useState<{ chave: string; nome: string }[] | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!id) return
+    chamarApi<{ campos: { chave: string; nome: string }[] }>(`/api/setup/clinicas/${id}/campos-de-data`)
+      .then((r) => setCampos(r.campos))
+      .catch((e: Error) => setErro(e.message))
+  }, [id])
+
+  const titulo = 'Data de nascimento no contato (opcional)'
+  if (!id) {
+    return (
+      <p className="text-[13px] text-muted">
+        {titulo}: salve a clínica primeiro para escolher o campo.
+      </p>
+    )
+  }
+  if (erro) return <Aviso tom="erro">Não foi possível listar os campos de data do contato: {erro}</Aviso>
+  if (!campos) return <Carregando>Carregando os campos de data do contato…</Carregando>
+
+  // Um campo salvo que sumiu da conta continua visível, para não ser trocado
+  // em silêncio por "Nenhum" ao salvar outra coisa.
+  const opcoes = [
+    { valor: '', rotulo: 'Nenhum: não preencher o nascimento' },
+    ...campos.map((c) => ({ valor: c.chave, rotulo: c.nome })),
+    ...(valor && !campos.some((c) => c.chave === valor) ? [{ valor, rotulo: `${valor} (não encontrado na conta)` }] : []),
+  ]
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Escolha rotulo={titulo} valor={valor} opcoes={opcoes} aoMudar={aoMudar} />
+      <p className="text-xs leading-relaxed text-muted">
+        Ao agendar, o app salva o paciente como contato (nome e, se escolhido, a data de nascimento) antes de criar a
+        mensagem. Contato que já existe só tem completado o que estiver vazio.
+      </p>
+    </div>
   )
 }

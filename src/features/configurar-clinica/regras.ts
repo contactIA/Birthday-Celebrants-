@@ -36,6 +36,7 @@ export interface EntradaDeClinica {
   mensageriaToken?: string
   mensageriaFrom?: string
   mensageriaChannelId?: string
+  mensageriaCampoNascimento?: string
 }
 
 const CAMPOS: (keyof EntradaDeClinica)[] = [
@@ -52,6 +53,7 @@ const CAMPOS: (keyof EntradaDeClinica)[] = [
   'mensageriaToken',
   'mensageriaFrom',
   'mensageriaChannelId',
+  'mensageriaCampoNascimento',
 ]
 
 export class CadastroInvalidoError extends Error {
@@ -109,6 +111,19 @@ function baseUrl(novo: string | undefined, atual: string | undefined, padrao: st
   // HTTPS obrigatório: o token vai no header de toda chamada.
   if (url.protocol !== 'https:') throw new CadastroInvalidoError(`A URL da API ${rotulo} precisa ser https`)
   return t.replace(/\/+$/, '')
+}
+
+/**
+ * A chave do campo de nascimento. Vem de um select alimentado pela própria
+ * plataforma, então só se confere o formato: uma chave, não uma frase.
+ */
+function campoNascimento(novo: string | undefined, atual: string | null): string | null {
+  const valor = aberto(novo, atual)
+  if (valor === null) return null
+  if (valor.length > 120 || !/^[\p{L}\p{N}_-]+$/u.test(valor)) {
+    throw new CadastroInvalidoError('Campo de data de nascimento inválido')
+  }
+  return valor
 }
 
 /**
@@ -173,6 +188,7 @@ export function montarClinica(entrada: EntradaDeClinica, existente: Clinica | nu
         token: tokenMensageria,
         from: aberto(entrada.mensageriaFrom, antes?.mensageria.from ?? null),
         channelId: aberto(entrada.mensageriaChannelId, antes?.mensageria.channelId ?? null),
+        campoNascimento: campoNascimento(entrada.mensageriaCampoNascimento, antes?.mensageria.campoNascimento ?? null),
       },
     },
   }
@@ -198,6 +214,7 @@ export function camposAlterados(antes: Clinica, depois: Clinica): string[] {
     mensageriaToken: c.credenciais.mensageria.token,
     mensageriaFrom: c.credenciais.mensageria.from,
     mensageriaChannelId: c.credenciais.mensageria.channelId,
+    mensageriaCampoNascimento: c.credenciais.mensageria.campoNascimento,
   })
   const a = achatar(antes)
   const d = achatar(depois)

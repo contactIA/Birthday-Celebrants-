@@ -55,6 +55,31 @@ export interface AgendamentoCriado {
  * `PROCESSED`, `SENT`, `DELIVERED`, `READ`, `CANCELED`, `FAILED` — porque a
  * coluna foi modelada a partir do enum deles. O adapter só normaliza a caixa.
  */
+/**
+ * O paciente como contato na plataforma, gravado ANTES de agendar.
+ *
+ * Por quê: variáveis do modelo que a própria plataforma preenche (o nome do
+ * contato) saem com o número de telefone quando o número não é um contato
+ * salvo. Criar ou completar o contato primeiro faz a mensagem sair com o nome.
+ */
+export interface ContatoDoPaciente {
+  /** E.164. */
+  telefone: string
+  nome: string
+  /** "DD/MM/AAAA", ou `null` quando o prontuário não tem. */
+  dataNascimento: string | null
+}
+
+/** O que aconteceu com o contato: novo, completado (nome ou nascimento vazios) ou deixado como estava. */
+export type ContatoSalvo = 'criado' | 'completado' | 'mantido'
+
+/** Um campo personalizado de data do contato, para a escolha no setup. */
+export interface CampoDeData {
+  /** A chave usada na API (ex.: "data-de-nascimento"). */
+  chave: string
+  nome: string
+}
+
 export interface MensagemNaPlataforma {
   id: string
   status: StatusEnvio
@@ -80,6 +105,17 @@ export interface ProvedorDeMensageria {
    * conferir o "número remetente" antes de alguém tentar agendar.
    */
   listarRemetentes(): Promise<string[]>
+
+  /**
+   * Cria o contato do paciente, ou completa o que estiver vazio num contato
+   * existente. Nunca sobrescreve um nome que a equipe já deu: só troca nome
+   * vazio ou que é o próprio número. A data de nascimento vai no campo
+   * escolhido no setup, e só se o campo estiver vazio.
+   */
+  salvarContato(contato: ContatoDoPaciente): Promise<ContatoSalvo>
+
+  /** Os campos personalizados de data do contato, para escolher o de nascimento. */
+  listarCamposDeData(): Promise<CampoDeData[]>
 }
 
 /**
