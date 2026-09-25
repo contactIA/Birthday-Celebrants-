@@ -62,6 +62,9 @@ export interface Fila {
 
 type Etapa =
   | { tipo: 'carregando' }
+  /** Não deu para saber se a conta já pediu vaga. NÃO cai no formulário:
+   *  para quem já pediu, isso pareceria que o pedido se perdeu. */
+  | { tipo: 'erro' }
   | { tipo: 'formulario' }
   | { tipo: 'na-lista'; pedido: Pedido; fila: Fila | null; agora: boolean }
 
@@ -89,18 +92,31 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
   const campoModelo = useRef<HTMLTextAreaElement>(null)
   const secaoFormulario = useRef<HTMLElement>(null)
 
-  // Já pediu antes? Abre direto no "você está na lista".
-  useEffect(() => {
-    if (previa) return
+  // Já pediu antes? Abre direto no "você está na lista". O pedido é achado
+  // pela conta da plataforma, não pelo cadastro da clínica: quem pediu e ainda
+  // não foi cadastrado continua vendo o próprio pedido.
+  function verificarPedido() {
     fetch('/api/interesse')
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((corpo) => {
         if (corpo?.turma) setTurma(corpo.turma)
         if (typeof corpo?.posicaoAoEntrar === 'number') setPosicaoAoEntrar(corpo.posicaoAoEntrar)
         setEtapa(corpo?.pedido ? { tipo: 'na-lista', pedido: corpo.pedido, fila: corpo.fila, agora: false } : { tipo: 'formulario' })
       })
-      .catch(() => setEtapa({ tipo: 'formulario' }))
+      .catch(() => setEtapa({ tipo: 'erro' }))
+  }
+
+  useEffect(() => {
+    if (!previa) verificarPedido()
   }, [previa])
+
+  function tentarDeNovo() {
+    setEtapa({ tipo: 'carregando' })
+    verificarPedido()
+  }
 
   function irParaFormulario() {
     secaoFormulario.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -251,6 +267,10 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                   WhatsApp da clínica, com o nome de cada paciente. A primeira turma do beta é pequena, e as vagas
                   são liberadas por ordem de pedido.
                 </p>
+                {etapa.tipo === 'erro' ? (
+                  <ErroAoVerificar onTentarDeNovo={tentarDeNovo} />
+                ) : (
+                  <>
                 <button
                   onClick={irParaFormulario}
                   disabled={etapa.tipo === 'carregando'}
@@ -262,6 +282,8 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                 <div className="beta-surge mt-7 max-w-md" style={{ '--atraso': '320ms' } as React.CSSProperties}>
                   <EtapasDaFila fila={null} posicaoAoEntrar={posicaoAoEntrar} turma={turma} />
                 </div>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -295,7 +317,9 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
       </section>
 
       {/* ── Formulário + prévia ─────────────────────────────────────── */}
-      {!naLista && (
+      {/* Só depois de saber que a conta não pediu: durante o carregamento o
+          formulário piscaria para quem já está na lista. */}
+      {etapa.tipo === 'formulario' && (
         <section ref={secaoFormulario} aria-labelledby="garanta-a-vaga" className="scroll-mt-4 px-6 py-12">
           <div className="mx-auto max-w-5xl">
             <h2 id="garanta-a-vaga" className="font-titulo text-[clamp(1.5rem,4vw,2.1rem)] font-extrabold tracking-[-0.025em] text-ink">
@@ -493,6 +517,23 @@ const ESTILO_CAMPO =
 
 const ESTILO_FICHA =
   'rounded-full border border-accent/25 bg-accent-soft px-2.5 py-1 font-medium text-accent-ink hover:border-accent/50'
+
+function ErroAoVerificar({ onTentarDeNovo }: { onTentarDeNovo: () => void }) {
+  return (
+    <div role="alert" className="mt-7 max-w-md rounded-[16px] border border-line bg-surface p-5">
+      <p className="text-[15px] font-semibold text-ink">Não conseguimos verificar o pedido da sua clínica.</p>
+      <p className="mt-1 text-sm leading-relaxed text-ink-2">
+        Se você já pediu a vaga, ele continua guardado. Tente carregar de novo.
+      </p>
+      <button
+        onClick={onTentarDeNovo}
+        className="mt-4 inline-flex h-10 items-center rounded-full bg-accent px-5 text-sm font-semibold text-white hover:bg-accent-ink"
+      >
+        Tentar de novo
+      </button>
+    </div>
+  )
+}
 
 function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
