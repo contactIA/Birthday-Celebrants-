@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { Aviso, Estado, EsqueletoDeLinha, Vazio } from '@/ui/primitivos'
+import { Aviso, Vazio } from '@/ui/primitivos'
 import { PainelDeEnvio } from './PainelDeEnvio'
 import { temMensagemValida } from '@/ui/statusDoEnvio'
-import { SituacaoDoEnvio } from '@/ui/SituacaoDoEnvio'
+import { EstadoComIcone, SituacaoDoEnvio } from '@/ui/SituacaoDoEnvio'
+import { BotaoAtualizar, CampoDeBusca, Contato, ESTILO_CONTROLE, Marcador } from '@/ui/tabela'
 import { formatarTelefoneBR, paraE164BR } from '@/shared/telefone/e164'
 import {
   MESES_TITULO,
@@ -16,6 +17,10 @@ import {
   type DataDaClinica,
 } from './rotulos'
 
+// O desenho segue o Histórico, que por sua vez segue a tela de mensagens
+// agendadas da plataforma: avatar com telefone embaixo, situação com ícone,
+// colunas com cabeçalho. Os dias viram faixas dentro da mesma tabela.
+//
 // A tela principal é uma LISTA DE TRABALHO, não um relatório: a pessoa abre
 // para zerar uma fila ("quem ainda não tem mensagem este mês?"). Por isso o
 // filtro padrão é "sem mensagem" e não "todos" — abrir em "todos" faz a pessoa
@@ -224,20 +229,22 @@ export function Agenda() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="search"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome"
-            aria-label="Buscar por nome"
-            className="h-9 w-48 rounded-full border border-line bg-surface px-4 text-sm text-ink placeholder:text-muted focus:outline-none"
-          />
+        <BotaoAtualizar aoClicar={recarregar} girando={carregando} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <CampoDeBusca
+          valor={busca}
+          aoMudar={setBusca}
+          placeholder="Buscar por nome"
+          className="min-w-[220px] flex-1 sm:max-w-xs"
+        />
+        <label>
+          <span className="sr-only">Mês</span>
           <select
             value={mes ?? ''}
             onChange={(e) => setMes(Number(e.target.value))}
-            aria-label="Mês"
-            className="h-9 rounded-full border border-line bg-surface px-3 text-sm text-ink focus:outline-none"
+            className={clsx(ESTILO_CONTROLE, 'pr-8 pl-3.5')}
           >
             {MESES_TITULO.map((nome, i) => (
               <option key={nome} value={i + 1}>
@@ -245,10 +252,8 @@ export function Agenda() {
               </option>
             ))}
           </select>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5">
+        </label>
+        <span aria-hidden className="mx-1 hidden h-6 w-px bg-line sm:block" />
         {filtros.map(({ chave, rotulo, total }) => {
           const ativo = filtro === chave
           return (
@@ -276,16 +281,6 @@ export function Agenda() {
           )
         })}
 
-        {selecionaveis.length > 0 && (
-          <button
-            onClick={() =>
-              setSelecionados(todosMarcados ? new Set() : new Set(selecionaveis.map((p) => p.id)))
-            }
-            className="ml-auto text-[13px] font-medium text-accent-ink hover:underline"
-          >
-            {todosMarcados ? 'Limpar seleção' : `Selecionar ${selecionaveis.length}`}
-          </button>
-        )}
       </div>
 
       {erro ? (
@@ -296,9 +291,16 @@ export function Agenda() {
         <div className="flex flex-col items-start gap-5 lg:flex-row">
           <div className="min-w-0 flex-1">
             {carregando && (
-              <div className="overflow-hidden rounded-[12px] border border-line bg-surface">
+              <div
+                aria-label="Carregando aniversariantes"
+                className="flex flex-col gap-px overflow-hidden rounded-[12px] border border-line bg-line-soft"
+              >
                 {Array.from({ length: 5 }, (_, i) => (
-                  <EsqueletoDeLinha key={i} />
+                  <div key={i} className="flex items-center gap-3 bg-surface px-4 py-4">
+                    <span className="h-9 w-9 animate-pulse rounded-full bg-sunk" />
+                    <span className="h-3 w-48 animate-pulse rounded bg-sunk" />
+                    <span className="ml-auto h-6 w-24 animate-pulse rounded-full bg-sunk" />
+                  </div>
                 ))}
               </div>
             )}
@@ -318,53 +320,71 @@ export function Agenda() {
               </Vazio>
             )}
 
-            {!carregando &&
-              hoje &&
-              porDia.map((grupo) => {
-                const selecionaveisDoDia = grupo.pessoas.filter((p) => podeAgendar(p) && !estaAgendado(p))
-                const diaTodoMarcado =
-                  selecionaveisDoDia.length > 0 && selecionaveisDoDia.every((p) => selecionados.has(p.id))
-                return (
-                  <section key={grupo.dia} className="mb-6 last:mb-0">
-                    <div className="mb-2 flex items-center gap-3">
-                      <h2 className="text-sm font-semibold text-ink">{grupo.rotulo}</h2>
-                      <span className="h-px flex-1 bg-line" />
-                      <span className="tnum text-xs text-muted">
-                        {grupo.pessoas.length} {grupo.pessoas.length === 1 ? 'pessoa' : 'pessoas'}
-                      </span>
-                      {/* Só com 2+: num dia de uma pessoa o botão repete a caixa da linha. */}
-                      {selecionaveisDoDia.length > 1 && (
-                        <button
-                          onClick={() => alternarDia(grupo.pessoas)}
-                          aria-label={
-                            diaTodoMarcado
-                              ? `Desmarcar os aniversariantes de ${grupo.rotulo}`
-                              : `Selecionar os ${selecionaveisDoDia.length} aniversariantes de ${grupo.rotulo}`
-                          }
-                          className="rounded-full px-2.5 py-0.5 text-xs font-medium text-accent-ink hover:bg-accent-soft"
-                        >
-                          {diaTodoMarcado ? 'Desmarcar dia' : 'Selecionar todos'}
-                        </button>
-                      )}
-                    </div>
+            {!carregando && hoje && porDia.length > 0 && (
+              <div className="overflow-hidden rounded-[12px] border border-line bg-surface">
+                <div className={clsx(GRADE, 'border-b border-line bg-sunk/50 py-3 text-[13px] font-medium text-ink-2')}>
+                  <span>
+                    <Marcador
+                      marcado={todosMarcados}
+                      aoMudar={() =>
+                        setSelecionados(todosMarcados ? new Set() : new Set(selecionaveis.map((p) => p.id)))
+                      }
+                      desabilitado={selecionaveis.length === 0}
+                      rotulo={`os ${selecionaveis.length} aniversariantes que podem receber mensagem`}
+                    />
+                  </span>
+                  <span>Paciente</span>
+                  <span>Aniversário</span>
+                  <span>Situação</span>
+                  <span className="hidden sm:block">Envio</span>
+                </div>
 
-                    <ul className="overflow-hidden rounded-[12px] border border-line bg-surface">
-                      {grupo.pessoas.map((p) => (
-                        <Linha
-                          key={p.id}
-                          paciente={p}
-                          hoje={hoje}
-                          marcado={selecionados.has(p.id)}
-                          aoAlternar={() => alternar(p.id)}
-                          // Dentro de "Sem mensagem", a etiqueta igual em toda
-                          // linha é ruído — só o que foge da regra aparece.
-                          ocultarSemMensagem={filtro === 'pendentes'}
-                        />
-                      ))}
-                    </ul>
-                  </section>
-                )
-              })}
+                {porDia.map((grupo) => {
+                  const selecionaveisDoDia = grupo.pessoas.filter((p) => podeAgendar(p) && !estaAgendado(p))
+                  const diaTodoMarcado =
+                    selecionaveisDoDia.length > 0 && selecionaveisDoDia.every((p) => selecionados.has(p.id))
+                  return (
+                    <section key={grupo.dia} aria-label={grupo.rotulo}>
+                      <div className="flex items-center gap-3 border-b border-line-soft bg-ground/70 px-4 py-2">
+                        <h2 className="text-[13px] font-semibold text-ink">{grupo.rotulo}</h2>
+                        <span className="tnum text-xs text-muted">
+                          {grupo.pessoas.length} {grupo.pessoas.length === 1 ? 'pessoa' : 'pessoas'}
+                        </span>
+                        {/* Só com 2+: num dia de uma pessoa o botão repete a caixa da linha. */}
+                        {selecionaveisDoDia.length > 1 && (
+                          <button
+                            onClick={() => alternarDia(grupo.pessoas)}
+                            aria-label={
+                              diaTodoMarcado
+                                ? `Desmarcar os aniversariantes de ${grupo.rotulo}`
+                                : `Selecionar os ${selecionaveisDoDia.length} aniversariantes de ${grupo.rotulo}`
+                            }
+                            className="ml-auto rounded-full px-2.5 py-0.5 text-xs font-medium text-accent-ink hover:bg-accent-soft"
+                          >
+                            {diaTodoMarcado ? 'Desmarcar dia' : 'Selecionar todos'}
+                          </button>
+                        )}
+                      </div>
+
+                      <ul>
+                        {grupo.pessoas.map((p) => (
+                          <Linha
+                            key={p.id}
+                            paciente={p}
+                            hoje={hoje}
+                            marcado={selecionados.has(p.id)}
+                            aoAlternar={() => alternar(p.id)}
+                            // Dentro de "Sem mensagem", a etiqueta igual em toda
+                            // linha é ruído: só o que foge da regra aparece.
+                            ocultarSemMensagem={filtro === 'pendentes'}
+                          />
+                        ))}
+                      </ul>
+                    </section>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Em tela larga o painel acompanha a rolagem: numa lista de centenas de
@@ -412,6 +432,15 @@ export function Agenda() {
   )
 }
 
+/** As colunas, iguais no cabeçalho e nas linhas. */
+const GRADE =
+  'grid grid-cols-[28px_minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-3 px-4 sm:grid-cols-[28px_minmax(0,1.7fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1fr)]'
+
+function formatarEnvio(iso: string | null | undefined): string {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
 function Linha({
   paciente,
   hoje,
@@ -430,47 +459,61 @@ function Linha({
   const selecionavel = podeAgendar(paciente) && !agendado
 
   return (
-    <li className="flex items-center gap-4 border-b border-line-soft px-4 py-3 last:border-b-0">
-      <input
-        type="checkbox"
-        checked={marcado}
-        onChange={aoAlternar}
-        disabled={!selecionavel}
-        aria-label={`Selecionar ${paciente.nome}`}
-        className="h-4 w-4 shrink-0 accent-[var(--color-accent)] disabled:opacity-30"
-      />
-
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ink">{paciente.nome}</p>
-        <p className="tnum truncate text-xs text-muted">
-          {idade !== null
-            ? `faz ${idade} anos`
-            : aniversarioParaExibicao(paciente.aniversario)}
-        </p>
-      </div>
-
-      <span className="tnum hidden w-40 shrink-0 truncate text-sm text-ink-2 sm:block">
-        {paciente.telefone ? formatarTelefoneBR(paciente.telefone) : 'Sem telefone'}
+    <li
+      className={clsx(
+        GRADE,
+        'border-b border-line-soft py-3 text-sm last:border-b-0',
+        marcado ? 'bg-accent-soft/60' : 'hover:bg-sunk/40'
+      )}
+    >
+      <span>
+        <Marcador marcado={marcado} aoMudar={aoAlternar} desabilitado={!selecionavel} rotulo={paciente.nome} />
       </span>
 
-      <div className="w-36 shrink-0 text-right">
+      <Contato
+        nome={paciente.nome}
+        detalhe={paciente.telefone ? formatarTelefoneBR(paciente.telefone) : 'Sem telefone'}
+      />
+
+      <div className="tnum min-w-0 text-[13px] leading-snug">
+        <p className="text-ink-2">{aniversarioParaExibicao(paciente.aniversario)}</p>
+        {idade !== null && <p className="text-muted">faz {idade} anos</p>}
+      </div>
+
+      <div className="min-w-0">
         {agendado ? (
           // O status real (Agendada, Enviada, Entregue, Lida), o mesmo do
-          // Histórico — antes era "Agendado" para qualquer um deles.
+          // Histórico, e não "Agendado" para qualquer um deles.
           <SituacaoDoEnvio status={paciente.envio!.status} />
         ) : paciente.envio?.status === 'failed' ? (
           // Falhou: selecionável de novo, e a etiqueta diz por que está aqui.
-          <Estado tom="erro">Falhou</Estado>
+          <SituacaoDoEnvio status="failed" />
         ) : !temTelefone(paciente) ? (
-          <Estado tom="atencao">Sem telefone</Estado>
+          <EstadoComIcone tom="atencao" icone="alerta">
+            Sem telefone
+          </EstadoComIcone>
         ) : paciente.jaPassou ? (
-          <Estado tom="parado">Já passou</Estado>
+          <EstadoComIcone tom="parado" icone="relogio">
+            Já passou
+          </EstadoComIcone>
         ) : !paciente.agendavel ? (
-          <Estado tom="parado">É hoje</Estado>
+          <EstadoComIcone tom="parado" icone="relogio">
+            É hoje
+          </EstadoComIcone>
         ) : ocultarSemMensagem ? null : (
-          <Estado tom="neutro">Sem mensagem</Estado>
+          <EstadoComIcone tom="neutro" icone="relogio">
+            Sem mensagem
+          </EstadoComIcone>
         )}
       </div>
+
+      <p className="tnum hidden text-[13px] text-ink-2 sm:block">
+        {agendado && paciente.envio?.scheduledFor ? (
+          <>
+            <span className="text-muted">Envio:</span> {formatarEnvio(paciente.envio.scheduledFor)}
+          </>
+        ) : null}
+      </p>
     </li>
   )
 }

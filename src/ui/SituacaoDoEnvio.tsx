@@ -1,5 +1,5 @@
 import { Estado } from '@/ui/primitivos'
-import { estadoDoEnvio, type IconeDoEstado } from '@/ui/statusDoEnvio'
+import { estadoDoEnvio, type IconeDoEstado, type TomDoEstado } from '@/ui/statusDoEnvio'
 
 // A situação de um envio: rótulo, cor e ícone, o mesmo mapa na Agenda e no
 // Histórico (ver ui/statusDoEnvio.ts).
@@ -7,9 +7,26 @@ import { estadoDoEnvio, type IconeDoEstado } from '@/ui/statusDoEnvio'
 export function SituacaoDoEnvio({ status }: { status: string }) {
   const { rotulo, tom, icone } = estadoDoEnvio(status)
   return (
+    <EstadoComIcone tom={tom} icone={icone}>
+      {rotulo}
+    </EstadoComIcone>
+  )
+}
+
+/** Etiqueta de estado com ícone, para situações que não são status de envio (ex.: "Sem telefone"). */
+export function EstadoComIcone({
+  tom,
+  icone,
+  children,
+}: {
+  tom: TomDoEstado
+  icone: IconeDoEstado
+  children: React.ReactNode
+}) {
+  return (
     <Estado tom={tom}>
       <Icone nome={icone} />
-      {rotulo}
+      {children}
     </Estado>
   )
 }

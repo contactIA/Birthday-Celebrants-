@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { useCallback, useEffect, useState } from 'react'
 import { Aviso, Botao, Vazio } from '@/ui/primitivos'
 import { SituacaoDoEnvio } from '@/ui/SituacaoDoEnvio'
+import { BotaoAtualizar, CampoDeBusca, Contato, ESTILO_CONTROLE, Marcador } from '@/ui/tabela'
 import { formatarTelefoneBR } from '@/shared/telefone/e164'
 
 // O histórico de envios, paginado e filtrável.
@@ -62,12 +63,6 @@ function formatarData(iso: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function iniciais(nome: string): string {
-  const partes = nome.trim().split(/\s+/).filter(Boolean)
-  if (partes.length === 0) return '?'
-  return (partes[0]![0]! + (partes.length > 1 ? partes.at(-1)![0]! : '')).toUpperCase()
 }
 
 export function Historico() {
@@ -232,31 +227,18 @@ export function Historico() {
               Cancelar{selecionados.size > 0 && <span className="tnum"> ({selecionados.size})</span>}
             </Botao>
           )}
-          <button
-            type="button"
-            onClick={recarregar}
-            aria-label="Atualizar"
-            title="Atualizar"
-            className="grid h-9 w-9 place-items-center rounded-full border border-line bg-surface text-ink-2 transition-colors hover:bg-sunk hover:text-ink"
-          >
-            <IconeAtualizar girando={carregando} />
-          </button>
+          <BotaoAtualizar aoClicar={recarregar} girando={carregando} />
         </div>
       </div>
 
       {/* ── Filtros ───────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
-        <label className="relative min-w-[240px] flex-1 sm:max-w-sm">
-          <span className="sr-only">Pesquisar paciente</span>
-          <input
-            type="search"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Pesquisar paciente ou telefone"
-            className={clsx(ESTILO_CONTROLE, 'w-full pr-9 pl-3.5')}
-          />
-          <IconeLupa />
-        </label>
+        <CampoDeBusca
+          valor={busca}
+          aoMudar={setBusca}
+          placeholder="Pesquisar paciente ou telefone"
+          className="min-w-[240px] flex-1 sm:max-w-sm"
+        />
 
         <label className="relative">
           <span className="sr-only">Situação</span>
@@ -327,7 +309,7 @@ export function Historico() {
                     <Marcador marcado={selecionados.has(item.id)} aoMudar={() => alternar(item.id)} rotulo={item.pacienteNome} />
                   )}
                   <div className="min-w-0 flex-1">
-                    <Contato nome={item.pacienteNome} telefone={item.pacienteTelefone} />
+                    <Contato nome={item.pacienteNome} detalhe={formatarTelefoneBR(item.pacienteTelefone)} />
                   </div>
                   <SituacaoDoEnvio status={item.status} />
                 </div>
@@ -385,7 +367,7 @@ export function Historico() {
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      <Contato nome={item.pacienteNome} telefone={item.pacienteTelefone} />
+                      <Contato nome={item.pacienteNome} detalhe={formatarTelefoneBR(item.pacienteTelefone)} />
                     </td>
                     <td className="px-3 py-3">
                       <SituacaoDoEnvio status={item.status} />
@@ -435,25 +417,6 @@ export function Historico() {
   )
 }
 
-const ESTILO_CONTROLE =
-  'h-10 appearance-none rounded-[10px] border border-line bg-surface text-sm text-ink placeholder:text-muted focus:border-accent focus:ring-4 focus:ring-accent/10 focus:outline-none'
-
-function Contato({ nome, telefone }: { nome: string; telefone: string }) {
-  return (
-    <div className="flex min-w-0 items-center gap-3">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent-ink">
-        {iniciais(nome)}
-      </span>
-      <div className="min-w-0">
-        <p className="truncate font-medium text-ink" title={nome}>
-          {nome}
-        </p>
-        <p className="tnum truncate text-[13px] text-muted">{formatarTelefoneBR(telefone)}</p>
-      </div>
-    </div>
-  )
-}
-
 function Canal({ remetente }: { remetente: string | null }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
@@ -478,29 +441,6 @@ function Datas({ envio, criacao }: { envio: string | null; criacao: string }) {
         <span className="text-muted">Criação:</span> {formatarData(criacao)}
       </span>
     </div>
-  )
-}
-
-function Marcador({
-  marcado,
-  aoMudar,
-  rotulo,
-  desabilitado = false,
-}: {
-  marcado: boolean
-  aoMudar: () => void
-  rotulo: string
-  desabilitado?: boolean
-}) {
-  return (
-    <input
-      type="checkbox"
-      checked={marcado}
-      onChange={aoMudar}
-      disabled={desabilitado}
-      aria-label={`Selecionar ${rotulo}`}
-      className="h-4 w-4 cursor-pointer rounded accent-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-40"
-    />
   )
 }
 
@@ -543,41 +483,6 @@ function EsqueletoDaTabela() {
 }
 
 // ── Ícones ────────────────────────────────────────────────────────────────
-
-function IconeLupa() {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 16 16"
-      className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-    >
-      <circle cx="7" cy="7" r="4.6" />
-      <path d="M10.4 10.4l3.3 3.3" />
-    </svg>
-  )
-}
-
-function IconeAtualizar({ girando }: { girando: boolean }) {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 16 16"
-      className={clsx('h-4 w-4', girando && 'animate-spin')}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M13.2 6.2A5.4 5.4 0 0 0 3.3 5.1M2.8 9.8a5.4 5.4 0 0 0 9.9 1.1" />
-      <path d="M3 2.4v2.9h2.9M13 13.6v-2.9h-2.9" />
-    </svg>
-  )
-}
 
 function IconeSeta({ paraCima }: { paraCima: boolean }) {
   return (
