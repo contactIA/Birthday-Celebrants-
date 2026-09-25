@@ -214,7 +214,7 @@ export function Agenda() {
   ]
 
   return (
-    <div className={clsx('mx-auto flex max-w-6xl flex-col gap-5', pacientesSelecionados.length > 0 && 'pb-20 lg:pb-0')}>
+    <div className={clsx('flex flex-col gap-5', pacientesSelecionados.length > 0 && 'pb-20 lg:pb-0')}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold tracking-[-0.01em] text-ink">
@@ -406,7 +406,7 @@ export function Agenda() {
           lado, e a barra não aparece. */}
       {pacientesSelecionados.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
-          <div className="mx-auto flex max-w-6xl items-center gap-3">
+          <div className="flex items-center gap-3">
             <p className="tnum text-sm text-ink">
               <span className="font-semibold">{pacientesSelecionados.length}</span>{' '}
               {pacientesSelecionados.length === 1 ? 'selecionado' : 'selecionados'}

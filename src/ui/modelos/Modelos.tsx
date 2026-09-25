@@ -63,9 +63,9 @@ export function Modelos() {
   }, [tentativa])
 
   return (
-    // Mesma largura e margem esquerda das outras telas; a coluna de texto fica
-    // estreita (max-w-3xl) porque é lida, não varrida.
-    <div className="mx-auto flex max-w-6xl flex-col gap-5 [&>*]:max-w-3xl">
+    // Tela cheia, como as outras. Os cartões vão em duas colunas em tela larga:
+    // esticado na largura toda, o texto da prévia ficaria longo demais para ler.
+    <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-lg font-semibold tracking-[-0.01em] text-ink">Modelos de mensagem</h1>
         <p className="mt-0.5 text-sm text-muted">
@@ -94,10 +94,13 @@ export function Modelos() {
         </Vazio>
       )}
 
-      {!carregando &&
-        modelos.map((modelo) => (
-          <Cartao key={modelo.modeloId} modelo={modelo} aoSalvar={recarregar} />
-        ))}
+      {!carregando && modelos.length > 0 && (
+        <div className="grid items-start gap-5 xl:grid-cols-2">
+          {modelos.map((modelo) => (
+            <Cartao key={modelo.modeloId} modelo={modelo} aoSalvar={recarregar} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

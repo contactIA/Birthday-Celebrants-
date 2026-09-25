@@ -184,8 +184,8 @@ export function Historico() {
   const filtrando = !!buscaAplicada || !!situacao
 
   return (
-    // Mesma largura das outras telas: trocar de aba não pode mover a margem.
-    <div className="mx-auto flex max-w-6xl flex-col gap-5">
+    // Tela cheia, como as outras: trocar de aba não pode mover a margem.
+    <div className="flex flex-col gap-5">
       {/* ── Cabeçalho ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
