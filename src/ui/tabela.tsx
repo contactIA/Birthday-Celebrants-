@@ -124,3 +124,17 @@ export function Marcador({
     />
   )
 }
+
+/**
+ * Clique em qualquer parte da linha alterna a seleção, não só o checkbox.
+ * Ignora o clique no próprio checkbox (ele já alterna; senão seriam duas
+ * vezes), em links e botões, e o arrasto para copiar o nome ou o telefone.
+ */
+export function aoClicarNaLinha(ativo: boolean, alternar: () => void) {
+  return (e: React.MouseEvent<HTMLElement>) => {
+    if (!ativo) return
+    if ((e.target as HTMLElement).closest('input, a, button')) return
+    if (window.getSelection()?.toString()) return
+    alternar()
+  }
+}

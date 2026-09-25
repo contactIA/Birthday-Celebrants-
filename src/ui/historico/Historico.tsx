@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import { useCallback, useEffect, useState } from 'react'
 import { Aviso, Botao, Vazio } from '@/ui/primitivos'
 import { SituacaoDoEnvio } from '@/ui/SituacaoDoEnvio'
-import { BotaoAtualizar, CampoDeBusca, Contato, ESTILO_CONTROLE, Marcador } from '@/ui/tabela'
+import { aoClicarNaLinha, BotaoAtualizar, CampoDeBusca, Contato, ESTILO_CONTROLE, Marcador } from '@/ui/tabela'
 import { formatarTelefoneBR } from '@/shared/telefone/e164'
 
 // O histórico de envios, paginado e filtrável.
@@ -303,7 +303,15 @@ export function Historico() {
               situação fora da tela. */}
           <ul className="flex flex-col gap-2 md:hidden">
             {dados.itens.map((item) => (
-              <li key={item.id} className="rounded-[12px] border border-line bg-surface px-4 py-3">
+              <li
+                key={item.id}
+                onClick={aoClicarNaLinha(item.podeCancelar, () => alternar(item.id))}
+                className={clsx(
+                  'rounded-[12px] border border-line px-4 py-3',
+                  item.podeCancelar && 'cursor-pointer',
+                  selecionados.has(item.id) ? 'bg-accent-soft/60' : 'bg-surface'
+                )}
+              >
                 <div className="flex items-start gap-3">
                   {item.podeCancelar && (
                     <Marcador marcado={selecionados.has(item.id)} aoMudar={() => alternar(item.id)} rotulo={item.pacienteNome} />
@@ -352,8 +360,10 @@ export function Historico() {
                 {dados.itens.map((item) => (
                   <tr
                     key={item.id}
+                    onClick={aoClicarNaLinha(item.podeCancelar, () => alternar(item.id))}
                     className={clsx(
                       'border-b border-line-soft align-middle last:border-b-0',
+                      item.podeCancelar && 'cursor-pointer',
                       selecionados.has(item.id) ? 'bg-accent-soft/60' : 'hover:bg-sunk/40'
                     )}
                   >

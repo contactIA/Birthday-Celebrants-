@@ -6,7 +6,7 @@ import { Aviso, Vazio } from '@/ui/primitivos'
 import { PainelDeEnvio } from './PainelDeEnvio'
 import { temMensagemValida } from '@/ui/statusDoEnvio'
 import { EstadoComIcone, SituacaoDoEnvio } from '@/ui/SituacaoDoEnvio'
-import { BotaoAtualizar, CampoDeBusca, Contato, ESTILO_CONTROLE, Marcador } from '@/ui/tabela'
+import { aoClicarNaLinha, BotaoAtualizar, CampoDeBusca, Contato, ESTILO_CONTROLE, Marcador } from '@/ui/tabela'
 import { formatarTelefoneBR, paraE164BR } from '@/shared/telefone/e164'
 import {
   MESES_TITULO,
@@ -458,19 +458,9 @@ function Linha({
   const agendado = estaAgendado(paciente)
   const selecionavel = podeAgendar(paciente) && !agendado
 
-  // A linha inteira seleciona, não só o quadradinho. O clique no próprio
-  // checkbox já é tratado por ele (senão alternaria duas vezes), e arrastar
-  // para copiar o telefone não conta como clique.
-  function aoClicarNaLinha(e: React.MouseEvent<HTMLLIElement>) {
-    if (!selecionavel) return
-    if ((e.target as HTMLElement).closest('input, a, button')) return
-    if (window.getSelection()?.toString()) return
-    aoAlternar()
-  }
-
   return (
     <li
-      onClick={aoClicarNaLinha}
+      onClick={aoClicarNaLinha(selecionavel, aoAlternar)}
       className={clsx(
         GRADE,
         'border-b border-line-soft py-3 text-sm last:border-b-0',
