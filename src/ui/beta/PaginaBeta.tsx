@@ -357,7 +357,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                     autoComplete="tel"
                     value={telefone}
                     onChange={(e) => setTelefone(e.target.value)}
-                    placeholder="(62) 98187-8291"
+                    placeholder="(11) 91234-5678"
                     className={ESTILO_CAMPO}
                   />
                 </Campo>

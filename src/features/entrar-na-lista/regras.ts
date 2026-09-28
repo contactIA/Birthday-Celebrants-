@@ -54,7 +54,7 @@ export function lerPedido(corpo: unknown): PedidoDeVaga {
   if (nomeClinica.length > LIMITES.nome) throw new PedidoDeVagaInvalidoError('Nome da clínica muito longo')
 
   const telefone = paraE164BR(texto(c.telefone))
-  if (!telefone) throw new PedidoDeVagaInvalidoError('Informe um telefone com DDD, como (62) 98187-8291')
+  if (!telefone) throw new PedidoDeVagaInvalidoError('Informe um telefone com DDD, como (11) 91234-5678')
 
   const sistema = texto(c.sistemaProntuario)
   if (!(SISTEMAS as readonly string[]).includes(sistema)) {
