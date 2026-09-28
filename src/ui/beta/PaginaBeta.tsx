@@ -51,6 +51,7 @@ interface Pedido {
   sistemaProntuario: SistemaDoPedido
   sistemaOutro: string | null
   modeloMensagem: string
+  querMidia: boolean
   pedidoEm: string
 }
 
@@ -84,6 +85,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
   const [sistema, setSistema] = useState<SistemaDoPedido | null>(null)
   const [sistemaOutro, setSistemaOutro] = useState('')
   const [modelo, setModelo] = useState('')
+  const [querMidia, setQuerMidia] = useState(false)
   const [consentimento, setConsentimento] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -148,6 +150,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
           sistemaProntuario: sistema!,
           sistemaOutro: sistema === 'outro' ? sistemaOutro.trim() : null,
           modeloMensagem: modelo,
+          querMidia,
           pedidoEm: new Date().toISOString(),
         },
         fila: FILA_DE_EXEMPLO,
@@ -167,6 +170,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
           sistemaProntuario: sistema,
           sistemaOutro: sistema === 'outro' ? sistemaOutro : undefined,
           modeloMensagem: modelo,
+          querMidia,
           consentimento,
         }),
       })
@@ -187,6 +191,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
     setSistema(p.sistemaProntuario)
     setSistemaOutro(p.sistemaOutro ?? '')
     setModelo(p.modeloMensagem)
+    setQuerMidia(p.querMidia)
     setConsentimento(false)
     setEtapa({ tipo: 'formulario' })
     requestAnimationFrame(irParaFormulario)
@@ -436,6 +441,15 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                     {modelo.length}/{LIMITES.modelo}
                   </span>
                 </div>
+                <label className="mt-4 flex items-start gap-3 text-[13px] leading-relaxed text-ink-2">
+                  <input
+                    type="checkbox"
+                    checked={querMidia}
+                    onChange={(e) => setQuerMidia(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+                  />
+                  Quero enviar com mídia, foto/vídeo
+                </label>
               </div>
 
               <div className="[grid-area:previa] lg:sticky lg:top-6 lg:self-start">
@@ -498,6 +512,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                       : (SISTEMAS.find((s) => s.valor === etapa.pedido.sistemaProntuario)?.rotulo ?? '')
                   }
                 />
+                <Linha rotulo="Foto/vídeo" valor={etapa.pedido.querMidia ? 'Sim' : 'Não'} />
               </dl>
             </div>
             <PreviaNoCelular nomeClinica={etapa.pedido.nomeClinica} modelo={etapa.pedido.modeloMensagem} />

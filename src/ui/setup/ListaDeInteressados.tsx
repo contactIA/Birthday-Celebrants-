@@ -17,6 +17,7 @@ interface Interessado {
   sistemaProntuario: 'clinicorp' | 'eclinica' | 'outro'
   sistemaOutro: string | null
   modeloMensagem: string
+  querMidia: boolean
   pedidoEm: string
   atualizadoEm: string
   status: 'recebido' | 'em_analise'
@@ -123,6 +124,7 @@ function Cartao({
           ) : (
             <Estado tom="neutro">{NOME_DO_SISTEMA[i.sistemaProntuario]}</Estado>
           )}
+          {i.querMidia && <Estado tom="neutro">📷 Quer mídia</Estado>}
           {i.cadastrada ? (
             <Estado tom="ok">● Cadastrada</Estado>
           ) : i.sistemaProntuario !== 'outro' ? (

@@ -83,6 +83,7 @@ export const CONTRATO = {
     'sistema_prontuario',
     'sistema_outro',
     'modelo_mensagem',
+    'quer_midia',
     'consentimento_em',
     'created_at',
     'updated_at',

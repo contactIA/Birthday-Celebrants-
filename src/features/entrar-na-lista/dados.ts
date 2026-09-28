@@ -11,6 +11,7 @@ export interface Interessado {
   sistemaProntuario: InteressadoRow['sistema_prontuario']
   sistemaOutro: string | null
   modeloMensagem: string
+  querMidia: boolean
   pedidoEm: string
   atualizadoEm: string
   status: InteressadoRow['status']
@@ -24,6 +25,7 @@ function paraDominio(row: InteressadoRow): Interessado {
     sistemaProntuario: row.sistema_prontuario,
     sistemaOutro: row.sistema_outro,
     modeloMensagem: row.modelo_mensagem,
+    querMidia: row.quer_midia,
     pedidoEm: row.created_at,
     atualizadoEm: row.updated_at,
     status: row.status,
@@ -45,6 +47,7 @@ export async function salvarPedido(companyId: string, pedido: PedidoDeVaga, agor
         sistema_prontuario: pedido.sistemaProntuario,
         sistema_outro: pedido.sistemaOutro,
         modelo_mensagem: pedido.modeloMensagem,
+        quer_midia: pedido.querMidia,
         consentimento_em: agora.toISOString(),
         updated_at: agora.toISOString(),
       },

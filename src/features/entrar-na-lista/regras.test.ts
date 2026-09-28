@@ -17,7 +17,14 @@ describe('lerPedido', () => {
       sistemaProntuario: 'clinicorp',
       sistemaOutro: null,
       modeloMensagem: VALIDO.modeloMensagem,
+      querMidia: false,
     })
+  })
+
+  it('"quero mídia" é opcional: só vira true com o checkbox marcado', () => {
+    expect(lerPedido(VALIDO).querMidia).toBe(false)
+    expect(lerPedido({ ...VALIDO, querMidia: true }).querMidia).toBe(true)
+    expect(lerPedido({ ...VALIDO, querMidia: 'true' }).querMidia).toBe(false)
   })
 
   it('"Outro" exige o nome do sistema, e só nesse caso ele é guardado', () => {

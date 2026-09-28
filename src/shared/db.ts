@@ -140,6 +140,8 @@ export interface InteressadoRow {
   /** Nome do prontuário quando `sistema_prontuario` é 'outro'; nulo nos demais. */
   sistema_outro: string | null
   modelo_mensagem: string
+  /** A clínica quer enviar o parabéns com foto/vídeo, não só texto. */
+  quer_midia: boolean
   consentimento_em: string
   created_at: string
   updated_at: string

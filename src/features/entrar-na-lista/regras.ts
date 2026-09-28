@@ -21,6 +21,8 @@ export interface PedidoDeVaga {
   /** Qual é o prontuário, quando a clínica marca "Outro". `null` nos demais. */
   sistemaOutro: string | null
   modeloMensagem: string
+  /** Checkbox opcional: quer enviar o parabéns com foto/vídeo, não só texto. */
+  querMidia: boolean
 }
 
 export class PedidoDeVagaInvalidoError extends Error {
@@ -74,7 +76,14 @@ export function lerPedido(corpo: unknown): PedidoDeVaga {
     throw new PedidoDeVagaInvalidoError(`A mensagem pode ter até ${LIMITES.modelo} caracteres`)
   }
 
-  return { nomeClinica, telefone, sistemaProntuario: sistema as SistemaDoPedido, sistemaOutro, modeloMensagem }
+  return {
+    nomeClinica,
+    telefone,
+    sistemaProntuario: sistema as SistemaDoPedido,
+    sistemaOutro,
+    modeloMensagem,
+    querMidia: c.querMidia === true,
+  }
 }
 
 /**
