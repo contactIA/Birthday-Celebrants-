@@ -18,6 +18,7 @@ export async function buscarPendentes(clinica: Clinica, agora: Date): Promise<En
     .from('aniversariantes_envios')
     .select('id, scheduled_message_id, scheduled_for, status')
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
     .in('status', AGUARDANDO)
     .not('scheduled_message_id', 'is', null)
     .lt('scheduled_for', agora.toISOString())
@@ -47,6 +48,7 @@ export async function atualizarStatus(
     .update({ status })
     .eq('id', envioId)
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
 
   if (error) throw new Error(error.message)
 }

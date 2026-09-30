@@ -9,6 +9,7 @@ Este repositório **versiona** o schema `aniversariantes`. O Clinic Control
 | Tabela | Quem escreve |
 |---|---|
 | `aniversariantes_clinicas` | Clinic Control **+** este app |
+| `aniversariantes_unidades` | só este app (a principal nasce por trigger no insert da clínica) |
 | `aniversariantes_templates` | só este app |
 | `aniversariantes_envios` | só este app |
 | `aniversariantes_pacientes_cache` | só este app |

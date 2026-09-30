@@ -51,6 +51,7 @@ export async function buscarHistorico(
       { count: 'exact' }
     )
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
 
   if (filtros.situacao) consulta = consulta.in('status', [...SITUACOES[filtros.situacao]])
   if (filtros.busca) {

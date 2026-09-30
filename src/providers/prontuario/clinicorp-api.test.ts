@@ -12,6 +12,7 @@ const CLINICA = {
   id: 'id-1',
   companyId: 'c1',
   nome: 'Clínica',
+  unidade: { id: 'u1', nome: 'Principal', principal: true },
   sistemaProntuario: 'clinicorp',
   timezone: 'America/Sao_Paulo',
   credenciais: {

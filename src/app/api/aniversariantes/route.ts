@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { exigirCompanyId } from '@/acesso/escopo'
+import { exigirCompanyId, unidadeDaRequisicao } from '@/acesso/escopo'
 import { buscarClinica } from '@/shared/clinica/repositorio'
 import { hojeNoTimezone } from '@/shared/data/fuso'
 import { lerMes, responderErro } from '@/shared/http'
@@ -18,7 +18,7 @@ import { buscarEnviosDoAno } from '@/features/listar-aniversariantes/dados'
 // verificar o token; `?clinica=` chega e é ignorado.
 export async function GET(request: NextRequest) {
   try {
-    const clinica = await buscarClinica(exigirCompanyId(request))
+    const clinica = await buscarClinica(exigirCompanyId(request), unidadeDaRequisicao(request))
     const agora = new Date()
 
     // Sem `?mes=`, o mês corrente NO FUSO DA CLÍNICA — não o do servidor.

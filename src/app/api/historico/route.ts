@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { exigirCompanyId } from '@/acesso/escopo'
+import { exigirCompanyId, unidadeDaRequisicao } from '@/acesso/escopo'
 import { buscarClinica } from '@/shared/clinica/repositorio'
 import { ParametroInvalidoError, responderErro } from '@/shared/http'
 import {
@@ -24,7 +24,7 @@ function lerInteiro(bruto: string | null, padrao: number, minimo: number, maximo
 
 export async function GET(request: NextRequest) {
   try {
-    const clinica = await buscarClinica(exigirCompanyId(request))
+    const clinica = await buscarClinica(exigirCompanyId(request), unidadeDaRequisicao(request))
     const params = request.nextUrl.searchParams
 
     const pagina = lerInteiro(params.get('pagina'), 1, 1, 10_000)

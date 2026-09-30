@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { exigirCompanyId } from '@/acesso/escopo'
+import { exigirCompanyId, unidadeDaRequisicao } from '@/acesso/escopo'
 import { buscarClinica } from '@/shared/clinica/repositorio'
 import { responderErro } from '@/shared/http'
 import { mensageriaDe } from '@/providers/mensageria'
@@ -13,7 +13,7 @@ import { buscarEnvio, marcarComoCancelado } from '@/features/cancelar-envio/dado
 export async function POST(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params
-    const clinica = await buscarClinica(exigirCompanyId(request))
+    const clinica = await buscarClinica(exigirCompanyId(request), unidadeDaRequisicao(request))
     const mensageria = mensageriaDe(clinica)
 
     const resultado = await cancelarEnvio(id, {

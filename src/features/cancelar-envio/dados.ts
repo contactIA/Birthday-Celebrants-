@@ -18,6 +18,7 @@ export async function buscarEnvio(
     .select('id, scheduled_message_id, status')
     .eq('id', envioId)
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
     .maybeSingle<{ id: string; scheduled_message_id: string | null; status: StatusEnvio }>()
 
   if (error) throw new Error(`Erro ao buscar o agendamento: ${error.message}`)
@@ -34,6 +35,7 @@ export async function marcarComoCancelado(clinica: Clinica, envioId: string): Pr
     // Redundante com a busca, e mantido de propósito: uma escrita que depende
     // de uma leitura anterior para estar escopada é frágil a refatoração.
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
 
   if (error) throw new Error(`Erro ao atualizar o agendamento: ${error.message}`)
 }

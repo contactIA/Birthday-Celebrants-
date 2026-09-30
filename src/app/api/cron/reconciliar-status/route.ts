@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { listarTodasAsClinicas } from '@/shared/clinica/repositorio'
+import { listarTodasAsClinicas, rotuloDaClinica } from '@/shared/clinica/repositorio'
 import { mensageriaDe } from '@/providers/mensageria'
 import {
   reconciliarStatus,
@@ -10,7 +10,7 @@ import { atualizarStatus, buscarPendentes } from '@/features/reconciliar-status/
 // GET /api/cron/reconciliar-status
 //
 // Traz de volta o status real das mensagens já agendadas. Roda para TODAS as
-// clínicas — ao contrário do sync de cache, que só toca as de um provedor.
+// clínicas, unidade por unidade — ao contrário do sync de cache, que só toca as de um provedor.
 //
 // Fica fora do gate de acesso (ver o matcher em `proxy.ts`): tem autenticação
 // própria e não roda no escopo de uma clínica.
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
   const relatorios = await Promise.all(
     clinicas.map(async (clinica): Promise<RelatorioDeReconciliacao> => {
       const mensageria = mensageriaDe(clinica)
-      return reconciliarStatus(clinica.companyId, agora, {
+      return reconciliarStatus(rotuloDaClinica(clinica), agora, {
         buscarPendentes: () => buscarPendentes(clinica, agora),
         listarNaPlataforma: (janela) => mensageria.listarAgendadas(janela),
         atualizarStatus: (envioId, status) => atualizarStatus(clinica, envioId, status),

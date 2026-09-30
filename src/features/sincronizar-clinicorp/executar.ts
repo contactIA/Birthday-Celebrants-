@@ -1,13 +1,13 @@
-import type { Clinica } from '@/shared/clinica/repositorio'
+import { rotuloDaClinica, type Clinica } from '@/shared/clinica/repositorio'
 import { clienteClinicorp } from '@/providers/prontuario/clinicorp-api'
 import { gravarLote, removerObsoletos } from './dados'
 import { sincronizarClinica, type RelatorioDaClinica } from './sincronizacao'
 
-// Executa a sincronização de UMA clínica, com as dependências de verdade.
+// Executa a sincronização de UMA unidade (uma clínica pode ter várias), com as dependências de verdade.
 //
 // Dois chamadores: o cron diário (todas as clínicas) e o botão "Sincronizar
 // agora" da área de setup (uma). Os dois passam por aqui para dividir a TRAVA:
-// duas execuções simultâneas da mesma clínica disputariam a cota da Clinicorp
+// duas execuções simultâneas da mesma unidade disputariam a cota da Clinicorp
 // e, pior, a limpeza por carimbo de uma poderia apagar o que a outra acabou de
 // gravar.
 //
@@ -28,24 +28,24 @@ export class SincronizacaoEmAndamentoError extends Error {
   readonly status = 409
   readonly codigo = 'SINCRONIZACAO_EM_ANDAMENTO' as const
   constructor() {
-    super('Já existe uma sincronização desta clínica em andamento')
+    super('Já existe uma sincronização desta unidade em andamento')
     this.name = 'SincronizacaoEmAndamentoError'
   }
 }
 
-export function estaSincronizando(clinicaId: string): boolean {
-  return emAndamento.has(clinicaId)
+export function estaSincronizando(unidadeId: string): boolean {
+  return emAndamento.has(unidadeId)
 }
 
-export function ultimaExecucao(clinicaId: string): Execucao | null {
-  return ultimas.get(clinicaId) ?? null
+export function ultimaExecucao(unidadeId: string): Execucao | null {
+  return ultimas.get(unidadeId) ?? null
 }
 
 export type Rodar = (clinica: Clinica, agora: Date, carimbo: string) => Promise<RelatorioDaClinica>
 
 const rodarDeVerdade: Rodar = (clinica, agora, carimbo) => {
   const api = clienteClinicorp(clinica)
-  return sincronizarClinica(clinica, agora, {
+  return sincronizarClinica({ companyId: rotuloDaClinica(clinica), timezone: clinica.timezone }, agora, {
     buscarAniversariantesDoDia: (data) => api.aniversariantesDoDia(data),
     gravarLote: (linhas) => gravarLote(clinica, linhas, carimbo),
     removerObsoletos: () => removerObsoletos(clinica, carimbo),
@@ -66,25 +66,25 @@ export async function executarSincronizacao(
   carimbo: string = agora.toISOString(),
   rodar: Rodar = rodarDeVerdade
 ): Promise<RelatorioDaClinica> {
-  if (emAndamento.has(clinica.id)) throw new SincronizacaoEmAndamentoError()
-  emAndamento.add(clinica.id)
+  if (emAndamento.has(clinica.unidade.id)) throw new SincronizacaoEmAndamentoError()
+  emAndamento.add(clinica.unidade.id)
 
   const execucao: Execucao = { inicio: new Date().toISOString(), fim: null, relatorio: null }
-  ultimas.set(clinica.id, execucao)
+  ultimas.set(clinica.unidade.id, execucao)
 
   let relatorio: RelatorioDaClinica
   try {
     relatorio = await rodar(clinica, agora, carimbo)
   } catch (err) {
     relatorio = {
-      companyId: clinica.companyId,
+      companyId: rotuloDaClinica(clinica),
       diasConsultados: 0,
       pacientes: 0,
       erros: [(err as Error).message],
       obsoletosRemovidos: false,
     }
   } finally {
-    emAndamento.delete(clinica.id)
+    emAndamento.delete(clinica.unidade.id)
   }
 
   execucao.fim = new Date().toISOString()

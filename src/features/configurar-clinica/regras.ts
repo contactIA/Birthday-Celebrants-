@@ -1,5 +1,5 @@
 import { FUSOS_SUPORTADOS } from '@/shared/data/fuso'
-import type { Clinica } from '@/shared/clinica/repositorio'
+import type { Clinica, DadosDaUnidade, Unidade } from '@/shared/clinica/repositorio'
 import type { SistemaProntuario } from '@/shared/db'
 
 // A regra do cadastro de clínica na área de setup.
@@ -171,6 +171,9 @@ export function montarClinica(entrada: EntradaDeClinica, existente: Clinica | nu
     id: existente?.id ?? '',
     companyId,
     nome,
+    // A principal: é o que este formulário edita. Na criação o banco a cria
+    // (trigger) e o id real só existe depois.
+    unidade: existente?.unidade ?? { id: '', nome, principal: true },
     timezone,
     sistemaProntuario: sistema as SistemaProntuario,
     credenciais: {
@@ -190,6 +193,106 @@ export function montarClinica(entrada: EntradaDeClinica, existente: Clinica | nu
         channelId: aberto(entrada.mensageriaChannelId, antes?.mensageria.channelId ?? null),
         campoNascimento: campoNascimento(entrada.mensageriaCampoNascimento, antes?.mensageria.campoNascimento ?? null),
       },
+    },
+  }
+}
+
+// ─── Unidades adicionais ────────────────────────────────────────────────────
+//
+// Mesma semântica de segredos da clínica (vazio = manter). A unidade não tem
+// token de mensagens, company_id nem fuso: são da clínica.
+
+/** Os campos do formulário de unidade, como chegam no corpo. */
+export interface EntradaDeUnidade {
+  nome?: string
+  sistemaProntuario?: string
+  eclinicaToken?: string
+  eclinicaBaseUrl?: string
+  clinicorpUsuarioApi?: string
+  clinicorpTokenApi?: string
+  clinicorpSubscriberId?: string
+  clinicorpBaseUrl?: string
+  mensageriaFrom?: string
+  mensageriaChannelId?: string
+}
+
+const CAMPOS_DA_UNIDADE: (keyof EntradaDeUnidade)[] = [
+  'nome',
+  'sistemaProntuario',
+  'eclinicaToken',
+  'eclinicaBaseUrl',
+  'clinicorpUsuarioApi',
+  'clinicorpTokenApi',
+  'clinicorpSubscriberId',
+  'clinicorpBaseUrl',
+  'mensageriaFrom',
+  'mensageriaChannelId',
+]
+
+/** Só string, só os campos conhecidos — o resto do JSON é ignorado. */
+export function lerEntradaDeUnidade(corpo: unknown): EntradaDeUnidade {
+  if (typeof corpo !== 'object' || corpo === null) {
+    throw new CadastroInvalidoError('Corpo da requisição inválido')
+  }
+  const entrada: EntradaDeUnidade = {}
+  for (const campo of CAMPOS_DA_UNIDADE) {
+    const valor = (corpo as Record<string, unknown>)[campo]
+    if (valor === undefined || valor === null) continue
+    if (typeof valor !== 'string') throw new CadastroInvalidoError(`Campo inválido: ${campo}`)
+    entrada[campo] = valor
+  }
+  return entrada
+}
+
+/**
+ * A unidade resultante: a entrada mesclada sobre a existente (`Clinica` já no
+ * contexto dela) ou sobre nada, no cadastro. A regra de credenciais completas
+ * continua sendo da constraint do banco.
+ */
+export function montarUnidade(entrada: EntradaDeUnidade, existente: Clinica | null): DadosDaUnidade {
+  const nome = aberto(entrada.nome, existente?.unidade.nome ?? null)
+  if (!nome) throw new CadastroInvalidoError('Informe o nome da unidade')
+  if (nome.length > 120) throw new CadastroInvalidoError('Nome da unidade muito longo')
+
+  const sistema = texto(entrada.sistemaProntuario) ?? existente?.sistemaProntuario
+  if (!sistema) throw new CadastroInvalidoError('Escolha o sistema de prontuário da unidade')
+  if (!SISTEMAS.includes(sistema as SistemaProntuario)) {
+    throw new CadastroInvalidoError('Sistema de prontuário não suportado')
+  }
+
+  const antes = existente?.credenciais
+  return {
+    nome,
+    sistemaProntuario: sistema as SistemaProntuario,
+    eclinica: {
+      token: segredo(entrada.eclinicaToken, antes?.eclinica.token ?? null),
+      baseUrl: baseUrl(entrada.eclinicaBaseUrl, antes?.eclinica.baseUrl, BASE_URL_ECLINICA, 'da e-Clínica'),
+    },
+    clinicorp: {
+      usuarioApi: aberto(entrada.clinicorpUsuarioApi, antes?.clinicorp.usuarioApi ?? null),
+      tokenApi: segredo(entrada.clinicorpTokenApi, antes?.clinicorp.tokenApi ?? null),
+      subscriberId: aberto(entrada.clinicorpSubscriberId, antes?.clinicorp.subscriberId ?? null),
+      baseUrl: baseUrl(entrada.clinicorpBaseUrl, antes?.clinicorp.baseUrl, BASE_URL_CLINICORP, 'da Clinicorp'),
+    },
+    from: aberto(entrada.mensageriaFrom, antes?.mensageria.from ?? null),
+    channelId: aberto(entrada.mensageriaChannelId, antes?.mensageria.channelId ?? null),
+  }
+}
+
+/**
+ * A unidade como `Clinica` — clínica-base (token de mensagens, fuso) com as
+ * credenciais da unidade por cima. É o que o teste de conexão e a sincronização
+ * consomem, sem saber que existe unidade.
+ */
+export function unidadeComoClinica(base: Clinica, dados: DadosDaUnidade, unidade: Unidade): Clinica {
+  return {
+    ...base,
+    unidade,
+    sistemaProntuario: dados.sistemaProntuario,
+    credenciais: {
+      eclinica: dados.eclinica,
+      clinicorp: dados.clinicorp,
+      mensageria: { ...base.credenciais.mensageria, from: dados.from, channelId: dados.channelId },
     },
   }
 }

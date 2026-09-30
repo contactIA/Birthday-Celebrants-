@@ -34,6 +34,22 @@ export async function chamarApi<T>(caminho: string, init?: RequestInit): Promise
   return corpo as T
 }
 
+/** Espelho de `UnidadeNoSetup`. */
+export interface UnidadeNoSetup {
+  id: string
+  nome: string
+  principal: boolean
+  sistemaProntuario: 'eclinica' | 'clinicorp'
+  eclinica: { tokenConfigurado: boolean; baseUrl: string }
+  clinicorp: {
+    usuarioApi: string | null
+    tokenConfigurado: boolean
+    subscriberId: string | null
+    baseUrl: string
+  }
+  mensageria: { from: string | null; channelId: string | null }
+}
+
 /** A clínica como a API de setup devolve — espelho de `ClinicaNoSetup`. */
 export interface ClinicaNoSetup {
   id: string
@@ -42,6 +58,8 @@ export interface ClinicaNoSetup {
   sistemaProntuario: 'eclinica' | 'clinicorp'
   timezone: string
   criadaEm: string
+  /** Principal primeiro. */
+  unidades: UnidadeNoSetup[]
   eclinica: { tokenConfigurado: boolean; baseUrl: string }
   clinicorp: {
     usuarioApi: string | null

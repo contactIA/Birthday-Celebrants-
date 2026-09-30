@@ -1,20 +1,17 @@
-import { db, type ClinicaRow } from '@/shared/db'
-import { buscarClinica, type Clinica } from '@/shared/clinica/repositorio'
+import { db } from '@/shared/db'
+import { listarTodasAsClinicas, type Clinica } from '@/shared/clinica/repositorio'
 import type { LinhaDeCache } from './sincronizacao'
 
-/** As clínicas que usam Clinicorp — as únicas que este cron toca. */
+/**
+ * As UNIDADES que usam Clinicorp — as únicas que este cron toca. Cada unidade
+ * tem credencial e cache próprios, então uma clínica com duas unidades
+ * Clinicorp sincroniza duas vezes (e uma com matriz Clinicorp e filial
+ * e-Clínica, uma só).
+ */
 export async function clinicasClinicorp(): Promise<Clinica[]> {
-  const { data, error } = await db()
-    .from('aniversariantes_clinicas')
-    .select('slug')
-    .eq('sistema_prontuario', 'clinicorp')
-    .returns<Pick<ClinicaRow, 'slug'>[]>()
-
-  if (error) throw new Error(`Erro ao listar clínicas: ${error.message}`)
-
-  // Relê cada uma pelo acessor compartilhado, para a tradução de `slug` para
-  // `companyId` acontecer num lugar só.
-  return Promise.all((data ?? []).map((linha) => buscarClinica(linha.slug)))
+  // Pelo acessor compartilhado, para a tradução de `slug` para `companyId` e a
+  // resolução de credenciais por unidade acontecerem num lugar só.
+  return (await listarTodasAsClinicas()).filter((c) => c.sistemaProntuario === 'clinicorp')
 }
 
 /**
@@ -33,6 +30,7 @@ export async function gravarLote(
     .upsert(
       linhas.map((linha) => ({
         clinica_id: clinica.id,
+        unidade_id: clinica.unidade.id,
         paciente_id: linha.pacienteId,
         nome: linha.nome,
         telefone: linha.telefone,
@@ -42,7 +40,7 @@ export async function gravarLote(
         situacao: linha.situacao,
         synced_at: carimbo,
       })),
-      { onConflict: 'clinica_id,paciente_id' }
+      { onConflict: 'unidade_id,paciente_id' }
     )
 
   if (error) throw new Error(`Erro ao gravar o cache: ${error.message}`)
@@ -54,6 +52,7 @@ export async function removerObsoletos(clinica: Clinica, carimbo: string): Promi
     .from('aniversariantes_pacientes_cache')
     .delete()
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
     .lt('synced_at', carimbo)
 
   if (error) throw new Error(`Erro ao limpar o cache: ${error.message}`)
@@ -71,6 +70,7 @@ export async function resumoDoCache(clinica: Clinica): Promise<ResumoDoCache> {
     .from('aniversariantes_pacientes_cache')
     .select('synced_at', { count: 'exact' })
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
     .order('synced_at', { ascending: false })
     .limit(1)
 

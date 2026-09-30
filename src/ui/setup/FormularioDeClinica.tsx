@@ -7,6 +7,7 @@ import { Aviso, Botao, Carregando, Estado } from '@/ui/primitivos'
 import { FUSOS_SUPORTADOS } from '@/shared/data/fuso'
 import { chamarApi, NOME_DO_FUSO, NOME_DO_SISTEMA, type ClinicaNoSetup } from './api'
 import { Campo, CampoSecreto, Escolha, Secao } from './campos'
+import { UnidadesDaClinica } from './UnidadesDaClinica'
 
 // Cadastro e edição de uma clínica.
 //
@@ -72,7 +73,7 @@ interface ResultadoDoTeste {
   mensagem: string
 }
 
-interface ResultadoDaConexao {
+export interface ResultadoDaConexao {
   prontuario: ResultadoDoTeste
   mensageria: ResultadoDoTeste
 }
@@ -342,6 +343,8 @@ export function FormularioDeClinica({
           servidor ainda não tem. */}
       {editando && salva!.sistemaProntuario === 'clinicorp' && <Sincronizacao id={id!} />}
 
+      {editando && <UnidadesDaClinica clinica={salva!} aoMudar={setSalva} />}
+
       {editando && <LinkDoPainel id={id!} />}
 
       <div className="fixed inset-x-0 bottom-0 border-t border-line bg-surface/95 backdrop-blur">
@@ -383,17 +386,19 @@ function dataHora(iso: string): string {
  * Sincronização com a Clinicorp. O botão dispara e a tela acompanha — a
  * execução leva minutos (ver a rota), e segurar a requisição congelaria a tela.
  */
-function Sincronizacao({ id }: { id: string }) {
+export function Sincronizacao({ id, unidadeId }: { id: string; unidadeId?: string }) {
+  // Sem unidade = a principal (a rota assume). Com unidade, a da clínica `id`.
+  const url = `/api/setup/clinicas/${id}/sincronizar${unidadeId ? `?unidade=${unidadeId}` : ''}`
   const [estado, setEstado] = useState<EstadoDaSincronizacao | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [disparando, setDisparando] = useState(false)
 
   const consultar = useCallback(
     () =>
-      chamarApi<EstadoDaSincronizacao>(`/api/setup/clinicas/${id}/sincronizar`)
+      chamarApi<EstadoDaSincronizacao>(url)
         .then(setEstado)
         .catch((e: Error) => setErro(e.message)),
-    [id]
+    [url]
   )
 
   useEffect(() => {
@@ -412,7 +417,7 @@ function Sincronizacao({ id }: { id: string }) {
     setDisparando(true)
     setErro(null)
     try {
-      setEstado(await chamarApi<EstadoDaSincronizacao>(`/api/setup/clinicas/${id}/sincronizar`, { method: 'POST' }))
+      setEstado(await chamarApi<EstadoDaSincronizacao>(url, { method: 'POST' }))
     } catch (e) {
       setErro((e as Error).message)
     }
@@ -503,7 +508,7 @@ function Voltar() {
   )
 }
 
-function ResultadoDoTesteDeConexao({ teste }: { teste: ResultadoDaConexao }) {
+export function ResultadoDoTesteDeConexao({ teste }: { teste: ResultadoDaConexao }) {
   const linhas = [
     { rotulo: 'Prontuário', ...teste.prontuario },
     { rotulo: 'Plataforma de mensagens', ...teste.mensageria },

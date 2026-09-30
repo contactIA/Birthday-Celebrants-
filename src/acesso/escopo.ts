@@ -20,6 +20,22 @@ export function exigirCompanyId(request: NextRequest): string {
   return companyId
 }
 
+/** Cookie com a unidade escolhida no seletor do painel. */
+export const COOKIE_UNIDADE = 'av_unidade'
+
+/**
+ * A unidade que o usuário escolheu no seletor, ou `null`.
+ *
+ * É uma PREFERÊNCIA, não escopo: vem de um cookie que o cliente controla e, ao
+ * contrário do company_id, não passa por assinatura. Por isso nunca decide
+ * sozinha — `buscarClinica` a confere contra as unidades DA CLÍNICA do token, e
+ * um id de outra clínica ou lixo cai na principal. O que isola clínicas continua
+ * sendo o header do proxy.
+ */
+export function unidadeDaRequisicao(request: NextRequest): string | null {
+  return request.cookies.get(COOKIE_UNIDADE)?.value || null
+}
+
 /**
  * Exige sessão de setup válida. Segunda barreira, depois do proxy.
  *

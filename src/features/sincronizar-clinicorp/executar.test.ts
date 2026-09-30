@@ -9,7 +9,7 @@ import {
 } from './executar'
 
 function clinica(id: string): Clinica {
-  return { id, companyId: `company-${id}` } as Clinica
+  return { id, companyId: `company-${id}`, unidade: { id: `unidade-${id}`, nome: 'Principal', principal: true } } as Clinica
 }
 
 const RELATORIO_OK = {
@@ -37,11 +37,11 @@ describe('executarSincronizacao', () => {
     await expect(executarSincronizacao(clinica('a'), new Date(), 'c2', rodar)).rejects.toBeInstanceOf(
       SincronizacaoEmAndamentoError
     )
-    expect(estaSincronizando('a')).toBe(true)
+    expect(estaSincronizando('unidade-a')).toBe(true)
 
     terminar()
     await primeira
-    expect(estaSincronizando('a')).toBe(false)
+    expect(estaSincronizando('unidade-a')).toBe(false)
   })
 
   it('clínicas diferentes rodam ao mesmo tempo', async () => {
@@ -54,14 +54,30 @@ describe('executarSincronizacao', () => {
     await expect(Promise.all([a, b])).resolves.toHaveLength(2)
   })
 
+  it('unidades da MESMA clínica têm travas separadas', async () => {
+    // Cada unidade tem credencial e cache próprios: sincronizar uma não pode
+    // bloquear a outra nem disputar a limpeza por carimbo.
+    const um = controlado()
+    const dois = controlado()
+    const matriz = clinica('m')
+    const filial = { ...matriz, unidade: { id: 'unidade-filial', nome: 'Filial', principal: false } } as Clinica
+    const a = executarSincronizacao(matriz, new Date(), 'c', um.rodar)
+    const b = executarSincronizacao(filial, new Date(), 'c', dois.rodar)
+    expect(estaSincronizando('unidade-m')).toBe(true)
+    expect(estaSincronizando('unidade-filial')).toBe(true)
+    um.terminar()
+    dois.terminar()
+    await expect(Promise.all([a, b])).resolves.toHaveLength(2)
+  })
+
   it('registra a execução: em curso sem fim, depois com relatório', async () => {
     const { rodar, terminar } = controlado()
     const p = executarSincronizacao(clinica('d'), new Date(), 'c', rodar)
-    expect(ultimaExecucao('d')).toMatchObject({ fim: null, relatorio: null })
+    expect(ultimaExecucao('unidade-d')).toMatchObject({ fim: null, relatorio: null })
 
     terminar()
     await p
-    expect(ultimaExecucao('d')).toMatchObject({ fim: expect.any(String), relatorio: RELATORIO_OK })
+    expect(ultimaExecucao('unidade-d')).toMatchObject({ fim: expect.any(String), relatorio: RELATORIO_OK })
   })
 
   it('falha de integração vira erro no relatório e libera a trava', async () => {
@@ -71,6 +87,6 @@ describe('executarSincronizacao', () => {
     const r = await executarSincronizacao(clinica('e'), new Date(), 'c', quebra)
     expect(r).toMatchObject({ companyId: 'company-e', pacientes: 0, obsoletosRemovidos: false })
     expect(r.erros).toEqual(['Clínica sem credenciais de prontuário completas'])
-    expect(estaSincronizando('e')).toBe(false)
+    expect(estaSincronizando('unidade-e')).toBe(false)
   })
 })

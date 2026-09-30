@@ -19,6 +19,7 @@ export async function buscarEnviosDoAno(clinica: Clinica, ano: number): Promise<
     .from('aniversariantes_envios')
     .select('paciente_id_eclinica, status, scheduled_for')
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
     .eq('ano', ano)
     .returns<{ paciente_id_eclinica: string; status: EnvioResumo['status']; scheduled_for: string | null }[]>()
 

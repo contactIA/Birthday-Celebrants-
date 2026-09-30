@@ -1,4 +1,4 @@
-import type { ClinicaRow, EnvioRow, InteressadoRow, PacienteCacheRow, TemplateRow } from './db'
+import type { ClinicaRow, EnvioRow, InteressadoRow, PacienteCacheRow, TemplateRow, UnidadeRow } from './db'
 
 // O contrato de schema: as colunas de que o código DEPENDE, por tabela.
 //
@@ -36,9 +36,26 @@ export const CONTRATO = {
     'clinicorp_subscriber_id',
     'clinicorp_base_url',
   ],
+  aniversariantes_unidades: [
+    'id',
+    'clinica_id',
+    'nome',
+    'principal',
+    'sistema_prontuario',
+    'eclinica_token',
+    'eclinica_base_url',
+    'clinicorp_usuario_api',
+    'clinicorp_token_api',
+    'clinicorp_subscriber_id',
+    'clinicorp_base_url',
+    'helena_from',
+    'helena_channel_id',
+    'created_at',
+  ],
   aniversariantes_templates: [
     'id',
     'clinica_id',
+    'unidade_id',
     'helena_template_id',
     'nome',
     'param_mapping',
@@ -52,6 +69,7 @@ export const CONTRATO = {
   aniversariantes_envios: [
     'id',
     'clinica_id',
+    'unidade_id',
     'template_id',
     'paciente_id_eclinica',
     'paciente_nome',
@@ -66,6 +84,7 @@ export const CONTRATO = {
   aniversariantes_pacientes_cache: [
     'id',
     'clinica_id',
+    'unidade_id',
     'paciente_id',
     'nome',
     'telefone',
@@ -98,11 +117,12 @@ type Igual<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 type Colunas<T extends keyof typeof CONTRATO> = (typeof CONTRATO)[T][number]
 
 const clinicas: Igual<Colunas<'aniversariantes_clinicas'>, keyof ClinicaRow> = true
+const unidades: Igual<Colunas<'aniversariantes_unidades'>, keyof UnidadeRow> = true
 const templates: Igual<Colunas<'aniversariantes_templates'>, keyof TemplateRow> = true
 const envios: Igual<Colunas<'aniversariantes_envios'>, keyof EnvioRow> = true
 const cache: Igual<Colunas<'aniversariantes_pacientes_cache'>, keyof PacienteCacheRow> = true
 const interessados: Igual<Colunas<'aniversariantes_interessados'>, keyof InteressadoRow> = true
-export const _contratoConfereComOsTipos = [clinicas, templates, envios, cache, interessados]
+export const _contratoConfereComOsTipos = [clinicas, unidades, templates, envios, cache, interessados]
 
 /** Colunas do contrato que faltam no banco, por tabela. Vazio = contrato ok. */
 export function colunasFaltando(

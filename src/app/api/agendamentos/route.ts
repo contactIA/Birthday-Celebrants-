@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { exigirCompanyId } from '@/acesso/escopo'
+import { exigirCompanyId, unidadeDaRequisicao } from '@/acesso/escopo'
 import { buscarClinica } from '@/shared/clinica/repositorio'
 import { ParametroInvalidoError, responderErro } from '@/shared/http'
 import { provedorDe } from '@/providers/prontuario'
@@ -44,7 +44,7 @@ function lerCorpo(corpo: CorpoRecebido) {
 
 export async function POST(request: NextRequest) {
   try {
-    const clinica = await buscarClinica(exigirCompanyId(request))
+    const clinica = await buscarClinica(exigirCompanyId(request), unidadeDaRequisicao(request))
 
     const corpo = await request.json().catch(() => {
       throw new ParametroInvalidoError('Corpo da requisição inválido')

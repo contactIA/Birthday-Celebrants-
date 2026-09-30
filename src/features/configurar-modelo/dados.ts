@@ -13,6 +13,7 @@ export async function buscarConfiguracoes(clinica: Clinica): Promise<Map<string,
     .from('aniversariantes_templates')
     .select('id, helena_template_id, param_mapping, dia_envio, horario_envio, is_default, ativo')
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
     .returns<LinhaDeConfig[]>()
 
   if (error) throw new Error(`Erro ao buscar as configurações: ${error.message}`)
@@ -37,6 +38,7 @@ export async function limparPadrao(clinica: Clinica): Promise<void> {
     .from('aniversariantes_templates')
     .update({ is_default: false })
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
 
   if (error) throw new Error(`Erro ao atualizar o modelo padrão: ${error.message}`)
 }
@@ -50,6 +52,7 @@ export async function gravarConfiguracao(
     .upsert(
       {
         clinica_id: clinica.id,
+        unidade_id: clinica.unidade.id,
         helena_template_id: config.modeloId,
         nome: config.nome,
         param_mapping: config.parametros,
@@ -59,7 +62,7 @@ export async function gravarConfiguracao(
         ativo: config.ativo,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'clinica_id,helena_template_id' }
+      { onConflict: 'unidade_id,helena_template_id' }
     )
 
   if (error) throw new Error(`Erro ao salvar a configuração: ${error.message}`)

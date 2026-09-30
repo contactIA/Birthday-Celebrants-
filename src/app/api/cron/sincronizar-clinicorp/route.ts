@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { rotuloDaClinica } from '@/shared/clinica/repositorio'
 import type { RelatorioDaClinica } from '@/features/sincronizar-clinicorp/sincronizacao'
 import { clinicasClinicorp } from '@/features/sincronizar-clinicorp/dados'
 import { executarSincronizacao } from '@/features/sincronizar-clinicorp/executar'
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
         // Só chega aqui se o setup estiver sincronizando esta clínica agora —
         // ela está sendo renovada, só não por este cron.
         return {
-          companyId: clinica.companyId,
+          companyId: rotuloDaClinica(clinica),
           diasConsultados: 0,
           pacientes: 0,
           erros: [(err as Error).message],

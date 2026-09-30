@@ -6,8 +6,11 @@ import {
   CadastroInvalidoError,
   camposAlterados,
   lerEntrada,
+  lerEntradaDeUnidade,
   lerValidade,
   montarClinica,
+  montarUnidade,
+  unidadeComoClinica,
   type EntradaDeClinica,
 } from './regras'
 import { conferirRemetente, testarConexao } from './conexao'
@@ -224,5 +227,53 @@ describe('campo de nascimento no contato', () => {
     const antes = montarClinica(NOVA, null)
     const depois = montarClinica({ mensageriaCampoNascimento: 'data-de-nascimento' }, antes)
     expect(camposAlterados(antes, depois)).toEqual(['mensageriaCampoNascimento'])
+  })
+})
+
+describe('unidades adicionais', () => {
+  const FILIAL = { nome: 'Filial Centro', sistemaProntuario: 'eclinica', eclinicaToken: 'tk-filial' }
+
+  it('lerEntradaDeUnidade ignora campo desconhecido e recusa tipo errado', () => {
+    expect(lerEntradaDeUnidade({ nome: 'X', clinica_id: 'y', mensageriaToken: 'z' })).toEqual({ nome: 'X' })
+    expect(() => lerEntradaDeUnidade({ nome: 1 })).toThrow(CadastroInvalidoError)
+  })
+
+  it('monta a unidade com URL padrão e remetente próprio', () => {
+    const u = montarUnidade({ ...FILIAL, mensageriaFrom: '5545888880000' }, null)
+    expect(u).toMatchObject({
+      nome: 'Filial Centro',
+      sistemaProntuario: 'eclinica',
+      eclinica: { token: 'tk-filial', baseUrl: BASE_URL_ECLINICA },
+      from: '5545888880000',
+      channelId: null,
+    })
+  })
+
+  it('exige nome e sistema', () => {
+    expect(() => montarUnidade({ sistemaProntuario: 'eclinica' }, null)).toThrow(/nome da unidade/)
+    expect(() => montarUnidade({ nome: 'X' }, null)).toThrow(/sistema/)
+    expect(() => montarUnidade({ nome: 'X', sistemaProntuario: 'outro' }, null)).toThrow(/não suportado/)
+  })
+
+  it('na edição, segredo em branco mantém o salvo', () => {
+    const base = existente()
+    const antes = unidadeComoClinica(base, montarUnidade(FILIAL, null), { id: 'u2', nome: 'Filial Centro', principal: false })
+    const depois = montarUnidade({ nome: 'Filial Norte' }, antes)
+    expect(depois.nome).toBe('Filial Norte')
+    expect(depois.eclinica.token).toBe('tk-filial')
+  })
+
+  it('unidadeComoClinica troca o prontuário e o remetente, mas mantém o token de mensagens', () => {
+    const base = existente()
+    const c = unidadeComoClinica(base, montarUnidade({ ...FILIAL, mensageriaFrom: '5545888880000' }, null), {
+      id: 'u2',
+      nome: 'Filial Centro',
+      principal: false,
+    })
+    expect(c.id).toBe(base.id)
+    expect(c.unidade.id).toBe('u2')
+    expect(c.sistemaProntuario).toBe('eclinica')
+    expect(c.credenciais.mensageria.token).toBe('token-msg')
+    expect(c.credenciais.mensageria.from).toBe('5545888880000')
   })
 })

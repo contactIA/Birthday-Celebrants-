@@ -10,13 +10,24 @@ import { PaginaBeta } from '@/ui/beta/PaginaBeta'
 //
 // SEM SELETOR DE CLÍNICA. O app anterior tinha um, porque a rota de clínicas
 // devolvia todas as cadastradas. Hoje cada acesso é escopado a uma só — trocar
-// de clínica é abrir o link de outra, não escolher num menu. O que sobrou é o
-// nome, como informação de contexto.
+// de clínica é abrir o link de outra, não escolher num menu.
+//
+// O seletor que existe é o de UNIDADE, e só aparece quando a clínica tem mais de
+// uma. Ele lista as unidades da própria clínica; a escolha vira um cookie que o
+// servidor confere a cada requisição (ver `unidadeDaRequisicao`).
+
+interface Unidade {
+  id: string
+  nome: string
+  principal: boolean
+}
 
 interface Clinica {
   id: string
   companyId: string
   nome: string
+  unidades: Unidade[]
+  unidadeAtualId: string
 }
 
 type EstadoDaClinica =
@@ -110,9 +121,59 @@ function Cabecalho({ estado }: { estado: EstadoDaClinica }) {
         })}
       </nav>
 
-      <span className="ml-auto truncate text-sm text-muted">
-        {estado.situacao === 'pronta' ? estado.clinica.nome : ''}
-      </span>
+      <div className="ml-auto flex min-w-0 items-center gap-3">
+        {estado.situacao === 'pronta' && estado.clinica.unidades.length > 1 && (
+          <SeletorDeUnidade clinica={estado.clinica} />
+        )}
+        <span className="truncate text-sm text-muted">
+          {estado.situacao === 'pronta' ? estado.clinica.nome : ''}
+        </span>
+      </div>
     </header>
+  )
+}
+
+function SeletorDeUnidade({ clinica }: { clinica: Clinica }) {
+  const [trocando, setTrocando] = useState(false)
+  const [erro, setErro] = useState(false)
+
+  async function trocar(unidadeId: string) {
+    if (unidadeId === clinica.unidadeAtualId) return
+    setTrocando(true)
+    setErro(false)
+    try {
+      const r = await fetch('/api/clinica', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ unidadeId }),
+      })
+      if (!r.ok) throw new Error()
+      // Recarrega: agenda, modelos e histórico são todos da unidade anterior, e
+      // refazer cada busca à mão é onde uma tela ficaria com dado da outra.
+      window.location.reload()
+    } catch {
+      setErro(true)
+      setTrocando(false)
+    }
+  }
+
+  return (
+    <label className="flex items-center gap-2 text-sm text-ink-2">
+      <span className="sr-only sm:not-sr-only">Unidade</span>
+      <select
+        value={clinica.unidadeAtualId}
+        disabled={trocando}
+        onChange={(e) => trocar(e.target.value)}
+        aria-invalid={erro || undefined}
+        className="h-9 max-w-48 rounded-lg border border-line bg-surface px-2 text-sm text-ink disabled:opacity-60"
+      >
+        {clinica.unidades.map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.nome}
+          </option>
+        ))}
+      </select>
+      {erro && <span className="text-xs text-erro">Não foi possível trocar</span>}
+    </label>
   )
 }

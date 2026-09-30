@@ -8,6 +8,7 @@ decisão é cara de reverter ou quando alguém vai questioná-la depois.
 | [0001](0001-vertical-slice.md) | Vertical Slice em vez de camadas | Aceito |
 | [0002](0002-banco-compartilhado.md) | Banco do Clinic Control, schema `aniversariantes` | Aceito |
 | [0003](0003-area-de-setup.md) | Área de setup própria, com senha da equipe | Aceito |
+| [0004](0004-unidades.md) | Unidades: várias por clínica | Aceito |
 
 Decisões herdadas, que vivem no repositório vizinho e continuam valendo aqui:
 

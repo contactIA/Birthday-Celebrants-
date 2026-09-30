@@ -53,9 +53,35 @@ export interface ClinicaRow {
 /** `id` e `created_at` vêm do default do banco. */
 export type ClinicaInsert = Omit<ClinicaRow, 'id' | 'created_at'>
 
+/**
+ * Uma unidade da clínica. A PRINCIPAL (`principal = true`) não carrega
+ * credenciais: lê as da linha da clínica, onde o Clinic Control as mantém. Só as
+ * adicionais têm credenciais próprias. A resolução mora em
+ * `shared/clinica/resolver.ts`.
+ */
+export interface UnidadeRow {
+  id: string
+  clinica_id: string
+  nome: string
+  principal: boolean
+  sistema_prontuario: SistemaProntuario | null
+  eclinica_token: string | null
+  eclinica_base_url: string | null
+  clinicorp_usuario_api: string | null
+  clinicorp_token_api: string | null
+  clinicorp_subscriber_id: string | null
+  clinicorp_base_url: string | null
+  helena_from: string | null
+  helena_channel_id: string | null
+  created_at: string
+}
+
+export type UnidadeInsert = Omit<UnidadeRow, 'id' | 'created_at' | 'principal'> & { principal?: boolean }
+
 export interface TemplateRow {
   id: string
   clinica_id: string
+  unidade_id: string
   helena_template_id: string
   nome: string
   param_mapping: Record<string, string>
@@ -70,6 +96,7 @@ export interface TemplateRow {
 export interface EnvioRow {
   id: string
   clinica_id: string
+  unidade_id: string
   template_id: string | null
   /** Id do paciente em QUALQUER prontuário, apesar do nome legado. */
   paciente_id_eclinica: string
@@ -86,6 +113,7 @@ export interface EnvioRow {
 export interface PacienteCacheRow {
   id: string
   clinica_id: string
+  unidade_id: string
   paciente_id: string
   nome: string
   telefone: string | null
@@ -107,6 +135,7 @@ export interface PacienteCacheRow {
 /** Colunas que o banco preenche sozinho ficam de fora ou opcionais. */
 export interface TemplateInsert {
   clinica_id: string
+  unidade_id: string
   helena_template_id: string
   nome: string
   param_mapping?: Record<string, string>
@@ -119,6 +148,7 @@ export interface TemplateInsert {
 
 export interface EnvioInsert {
   clinica_id: string
+  unidade_id: string
   template_id: string | null
   paciente_id_eclinica: string
   paciente_nome: string
@@ -155,6 +185,7 @@ export type InteressadoInsert = Omit<InteressadoRow, 'id' | 'created_at' | 'stat
 
 export interface PacienteCacheInsert {
   clinica_id: string
+  unidade_id: string
   paciente_id: string
   nome: string
   telefone: string | null
@@ -188,6 +219,8 @@ export type Database = {
       // Lida pelo painel e pelos crons; escrita só pela área de setup, sempre
       // via `shared/clinica/repositorio.ts`. Nada neste app a apaga.
       aniversariantes_clinicas: Tabela<ClinicaRow, ClinicaInsert>
+      // Cada clínica tem uma principal (criada por trigger) e pode ter outras.
+      aniversariantes_unidades: Tabela<UnidadeRow, UnidadeInsert>
       aniversariantes_templates: Tabela<TemplateRow, TemplateInsert>
       aniversariantes_envios: Tabela<EnvioRow, EnvioInsert>
       aniversariantes_pacientes_cache: Tabela<PacienteCacheRow, PacienteCacheInsert>

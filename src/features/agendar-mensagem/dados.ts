@@ -19,6 +19,7 @@ export async function buscarModeloConfig(
     .select('id, helena_template_id, param_mapping, dia_envio, horario_envio')
     .eq('id', modeloConfigId)
     .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
     .maybeSingle<{
       id: string
       helena_template_id: string
@@ -51,6 +52,7 @@ export async function registrarEnvio(clinica: Clinica, envio: EnvioParaGravar): 
     .upsert(
       {
         clinica_id: clinica.id,
+        unidade_id: clinica.unidade.id,
         template_id: envio.modeloConfigId,
         // Nome legado da coluna: guarda o id em qualquer prontuário.
         paciente_id_eclinica: envio.pacienteId,
@@ -62,7 +64,7 @@ export async function registrarEnvio(clinica: Clinica, envio: EnvioParaGravar): 
         status: 'scheduled' as const,
         scheduled_for: envio.agendadoPara,
       },
-      { onConflict: 'clinica_id,paciente_id_eclinica,ano' }
+      { onConflict: 'unidade_id,paciente_id_eclinica,ano' }
     )
 
   if (error) throw new Error(`Erro ao registrar o envio: ${error.message}`)

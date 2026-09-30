@@ -30,6 +30,7 @@ export function provedorClinicorp(clinica: Clinica): ProvedorDeProntuario {
         .from('aniversariantes_pacientes_cache')
         .select('*')
         .eq('clinica_id', clinica.id)
+        .eq('unidade_id', clinica.unidade.id)
         .eq('mes_aniversario', mes)
 
       if (error) throw new Error(`Erro ao ler o cache de pacientes: ${error.message}`)
@@ -42,6 +43,7 @@ export function provedorClinicorp(clinica: Clinica): ProvedorDeProntuario {
         .from('aniversariantes_pacientes_cache')
         .select('*')
         .eq('clinica_id', clinica.id)
+        .eq('unidade_id', clinica.unidade.id)
         .in('paciente_id', ids)
 
       if (error) throw new Error(`Erro ao ler o cache de pacientes: ${error.message}`)
@@ -63,6 +65,7 @@ export function provedorClinicorp(clinica: Clinica): ProvedorDeProntuario {
         .from('aniversariantes_pacientes_cache')
         .select('id', { count: 'exact', head: true })
         .eq('clinica_id', clinica.id)
+        .eq('unidade_id', clinica.unidade.id)
 
       if (error) throw new Error(`Erro ao ler o cache de pacientes: ${error.message}`)
       return (count ?? 0) === 0
