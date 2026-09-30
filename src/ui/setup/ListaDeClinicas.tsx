@@ -58,6 +58,9 @@ export function ListaDeClinicas() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-ink">{c.nome}</p>
                   <p className="tnum mt-0.5 truncate font-mono text-xs text-muted">{c.companyId}</p>
+                  {c.unidades.length > 1 && (
+                    <p className="mt-0.5 text-xs text-ink-2">{c.unidades.length} unidades</p>
+                  )}
                 </div>
                 <span className="text-[13px] text-ink-2">{NOME_DO_SISTEMA[c.sistemaProntuario]}</span>
                 <div className="flex gap-1.5">

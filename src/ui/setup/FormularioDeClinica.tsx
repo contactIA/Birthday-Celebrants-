@@ -178,6 +178,13 @@ export function FormularioDeClinica({
   }
   if (editando && !salva) return <Carregando>Carregando clínica…</Carregando>
 
+  // Com mais de uma unidade, os campos do prontuário são os da PRINCIPAL. Dizer
+  // isso aqui é o que leva a pessoa até a seção de unidades, no fim da página —
+  // ou, no cadastro, avisa que as demais entram depois de salvar.
+  const dicaDeUnidades = editando
+    ? ' Estes são os dados da unidade principal; outras unidades se cadastram na seção Unidades, no fim da página.'
+    : ' Com mais de uma unidade, informe aqui a principal: as demais se cadastram depois de salvar a clínica.'
+
   // `null` no cadastro: não há valor salvo para "manter".
   const configurado = (v: boolean | undefined) => (salva ? !!v : null)
 
@@ -231,7 +238,7 @@ export function FormularioDeClinica({
 
         <Secao
           titulo="Prontuário"
-          descricao="De onde vêm os aniversariantes. A e-Clínica é consultada ao vivo; a Clinicorp, por uma sincronização diária."
+          descricao={`De onde vêm os aniversariantes. A e-Clínica é consultada ao vivo; a Clinicorp, por uma sincronização diária.${dicaDeUnidades}`}
         >
           <Escolha<Sistema>
             rotulo="Sistema"
@@ -368,7 +375,19 @@ export function FormularioDeClinica({
         </div>
       </form>
 
-      {editando && <UnidadesDaClinica clinica={salva!} aoMudar={setSalva} />}
+      {editando ? (
+        <UnidadesDaClinica clinica={salva!} aoMudar={setSalva} />
+      ) : (
+        <Secao
+          titulo="Unidades"
+          descricao="Clínica com mais de um endereço, cada um com prontuário e número próprios."
+        >
+          <p className="text-sm text-ink-2">
+            Cadastre a clínica primeiro. Depois de salvar, esta tela ganha a seção Unidades, onde se adicionam as
+            demais.
+          </p>
+        </Secao>
+      )}
     </div>
   )
 }
