@@ -182,189 +182,194 @@ export function FormularioDeClinica({
   const configurado = (v: boolean | undefined) => (salva ? !!v : null)
 
   return (
-    <form onSubmit={salvar} className="flex flex-col gap-5 pb-24">
-      <div>
-        <Voltar />
-        <h1 className="mt-3 text-xl font-semibold tracking-[-0.01em] text-ink">
-          {editando ? salva!.nome : 'Nova clínica'}
-        </h1>
-        {editando && (
-          <p className="tnum mt-1 font-mono text-xs text-muted">{salva!.companyId}</p>
-        )}
-      </div>
-
-      <Secao titulo="Identificação">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Campo
-            rotulo="Nome da clínica"
-            required
-            value={form.nome}
-            onChange={(e) => mudar('nome', e.target.value)}
-          />
-          <Escolha
-            rotulo="Fuso horário"
-            valor={form.timezone}
-            opcoes={FUSOS_SUPORTADOS.map((f) => ({ valor: f, rotulo: NOME_DO_FUSO[f] ?? f }))}
-            aoMudar={(v) => mudar('timezone', v)}
-          />
+    // A seção de unidades fica FORA do <form>: ela tem formulários próprios, e
+    // <form> dentro de <form> é descartado pelo navegador — o "Cadastrar
+    // unidade" submetia o formulário da clínica e a unidade nunca era criada.
+    <div className="flex flex-col gap-5 pb-24">
+      <form onSubmit={salvar} className="flex flex-col gap-5">
+        <div>
+          <Voltar />
+          <h1 className="mt-3 text-xl font-semibold tracking-[-0.01em] text-ink">
+            {editando ? salva!.nome : 'Nova clínica'}
+          </h1>
+          {editando && (
+            <p className="tnum mt-1 font-mono text-xs text-muted">{salva!.companyId}</p>
+          )}
         </div>
-        <Campo
-          rotulo="Company ID da plataforma de mensagens"
-          required={!editando}
-          readOnly={editando}
-          spellCheck={false}
-          mono
-          placeholder="7b1a1c2e-3d4f-4a5b-8c6d-0e1f2a3b4c5d"
-          value={form.companyId}
-          onChange={(e) => mudar('companyId', e.target.value)}
-          dica={
-            editando
-              ? 'Não pode ser alterado: é a chave dos links já emitidos. Com valor errado, cadastre a clínica de novo.'
-              : 'UUID da conta da clínica na plataforma. É o que liga a aba da plataforma a este cadastro.'
-          }
-        />
-      </Secao>
 
-      <Secao
-        titulo="Prontuário"
-        descricao="De onde vêm os aniversariantes. A e-Clínica é consultada ao vivo; a Clinicorp, por uma sincronização diária."
-      >
-        <Escolha<Sistema>
-          rotulo="Sistema"
-          valor={form.sistemaProntuario}
-          opcoes={[
-            { valor: 'clinicorp', rotulo: NOME_DO_SISTEMA.clinicorp },
-            { valor: 'eclinica', rotulo: NOME_DO_SISTEMA.eclinica },
-          ]}
-          aoMudar={(v) => mudar('sistemaProntuario', v)}
-        />
-
-        {form.sistemaProntuario === 'clinicorp' ? (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Campo
-                rotulo="Usuário API"
-                spellCheck={false}
-                autoComplete="off"
-                value={form.clinicorpUsuarioApi}
-                onChange={(e) => mudar('clinicorpUsuarioApi', e.target.value)}
-              />
-              <Campo
-                rotulo="Subscriber ID"
-                spellCheck={false}
-                autoComplete="off"
-                value={form.clinicorpSubscriberId}
-                onChange={(e) => mudar('clinicorpSubscriberId', e.target.value)}
-              />
-            </div>
-            <CampoSecreto
-              rotulo="Token API"
-              obrigatorio
-              configurado={configurado(salva?.clinicorp.tokenConfigurado)}
-              valor={form.clinicorpTokenApi}
-              aoMudar={(v) => mudar('clinicorpTokenApi', v)}
+        <Secao titulo="Identificação">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo
+              rotulo="Nome da clínica"
+              required
+              value={form.nome}
+              onChange={(e) => mudar('nome', e.target.value)}
             />
-          </>
-        ) : (
-          <CampoSecreto
-            rotulo="Token da e-Clínica"
-            obrigatorio
-            configurado={configurado(salva?.eclinica.tokenConfigurado)}
-            valor={form.eclinicaToken}
-            aoMudar={(v) => mudar('eclinicaToken', v)}
-          />
-        )}
-
-        <details className="group text-sm">
-          <summary className="cursor-pointer select-none text-[13px] text-ink-2 hover:text-ink">
-            Avançado: endereço da API
-          </summary>
-          <div className="mt-3">
-            {form.sistemaProntuario === 'clinicorp' ? (
-              <Campo
-                rotulo="URL da API da Clinicorp"
-                spellCheck={false}
-                placeholder="https://api.clinicorp.com/rest/v1"
-                value={form.clinicorpBaseUrl}
-                onChange={(e) => mudar('clinicorpBaseUrl', e.target.value)}
-                dica="Em branco volta ao endereço padrão."
-              />
-            ) : (
-              <Campo
-                rotulo="URL da API da e-Clínica"
-                spellCheck={false}
-                placeholder="https://eclinica.app/api/v2"
-                value={form.eclinicaBaseUrl}
-                onChange={(e) => mudar('eclinicaBaseUrl', e.target.value)}
-                dica="Em branco volta ao endereço padrão."
-              />
-            )}
+            <Escolha
+              rotulo="Fuso horário"
+              valor={form.timezone}
+              opcoes={FUSOS_SUPORTADOS.map((f) => ({ valor: f, rotulo: NOME_DO_FUSO[f] ?? f }))}
+              aoMudar={(v) => mudar('timezone', v)}
+            />
           </div>
-        </details>
-      </Secao>
-
-      <Secao
-        titulo="Plataforma de mensagens"
-        descricao="A conta que agenda e envia os parabéns pelo WhatsApp da clínica."
-      >
-        <CampoSecreto
-          rotulo="Token de acesso"
-          obrigatorio
-          configurado={configurado(salva?.mensageria.tokenConfigurado)}
-          valor={form.mensageriaToken}
-          aoMudar={(v) => mudar('mensageriaToken', v)}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
           <Campo
-            rotulo="Número remetente (opcional)"
-            inputMode="tel"
-            placeholder="5545999990000"
-            value={form.mensageriaFrom}
-            onChange={(e) => mudar('mensageriaFrom', e.target.value)}
-          />
-          <Campo
-            rotulo="Channel ID (opcional)"
+            rotulo="Company ID da plataforma de mensagens"
+            required={!editando}
+            readOnly={editando}
             spellCheck={false}
-            value={form.mensageriaChannelId}
-            onChange={(e) => mudar('mensageriaChannelId', e.target.value)}
+            mono
+            placeholder="7b1a1c2e-3d4f-4a5b-8c6d-0e1f2a3b4c5d"
+            value={form.companyId}
+            onChange={(e) => mudar('companyId', e.target.value)}
+            dica={
+              editando
+                ? 'Não pode ser alterado: é a chave dos links já emitidos. Com valor errado, cadastre a clínica de novo.'
+                : 'UUID da conta da clínica na plataforma. É o que liga a aba da plataforma a este cadastro.'
+            }
           />
+        </Secao>
+
+        <Secao
+          titulo="Prontuário"
+          descricao="De onde vêm os aniversariantes. A e-Clínica é consultada ao vivo; a Clinicorp, por uma sincronização diária."
+        >
+          <Escolha<Sistema>
+            rotulo="Sistema"
+            valor={form.sistemaProntuario}
+            opcoes={[
+              { valor: 'clinicorp', rotulo: NOME_DO_SISTEMA.clinicorp },
+              { valor: 'eclinica', rotulo: NOME_DO_SISTEMA.eclinica },
+            ]}
+            aoMudar={(v) => mudar('sistemaProntuario', v)}
+          />
+
+          {form.sistemaProntuario === 'clinicorp' ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Campo
+                  rotulo="Usuário API"
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={form.clinicorpUsuarioApi}
+                  onChange={(e) => mudar('clinicorpUsuarioApi', e.target.value)}
+                />
+                <Campo
+                  rotulo="Subscriber ID"
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={form.clinicorpSubscriberId}
+                  onChange={(e) => mudar('clinicorpSubscriberId', e.target.value)}
+                />
+              </div>
+              <CampoSecreto
+                rotulo="Token API"
+                obrigatorio
+                configurado={configurado(salva?.clinicorp.tokenConfigurado)}
+                valor={form.clinicorpTokenApi}
+                aoMudar={(v) => mudar('clinicorpTokenApi', v)}
+              />
+            </>
+          ) : (
+            <CampoSecreto
+              rotulo="Token da e-Clínica"
+              obrigatorio
+              configurado={configurado(salva?.eclinica.tokenConfigurado)}
+              valor={form.eclinicaToken}
+              aoMudar={(v) => mudar('eclinicaToken', v)}
+            />
+          )}
+
+          <details className="group text-sm">
+            <summary className="cursor-pointer select-none text-[13px] text-ink-2 hover:text-ink">
+              Avançado: endereço da API
+            </summary>
+            <div className="mt-3">
+              {form.sistemaProntuario === 'clinicorp' ? (
+                <Campo
+                  rotulo="URL da API da Clinicorp"
+                  spellCheck={false}
+                  placeholder="https://api.clinicorp.com/rest/v1"
+                  value={form.clinicorpBaseUrl}
+                  onChange={(e) => mudar('clinicorpBaseUrl', e.target.value)}
+                  dica="Em branco volta ao endereço padrão."
+                />
+              ) : (
+                <Campo
+                  rotulo="URL da API da e-Clínica"
+                  spellCheck={false}
+                  placeholder="https://eclinica.app/api/v2"
+                  value={form.eclinicaBaseUrl}
+                  onChange={(e) => mudar('eclinicaBaseUrl', e.target.value)}
+                  dica="Em branco volta ao endereço padrão."
+                />
+              )}
+            </div>
+          </details>
+        </Secao>
+
+        <Secao
+          titulo="Plataforma de mensagens"
+          descricao="A conta que agenda e envia os parabéns pelo WhatsApp da clínica."
+        >
+          <CampoSecreto
+            rotulo="Token de acesso"
+            obrigatorio
+            configurado={configurado(salva?.mensageria.tokenConfigurado)}
+            valor={form.mensageriaToken}
+            aoMudar={(v) => mudar('mensageriaToken', v)}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo
+              rotulo="Número remetente (opcional)"
+              inputMode="tel"
+              placeholder="5545999990000"
+              value={form.mensageriaFrom}
+              onChange={(e) => mudar('mensageriaFrom', e.target.value)}
+            />
+            <Campo
+              rotulo="Channel ID (opcional)"
+              spellCheck={false}
+              value={form.mensageriaChannelId}
+              onChange={(e) => mudar('mensageriaChannelId', e.target.value)}
+            />
+          </div>
+          <CampoDeNascimento
+            id={editando ? id! : null}
+            valor={form.mensageriaCampoNascimento}
+            aoMudar={(v) => mudar('mensageriaCampoNascimento', v)}
+          />
+        </Secao>
+
+        {teste && <ResultadoDoTesteDeConexao teste={teste} />}
+
+        {/* Pela clínica SALVA, não pelo formulário: trocar o sistema no select
+            sem salvar não pode oferecer sincronizar com credenciais que o
+            servidor ainda não tem. */}
+        {editando && salva!.sistemaProntuario === 'clinicorp' && <Sincronizacao id={id!} />}
+
+        {editando && <LinkDoPainel id={id!} />}
+
+        <div className="fixed inset-x-0 bottom-0 border-t border-line bg-surface/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-4xl items-center gap-3 px-6 py-3">
+            {aviso && (
+              <p role="status" className={aviso.tom === 'ok' ? 'text-sm text-ok' : 'text-sm text-erro'}>
+                {aviso.texto}
+              </p>
+            )}
+            <div className="ml-auto flex gap-2">
+              <Botao type="button" variante="secundario" onClick={testar} disabled={testando || salvando}>
+                {testando ? 'Testando…' : 'Testar conexão'}
+              </Botao>
+              <Botao type="submit" disabled={salvando}>
+                {salvando ? 'Salvando…' : editando ? 'Salvar' : 'Cadastrar clínica'}
+              </Botao>
+            </div>
+          </div>
         </div>
-        <CampoDeNascimento
-          id={editando ? id! : null}
-          valor={form.mensageriaCampoNascimento}
-          aoMudar={(v) => mudar('mensageriaCampoNascimento', v)}
-        />
-      </Secao>
-
-      {teste && <ResultadoDoTesteDeConexao teste={teste} />}
-
-      {/* Pela clínica SALVA, não pelo formulário: trocar o sistema no select
-          sem salvar não pode oferecer sincronizar com credenciais que o
-          servidor ainda não tem. */}
-      {editando && salva!.sistemaProntuario === 'clinicorp' && <Sincronizacao id={id!} />}
+      </form>
 
       {editando && <UnidadesDaClinica clinica={salva!} aoMudar={setSalva} />}
-
-      {editando && <LinkDoPainel id={id!} />}
-
-      <div className="fixed inset-x-0 bottom-0 border-t border-line bg-surface/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-4xl items-center gap-3 px-6 py-3">
-          {aviso && (
-            <p role="status" className={aviso.tom === 'ok' ? 'text-sm text-ok' : 'text-sm text-erro'}>
-              {aviso.texto}
-            </p>
-          )}
-          <div className="ml-auto flex gap-2">
-            <Botao type="button" variante="secundario" onClick={testar} disabled={testando || salvando}>
-              {testando ? 'Testando…' : 'Testar conexão'}
-            </Botao>
-            <Botao type="submit" disabled={salvando}>
-              {salvando ? 'Salvando…' : editando ? 'Salvar' : 'Cadastrar clínica'}
-            </Botao>
-          </div>
-        </div>
-      </div>
-    </form>
+    </div>
   )
 }
 
