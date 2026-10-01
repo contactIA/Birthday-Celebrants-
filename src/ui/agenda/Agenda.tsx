@@ -262,17 +262,17 @@ export function Agenda() {
               onClick={() => setFiltro(chave)}
               aria-pressed={ativo}
               className={clsx(
-                'flex items-center gap-2 rounded-full py-1.5 pr-2 pl-3.5 text-[13px] transition-colors',
+                'flex items-center gap-2 rounded-lg border py-1.5 pr-2 pl-3 text-[13px] font-medium transition-colors',
                 ativo
-                  ? 'bg-accent font-medium text-white'
-                  : 'border border-line bg-surface text-ink-2 hover:bg-sunk'
+                  ? 'border-accent-line bg-accent-soft text-accent-ink'
+                  : 'border-line bg-surface text-ink-2 hover:border-accent-line'
               )}
             >
               {rotulo}
               <span
                 className={clsx(
                   'tnum flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold',
-                  ativo ? 'bg-white/20' : 'bg-sunk text-muted'
+                  ativo ? 'bg-surface text-accent-ink' : 'bg-sunk text-muted'
                 )}
               >
                 {total}
@@ -293,7 +293,7 @@ export function Agenda() {
             {carregando && (
               <div
                 aria-label="Carregando aniversariantes"
-                className="flex flex-col gap-px overflow-hidden rounded-[12px] border border-line bg-line-soft"
+                className="flex flex-col gap-px overflow-hidden rounded-[14px] border border-line-soft bg-line-soft"
               >
                 {Array.from({ length: 5 }, (_, i) => (
                   <div key={i} className="flex items-center gap-3 bg-surface px-4 py-4">
@@ -321,7 +321,7 @@ export function Agenda() {
             )}
 
             {!carregando && hoje && porDia.length > 0 && (
-              <div className="overflow-hidden rounded-[12px] border border-line bg-surface">
+              <div className="entrar overflow-hidden rounded-[14px] border border-line-soft bg-surface">
                 <div className={clsx(GRADE, 'border-b border-line bg-sunk/50 py-3 text-[13px] font-medium text-ink-2')}>
                   <span>
                     <Marcador
@@ -421,7 +421,7 @@ export function Agenda() {
               onClick={() =>
                 document.getElementById('painel-de-envio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }
-              className="ml-auto inline-flex h-9 items-center rounded-full bg-accent px-4 text-sm font-medium text-white hover:bg-accent-ink"
+              className="botao-marca ml-auto inline-flex h-9 items-center rounded-[10px] px-4 text-sm font-medium"
             >
               Revisar e agendar
             </button>

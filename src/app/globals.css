@@ -13,45 +13,61 @@
   entra o segundo conjunto de tokens.
 */
 
+/*
+  Os valores são os do CRM (design "CRM Kanban", 2026-09-29), para os módulos da
+  plataforma terem a mesma cara. Os NOMES continuam os deste app: as telas não
+  precisaram mudar de classe, só de cor.
+*/
 @theme {
   /* Neutros com viés levemente frio: é o terreno de chrome de SaaS, e o
      painel precisa parecer parte do host, não uma ilha. */
-  --color-ground: #f6f7fa;
+  --color-ground: #f4f5f8;
   --color-surface: #ffffff;
-  --color-sunk: #eef0f5;
-  --color-line: #e3e7ee;
-  --color-line-soft: #eef1f6;
+  --color-sunk: #f4f5f8;
+  --color-sunk-2: #ebedf1;
+  /* O fundo dos campos: quase branco, para o campo se ler como campo. */
+  --color-field: #fafafb;
+  --color-line: #e6e8ec;
+  --color-line-soft: #eaecf0;
+  --color-line-strong: #d0d5dd;
 
-  --color-ink: #191c25;
-  --color-ink-2: #565e70;
-  --color-muted: #868da0;
+  --color-ink: #101828;
+  --color-ink-2: #475467;
+  --color-muted: #667085;
 
-  /* Acento em UM lugar. Trocar o white label é trocar estas três linhas. */
-  --color-accent: #6d3be4;
-  --color-accent-ink: #5325c4;
-  --color-accent-soft: #f2ecfe;
+  /* Acento em UM lugar. Trocar o white label é trocar estas linhas e as
+     --marca-* lá embaixo. */
+  --color-accent: #5a14a3;
+  --color-accent-ink: #4a0e8a;
+  --color-accent-soft: #f5edfb;
+  --color-accent-line: #d4b6ee;
 
   /* Cores de ESTADO, separadas do acento de propósito: "agendado" não pode
      depender da cor da marca, senão trocar a marca muda o significado. */
-  --color-ok: #0f7b54;
-  --color-ok-soft: #e4f4ec;
-  --color-atencao: #96560a;
-  --color-atencao-soft: #fbeedb;
-  --color-parado: #6b7280;
-  --color-parado-soft: #eef0f3;
-  --color-erro: #b3261e;
-  --color-erro-soft: #fbe9e7;
-  --color-info: #1f5fbf;
-  --color-info-soft: #e7effc;
+  --color-ok: #067647;
+  --color-ok-soft: #ecfdf3;
+  --color-atencao: #b54708;
+  --color-atencao-soft: #fff6e5;
+  --color-parado: #667085;
+  --color-parado-soft: #f2f4f7;
+  --color-erro: #b42318;
+  --color-erro-soft: #fef3f2;
+  --color-info: #1a56db;
+  --color-info-soft: #e8f0fe;
 
-  /* Pilha do sistema: Segoe UI no Windows, SF no Mac — o que o chrome do host
-     já usa. Sem webfont: menos uma requisição dentro do iframe e nenhuma
-     dependência de rede no build. */
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+  /* Geist, a letra do CRM, vem com o app (next/font, ver layout.tsx): nenhum
+     pedido a outro servidor na hora de abrir o iframe. */
+  --font-sans: var(--font-corpo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-dados), ui-monospace, monospace;
 
-  --radius-card: 12px;
+  --radius-card: 14px;
+}
+
+:root {
+  /* O degradê da marca: os botões principais, como no CRM. */
+  --marca-1: #4c0c94;
+  --marca-2: #9e1b57;
+  --marca-3: #e8341a;
 }
 
 html {
@@ -77,14 +93,14 @@ body {
    compete com a do host e o painel parece uma janela dentro da janela. */
 .rolagem-discreta {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-line) transparent;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
 .rolagem-discreta::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 .rolagem-discreta::-webkit-scrollbar-thumb {
-  background-color: var(--color-line);
+  background-color: var(--color-line-strong);
   border: 3px solid transparent;
   border-radius: 999px;
   background-clip: content-box;
@@ -98,6 +114,54 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* O degradê da marca, e o botão principal feito dele (o mesmo do CRM). */
+.fundo-marca {
+  background-image: linear-gradient(95deg, var(--marca-1) 0%, var(--marca-2) 55%, var(--marca-3) 100%);
+}
+.botao-marca {
+  background-image: linear-gradient(95deg, var(--marca-1) 0%, var(--marca-2) 55%, var(--marca-3) 100%);
+  color: #fff;
+  box-shadow:
+    0 4px 12px -4px rgb(158 27 87 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.18);
+  transition:
+    box-shadow 150ms,
+    filter 150ms;
+}
+.botao-marca:hover:not(:disabled) {
+  box-shadow: 0 6px 16px -4px rgb(158 27 87 / 0.55);
+  filter: brightness(1.08);
+}
+
+/*
+  Entradas, as do CRM: sobem poucos pixels e aparecem. `.escalonar` atrasa os
+  filhos em degraus curtos; a partir do nono, todos entram juntos.
+*/
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.entrar {
+  animation: subir 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.escalonar > * {
+  animation: subir 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.escalonar > :nth-child(2) { animation-delay: 45ms; }
+.escalonar > :nth-child(3) { animation-delay: 90ms; }
+.escalonar > :nth-child(4) { animation-delay: 135ms; }
+.escalonar > :nth-child(5) { animation-delay: 180ms; }
+.escalonar > :nth-child(6) { animation-delay: 225ms; }
+.escalonar > :nth-child(7) { animation-delay: 270ms; }
+.escalonar > :nth-child(8) { animation-delay: 315ms; }
+.escalonar > :nth-child(n + 9) { animation-delay: 360ms; }
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -154,10 +218,10 @@ body {
 .presente-face {
   position: absolute;
   inset: 0;
-  /* Fita vertical âmbar sobre o roxo da plataforma, com luz de cima. */
+  /* Fita vertical âmbar sobre o roxo da marca, com luz de cima. */
   background:
     linear-gradient(90deg, transparent 42%, var(--color-vela) 42%, var(--color-vela) 58%, transparent 58%),
-    linear-gradient(160deg, #8a5cf0 0%, var(--color-accent) 55%, var(--color-accent-ink) 100%);
+    linear-gradient(160deg, #7a2fc4 0%, var(--color-accent) 55%, var(--color-accent-ink) 100%);
   border-radius: 6px;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
 }
@@ -190,7 +254,7 @@ body {
   border-radius: 4px;
   background:
     linear-gradient(90deg, transparent 42%, var(--color-vela) 42%, var(--color-vela) 58%, transparent 58%),
-    linear-gradient(160deg, #9b73f3, var(--color-accent));
+    linear-gradient(160deg, #8a45d0, var(--color-accent));
 }
 .presente-tampa-face.lado.frente { transform: translateZ(calc(var(--L) / 2)); }
 .presente-tampa-face.lado.tras { transform: rotateY(180deg) translateZ(calc(var(--L) / 2)); filter: brightness(0.82); }
@@ -202,7 +266,7 @@ body {
   background:
     linear-gradient(90deg, transparent 42%, var(--color-vela) 42%, var(--color-vela) 58%, transparent 58%),
     linear-gradient(0deg, transparent 42%, var(--color-vela) 42%, var(--color-vela) 58%, transparent 58%),
-    linear-gradient(160deg, #a582f5, #7c4cea);
+    linear-gradient(160deg, #9a5ad8, #6c22b8);
   transform: rotateX(90deg) translateZ(calc(var(--H) / 2));
 }
 
@@ -212,7 +276,7 @@ body {
   width: 62%;
   height: 16px;
   border-radius: 50%;
-  background: rgb(83 37 196 / 0.22);
+  background: rgb(74 14 138 / 0.22);
   filter: blur(10px);
   animation: presente-sombra 5.5s ease-in-out infinite;
 }

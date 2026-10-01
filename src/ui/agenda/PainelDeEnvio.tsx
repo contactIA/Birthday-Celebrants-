@@ -148,7 +148,7 @@ export function PainelDeEnvio({
   }
 
   return (
-    <aside className="w-full shrink-0 rounded-[12px] border border-line bg-surface p-5 lg:w-[336px]">
+    <aside className="entrar w-full shrink-0 rounded-[14px] border border-line-soft bg-surface p-5 lg:w-[336px]">
       <h2 className="mb-3 text-xs font-semibold tracking-[0.08em] text-muted uppercase">
         O que será enviado
       </h2>
@@ -173,7 +173,7 @@ export function PainelDeEnvio({
               value={escolhido}
               onChange={(e) => setEscolhido(e.target.value)}
               aria-label="Modelo de mensagem"
-              className="h-9 w-full rounded-lg border border-line bg-surface px-2.5 text-sm text-ink focus:outline-none"
+              className="h-9 w-full rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
             >
               {modelos.map((m) => (
                 <option key={m.config!.id} value={m.config!.id}>
@@ -188,7 +188,7 @@ export function PainelDeEnvio({
             <p className="mb-1.5 flex items-center gap-2 text-xs font-medium text-accent-ink">
               {modelo?.nome}
               {modelo?.config?.ehPadrao && (
-                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-white">
+                <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-accent-ink">
                   padrão
                 </span>
               )}
@@ -222,7 +222,7 @@ export function PainelDeEnvio({
                 type="datetime-local"
                 value={quandoManual}
                 onChange={(e) => setQuandoManual(e.target.value)}
-                className="h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-ink focus:outline-none"
+                className="h-9 rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
               />
             </label>
           )}

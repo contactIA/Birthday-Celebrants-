@@ -23,14 +23,17 @@ export function SetupShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface px-6">
+      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-line bg-surface px-4 sm:px-6">
         <Link href="/setup" className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
           Aniversariantes
         </Link>
         <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
           Setup
         </span>
-        <nav className="ml-3 flex items-center gap-1" aria-label="Seções do setup">
+        <nav
+          className="ml-3 flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-[10px] bg-ground p-[3px]"
+          aria-label="Seções do setup"
+        >
           {[
             { href: '/setup', rotulo: 'Clínicas', ativo: caminho === '/setup' || caminho.startsWith('/setup/clinicas') },
             { href: '/setup/interessados', rotulo: 'Interessados', ativo: caminho === '/setup/interessados' },
@@ -41,8 +44,8 @@ export function SetupShell({ children }: { children: React.ReactNode }) {
               aria-current={item.ativo ? 'page' : undefined}
               className={
                 item.ativo
-                  ? 'rounded-full bg-accent-soft px-3 py-1.5 text-sm font-medium text-accent-ink'
-                  : 'rounded-full px-3 py-1.5 text-sm text-ink-2 hover:bg-sunk hover:text-ink'
+                  ? 'rounded-lg bg-surface px-3.5 py-[7px] text-sm font-medium whitespace-nowrap text-accent-ink shadow-[0_1px_2px_rgb(16_24_40/0.08)]'
+                  : 'rounded-lg px-3.5 py-[7px] text-sm font-medium whitespace-nowrap text-ink-2 hover:text-ink'
               }
             >
               {item.rotulo}
@@ -52,7 +55,7 @@ export function SetupShell({ children }: { children: React.ReactNode }) {
         <button
           onClick={sair}
           disabled={saindo}
-          className="ml-auto rounded-full px-3 py-1.5 text-sm text-ink-2 hover:bg-sunk hover:text-ink disabled:opacity-50"
+          className="ml-auto rounded-lg px-3 py-1.5 text-sm font-medium text-ink-2 hover:bg-sunk hover:text-ink disabled:opacity-50"
         >
           {saindo ? 'Saindo…' : 'Sair'}
         </button>

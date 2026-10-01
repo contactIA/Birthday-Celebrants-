@@ -30,7 +30,7 @@ export function EtapasDaFila({
   const atual = fila ? ETAPAS.findIndex((e) => e.valor === fila.etapa) : 0
 
   return (
-    <div className="rounded-[18px] border border-line bg-surface/90 p-5 shadow-[0_18px_40px_-28px_rgb(83_37_196/0.5)] backdrop-blur">
+    <div className="rounded-[18px] border border-line bg-surface/90 p-5 shadow-[0_18px_40px_-28px_rgb(74_14_138/0.45)] backdrop-blur">
       <ol className="grid grid-cols-3 gap-2">
         {ETAPAS.map((e, i) => {
           // "Pedido recebido" já é etapa cumprida; o pulso fica em "Em análise"

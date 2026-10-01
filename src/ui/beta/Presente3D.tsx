@@ -27,7 +27,7 @@ const CONFETE = Array.from({ length: PEDACOS }, (_, i) => {
     w: redondo ? '8px' : '7px',
     h: redondo ? '8px' : '13px',
     raio: redondo ? '50%' : '2px',
-    cor: ['var(--color-vela)', 'var(--color-accent)', '#ff8fb1', '#34c38f', '#8a5cf0'][i % 5],
+    cor: ['var(--color-vela)', 'var(--color-accent)', '#ff8fb1', '#34c38f', '#e8341a'][i % 5],
   }
 })
 

@@ -307,7 +307,7 @@ export function Historico() {
                 key={item.id}
                 onClick={aoClicarNaLinha(item.podeCancelar, () => alternar(item.id))}
                 className={clsx(
-                  'rounded-[12px] border border-line px-4 py-3',
+                  'rounded-[14px] border border-line-soft px-4 py-3',
                   item.podeCancelar && 'cursor-pointer',
                   selecionados.has(item.id) ? 'bg-accent-soft/60' : 'bg-surface'
                 )}
@@ -329,7 +329,7 @@ export function Historico() {
             ))}
           </ul>
 
-          <div className="hidden overflow-hidden rounded-[12px] border border-line bg-surface md:block">
+          <div className="entrar hidden overflow-hidden rounded-[14px] border border-line-soft bg-surface md:block">
             <table className="w-full table-fixed text-sm">
               <colgroup>
                 <col className="w-12" />
@@ -471,7 +471,7 @@ function BotaoDePagina({
       onClick={aoClicar}
       disabled={desabilitado}
       aria-label={rotulo}
-      className="grid h-8 w-8 place-items-center rounded-full text-lg leading-none text-ink-2 transition-colors hover:bg-sunk hover:text-ink disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+      className="grid h-8 w-8 place-items-center rounded-lg text-lg leading-none text-ink-2 transition-colors hover:bg-sunk hover:text-ink disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
     >
       {children}
     </button>
@@ -480,7 +480,7 @@ function BotaoDePagina({
 
 function EsqueletoDaTabela() {
   return (
-    <div aria-label="Carregando histórico" className="flex flex-col gap-px overflow-hidden rounded-[12px] border border-line bg-line-soft">
+    <div aria-label="Carregando histórico" className="flex flex-col gap-px overflow-hidden rounded-[14px] border border-line-soft bg-line-soft">
       {Array.from({ length: 5 }, (_, i) => (
         <div key={i} className="flex items-center gap-3 bg-surface px-4 py-4">
           <span className="h-9 w-9 animate-pulse rounded-full bg-sunk" />

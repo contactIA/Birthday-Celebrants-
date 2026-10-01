@@ -113,7 +113,7 @@ export function PreviaNoCelular({ nomeClinica, modelo }: { nomeClinica: string; 
       <figure
         ref={moldura}
         aria-label="Prévia da mensagem no celular do paciente"
-        className="celular-gira relative rounded-[46px] bg-[#16121f] p-[9px] shadow-[0_40px_70px_-24px_rgb(83_37_196/0.5),inset_0_0_0_1.5px_rgb(255_255_255/0.08)]"
+        className="celular-gira relative rounded-[46px] bg-[#16121f] p-[9px] shadow-[0_40px_70px_-24px_rgb(74_14_138/0.45),inset_0_0_0_1.5px_rgb(255_255_255/0.08)]"
       >
         {/* Botões laterais: detalhe pequeno que faz o aparelho parecer aparelho. */}
         <span aria-hidden className="absolute top-[110px] -left-[3px] h-9 w-[3px] rounded-l bg-[#2a2436]" />
