@@ -4,8 +4,8 @@ import clsx from 'clsx'
 // tem formulário de texto livre, e promover isto a primitivo seria prematuro.
 
 const ESTILO_BASE =
-  'h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted ' +
-  'focus:border-accent focus:outline-none disabled:bg-sunk disabled:text-ink-2'
+  'h-10 w-full rounded-[10px] border border-line bg-field px-3 text-sm text-ink transition-[border-color,box-shadow] placeholder:text-muted ' +
+  'focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none disabled:bg-sunk disabled:text-ink-2'
 
 // `read-only:` só nos inputs: para o navegador todo <select> casa com
 // `:read-only`, e os campos de escolha ficariam todos cinza.
@@ -21,9 +21,9 @@ export function Secao({
   children: React.ReactNode
 }) {
   return (
-    <section className="overflow-hidden rounded-[12px] border border-line bg-surface">
+    <section className="overflow-hidden rounded-[14px] border border-line-soft bg-surface">
       <header className="border-b border-line-soft px-5 py-3.5">
-        <h2 className="text-[15px] font-semibold text-ink">{titulo}</h2>
+        <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ink">{titulo}</h2>
         {descricao && <p className="mt-0.5 text-[13px] leading-relaxed text-muted">{descricao}</p>}
       </header>
       <div className="flex flex-col gap-4 px-5 py-5">{children}</div>

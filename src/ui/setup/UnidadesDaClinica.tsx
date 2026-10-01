@@ -71,14 +71,14 @@ export function UnidadesDaClinica({
     >
       <ul className="flex flex-col gap-3">
         {clinica.unidades.map((u) => (
-          <li key={u.id} className="rounded-lg border border-line-soft">
+          <li key={u.id} className="rounded-[10px] border border-line-soft">
             <Unidade clinicaId={clinica.id} unidade={u} aoMudar={aoMudar} />
           </li>
         ))}
       </ul>
 
       {adicionando ? (
-        <div className="rounded-lg border border-line-soft">
+        <div className="rounded-[10px] border border-line-soft">
           <NovaUnidade
             clinicaId={clinica.id}
             aoCriar={(c) => {

@@ -91,10 +91,14 @@ function Cabecalho({ estado }: { estado: EstadoDaClinica }) {
   const caminho = usePathname()
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-6 border-b border-line bg-surface px-6">
-      <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">Aniversariantes</span>
+    <header className="flex h-16 shrink-0 items-center gap-4 border-b border-line bg-surface px-4 sm:px-6">
+      <span className="hidden text-[15px] font-semibold tracking-[-0.01em] text-ink md:block">Aniversariantes</span>
 
-      <nav className="flex items-center gap-1" aria-label="Seções">
+      {/* A navegação em segmentos do CRM: o ativo vira um botão branco sobre o fundo. */}
+      <nav
+        className="flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-[10px] bg-ground p-[3px]"
+        aria-label="Seções"
+      >
         {NAVEGACAO.map(({ href, rotulo }) => {
           const ativo = caminho === href
           // `?clinica=` em todo link interno: a URL de cada tela carrega a
@@ -109,10 +113,10 @@ function Cabecalho({ estado }: { estado: EstadoDaClinica }) {
               href={destino}
               aria-current={ativo ? 'page' : undefined}
               className={clsx(
-                'rounded-full px-3 py-1.5 text-sm transition-colors',
+                'rounded-lg px-3 py-[7px] text-sm font-medium whitespace-nowrap transition-colors sm:px-3.5',
                 ativo
-                  ? 'bg-accent-soft font-medium text-accent-ink'
-                  : 'text-ink-2 hover:bg-sunk hover:text-ink'
+                  ? 'bg-surface text-accent-ink shadow-[0_1px_2px_rgb(16_24_40/0.08)]'
+                  : 'text-ink-2 hover:text-ink'
               )}
             >
               {rotulo}
@@ -165,7 +169,7 @@ function SeletorDeUnidade({ clinica }: { clinica: Clinica }) {
         disabled={trocando}
         onChange={(e) => trocar(e.target.value)}
         aria-invalid={erro || undefined}
-        className="h-9 max-w-48 rounded-lg border border-line bg-surface px-2 text-sm text-ink disabled:opacity-60"
+        className="h-9 max-w-48 rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none disabled:opacity-60"
       >
         {clinica.unidades.map((u) => (
           <option key={u.id} value={u.id}>

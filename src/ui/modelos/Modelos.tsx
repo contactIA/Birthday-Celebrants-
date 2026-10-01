@@ -159,7 +159,7 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
   )
 
   return (
-    <section className="overflow-hidden rounded-[12px] border border-line bg-surface">
+    <section className="entrar overflow-hidden rounded-[14px] border border-line-soft bg-surface">
       <header className="flex items-center gap-2.5 border-b border-line-soft px-5 py-3">
         <h2 className="text-sm font-semibold text-ink">{modelo.nome}</h2>
         {modelo.config?.ehPadrao && (
@@ -193,7 +193,7 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
                   value={parametros[p] ?? ''}
                   onChange={(e) => setParametros((m) => ({ ...m, [p]: e.target.value }))}
                   className={clsx(
-                    'h-9 min-w-0 flex-1 rounded-lg border bg-surface px-2.5 text-sm focus:outline-none',
+                    'h-9 min-w-0 flex-1 rounded-[10px] border bg-field px-2.5 text-sm focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none',
                     parametros[p] ? 'border-line text-ink' : 'border-atencao/50 text-muted'
                   )}
                 >
@@ -217,7 +217,7 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
             <select
               value={diaEnvio}
               onChange={(e) => setDiaEnvio(e.target.value)}
-              className="h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-ink focus:outline-none"
+              className="h-9 rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
             >
               <option value="aniversario">no dia do aniversário</option>
               <option value="1_dia_antes">um dia antes</option>
@@ -231,7 +231,7 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
               type="time"
               value={horario}
               onChange={(e) => setHorario(e.target.value)}
-              className="tnum h-9 rounded-lg border border-line bg-surface px-2.5 text-sm text-ink focus:outline-none"
+              className="tnum h-9 rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
             />
           </label>
 

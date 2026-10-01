@@ -279,7 +279,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                 <button
                   onClick={irParaFormulario}
                   disabled={etapa.tipo === 'carregando'}
-                  className="beta-surge mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 text-[15px] font-semibold text-white shadow-[0_12px_30px_-12px_var(--color-accent)] transition hover:-translate-y-0.5 hover:bg-accent-ink"
+                  className="botao-marca beta-surge mt-7 inline-flex h-12 items-center gap-2 rounded-[12px] px-6 text-[15px] font-semibold transition hover:-translate-y-0.5"
                   style={{ '--atraso': '240ms' } as React.CSSProperties}
                 >
                   Quero participar do beta <span aria-hidden>→</span>
@@ -477,7 +477,7 @@ export function PaginaBeta({ previa = false }: { previa?: boolean } = {}) {
                 <button
                   type="submit"
                   disabled={enviando || !sistema}
-                  className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-6 text-[15px] font-semibold text-white shadow-[0_12px_30px_-12px_var(--color-accent)] transition hover:bg-accent-ink disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none sm:w-auto"
+                  className="botao-marca mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[12px] px-6 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none sm:w-auto"
                 >
                   {enviando ? 'Enviando…' : 'Quero minha vaga no beta'}
                 </button>
@@ -542,7 +542,7 @@ function ErroAoVerificar({ onTentarDeNovo }: { onTentarDeNovo: () => void }) {
       </p>
       <button
         onClick={onTentarDeNovo}
-        className="mt-4 inline-flex h-10 items-center rounded-full bg-accent px-5 text-sm font-semibold text-white hover:bg-accent-ink"
+        className="botao-marca mt-4 inline-flex h-10 items-center rounded-[10px] px-4 text-sm font-semibold"
       >
         Tentar de novo
       </button>

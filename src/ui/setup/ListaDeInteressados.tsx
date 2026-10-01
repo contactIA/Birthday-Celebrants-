@@ -60,7 +60,7 @@ export function ListaDeInteressados() {
         </div>
         <Link
           href="/setup/previa-beta"
-          className="inline-flex h-9 items-center rounded-full border border-line bg-surface px-4 text-sm font-medium text-ink-2 hover:bg-sunk"
+          className="inline-flex h-9 items-center rounded-[10px] border border-line bg-surface px-4 text-sm font-medium text-ink-2 hover:border-line-strong hover:bg-[#f9fafb]"
         >
           Ver a página de beta
         </Link>
@@ -108,7 +108,7 @@ function Cartao({
 }) {
   const cadastrar = `/setup/clinicas/nova?${new URLSearchParams({ companyId: i.companyId, nome: i.nomeClinica })}`
   return (
-    <li className="rounded-[12px] border border-line bg-surface px-5 py-4">
+    <li className="rounded-[14px] border border-line-soft bg-surface px-5 py-4">
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-ink">{i.nomeClinica}</p>
@@ -130,7 +130,7 @@ function Cartao({
           ) : i.sistemaProntuario !== 'outro' ? (
             <Link
               href={cadastrar}
-              className="inline-flex h-8 items-center rounded-full bg-accent px-3.5 text-[13px] font-medium text-white hover:bg-accent-ink"
+              className="botao-marca inline-flex h-8 items-center rounded-lg px-3 text-[13px] font-medium"
             >
               Cadastrar esta clínica
             </Link>
@@ -188,7 +188,7 @@ function EtapaNaFila({
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted">
       <span>Etapa que a clínica vê:</span>
-      <div role="radiogroup" aria-label="Etapa na fila" className="inline-flex rounded-full border border-line bg-sunk p-0.5">
+      <div role="radiogroup" aria-label="Etapa na fila" className="inline-flex gap-0.5 rounded-[10px] bg-sunk-2 p-[3px]">
         {ETAPAS.map((e) => (
           <button
             key={e.valor}
@@ -199,8 +199,8 @@ function EtapaNaFila({
             onClick={() => mudar(e.valor)}
             className={
               i.status === e.valor
-                ? 'rounded-full bg-surface px-3 py-1 font-medium text-ink shadow-sm'
-                : 'rounded-full px-3 py-1 text-ink-2 hover:text-ink disabled:opacity-50'
+                ? 'rounded-lg bg-surface px-2.5 py-1 font-medium text-accent-ink shadow-[0_1px_2px_rgb(16_24_40/0.1),0_0_0_1px_rgb(16_24_40/0.03)]'
+                : 'rounded-lg px-2.5 py-1 font-medium text-ink-2 hover:text-ink disabled:opacity-50'
             }
           >
             {e.rotulo}

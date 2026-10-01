@@ -5,7 +5,7 @@ import clsx from 'clsx'
 // atualizar. Um lugar só, para as duas telas não divergirem aos poucos.
 
 export const ESTILO_CONTROLE =
-  'h-10 appearance-none rounded-[10px] border border-line bg-surface text-sm text-ink placeholder:text-muted focus:border-accent focus:ring-4 focus:ring-accent/10 focus:outline-none'
+  'h-10 appearance-none rounded-[10px] border border-line bg-field text-sm text-ink transition-[border-color,box-shadow] placeholder:text-muted focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none'
 
 /**
  * Primeira letra do primeiro e do último nome. Só LETRAS contam: nomes da
@@ -82,7 +82,7 @@ export function BotaoAtualizar({ aoClicar, girando }: { aoClicar: () => void; gi
       onClick={aoClicar}
       aria-label="Atualizar"
       title="Atualizar"
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface text-ink-2 transition-colors hover:bg-sunk hover:text-ink"
+      className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border border-line bg-surface text-ink-2 transition-colors hover:border-line-strong hover:bg-[#f9fafb] hover:text-ink"
     >
       <svg
         aria-hidden

@@ -2,7 +2,8 @@ import clsx from 'clsx'
 
 // Primitivos da interface. Poucos e pequenos de propósito: o painel tem três
 // telas, e uma biblioteca de componentes aqui seria mais código para manter que
-// para reusar.
+// para reusar. O desenho é o do CRM: o botão principal é o degradê da marca, o
+// secundário é branco com borda clara, e todos têm o canto de 10px.
 
 export function Botao({
   variante = 'primario',
@@ -17,15 +18,14 @@ export function Botao({
     <button
       {...props}
       className={clsx(
-        'inline-flex items-center justify-center gap-2 rounded-full font-medium transition-colors',
+        'inline-flex cursor-pointer items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors',
         'disabled:cursor-not-allowed disabled:opacity-45',
-        tamanho === 'sm' ? 'h-8 px-3.5 text-[13px]' : 'h-10 px-5 text-sm',
-        variante === 'primario' &&
-          'bg-accent text-white hover:bg-accent-ink disabled:hover:bg-accent',
+        tamanho === 'sm' ? 'h-8 rounded-lg px-3 text-[13px]' : 'h-10 rounded-[10px] px-4 text-sm',
+        variante === 'primario' && 'botao-marca',
         variante === 'secundario' &&
-          'border border-line bg-surface text-ink-2 hover:bg-sunk disabled:hover:bg-surface',
+          'border border-line bg-surface text-ink-2 hover:border-line-strong hover:bg-[#f9fafb] disabled:hover:bg-surface',
         variante === 'discreto' &&
-          'bg-accent-soft text-accent-ink hover:brightness-96 disabled:hover:brightness-100',
+          'bg-accent-soft text-accent-ink hover:bg-[#eddff8] disabled:hover:bg-accent-soft',
         className
       )}
     />
@@ -93,7 +93,7 @@ export function Aviso({
       {acao && (
         <button
           onClick={acao.aoClicar}
-          className="shrink-0 rounded-full border border-current/25 px-3 py-1 text-xs font-medium hover:bg-black/5"
+          className="shrink-0 rounded-lg border border-current/25 px-3 py-1 text-xs font-medium hover:bg-black/5"
         >
           {acao.rotulo}
         </button>
@@ -113,7 +113,7 @@ export function Vazio({
   acao?: { rotulo: string; aoClicar: () => void }
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-[12px] border border-dashed border-line bg-surface px-6 py-14 text-center">
+    <div className="entrar flex flex-col items-center gap-2 rounded-[14px] border border-dashed border-line bg-surface px-6 py-14 text-center">
       <p className="text-[15px] font-semibold text-ink">{titulo}</p>
       {children && <p className="max-w-sm text-sm leading-relaxed text-muted">{children}</p>}
       {acao && (
@@ -144,7 +144,7 @@ export function EsqueletoDeLinha() {
       <div className="h-4 w-4 animate-pulse rounded bg-sunk" />
       <div className="h-4 w-44 animate-pulse rounded bg-sunk" />
       <div className="h-4 w-28 animate-pulse rounded bg-sunk" />
-      <div className="ml-auto h-8 w-24 animate-pulse rounded-full bg-sunk" />
+      <div className="ml-auto h-8 w-24 animate-pulse rounded-lg bg-sunk" />
     </div>
   )
 }

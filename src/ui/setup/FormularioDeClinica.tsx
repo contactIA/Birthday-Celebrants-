@@ -538,7 +538,7 @@ export function ResultadoDoTesteDeConexao({ teste }: { teste: ResultadoDaConexao
     { rotulo: 'Plataforma de mensagens', ...teste.mensageria },
   ]
   return (
-    <section aria-live="polite" className="rounded-[12px] border border-line bg-surface px-5 py-4">
+    <section aria-live="polite" className="rounded-[14px] border border-line-soft bg-surface px-5 py-4">
       <h2 className="text-[15px] font-semibold text-ink">Teste de conexão</h2>
       <p className="mt-0.5 text-[13px] text-muted">Com os valores do formulário. Nada foi salvo.</p>
       <ul className="mt-3 flex flex-col gap-2.5">
@@ -631,7 +631,7 @@ function LinkDoPainel({ id }: { id: string }) {
               readOnly
               value={link.url}
               onFocus={(e) => e.target.select()}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-sunk px-3 font-mono text-xs text-ink-2"
+              className="h-10 min-w-0 flex-1 rounded-[10px] border border-line bg-sunk px-3 font-mono text-xs text-ink-2"
             />
             <Botao type="button" variante="secundario" onClick={copiar}>
               {copiado ? 'Copiado' : 'Copiar'}

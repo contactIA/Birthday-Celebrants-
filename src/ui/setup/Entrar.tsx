@@ -47,7 +47,7 @@ export function Entrar() {
     <div className="flex min-h-screen items-center justify-center px-6 py-16">
       <form
         onSubmit={entrar}
-        className="w-full max-w-sm rounded-[12px] border border-line bg-surface px-8 py-9"
+        className="entrar w-full max-w-sm rounded-[14px] border border-line-soft bg-surface px-8 py-9 shadow-sm"
       >
         <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
           Setup
@@ -66,7 +66,7 @@ export function Entrar() {
             required
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className="h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink focus:border-accent focus:outline-none"
+            className="h-10 w-full rounded-[10px] border border-line bg-field px-3 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
           />
         </label>
 

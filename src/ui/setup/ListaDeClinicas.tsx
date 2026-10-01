@@ -32,7 +32,7 @@ export function ListaDeClinicas() {
         </div>
         <Link
           href="/setup/clinicas/nova"
-          className="inline-flex h-10 items-center rounded-full bg-accent px-5 text-sm font-medium text-white hover:bg-accent-ink"
+          className="botao-marca inline-flex h-10 items-center rounded-[10px] px-4 text-sm font-medium"
         >
           Nova clínica
         </Link>
@@ -48,7 +48,7 @@ export function ListaDeClinicas() {
       )}
 
       {clinicas && clinicas.length > 0 && (
-        <ul className="overflow-hidden rounded-[12px] border border-line bg-surface">
+        <ul className="entrar overflow-hidden rounded-[14px] border border-line-soft bg-surface">
           {clinicas.map((c) => (
             <li key={c.id} className="border-b border-line-soft last:border-b-0">
               <Link
