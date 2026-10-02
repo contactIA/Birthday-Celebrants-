@@ -36,6 +36,7 @@ export interface EntradaDeClinica {
   mensageriaToken?: string
   mensageriaFrom?: string
   mensageriaChannelId?: string
+  mensageriaEquipeId?: string
   mensageriaCampoNascimento?: string
 }
 
@@ -53,6 +54,7 @@ const CAMPOS: (keyof EntradaDeClinica)[] = [
   'mensageriaToken',
   'mensageriaFrom',
   'mensageriaChannelId',
+  'mensageriaEquipeId',
   'mensageriaCampoNascimento',
 ]
 
@@ -127,6 +129,16 @@ function campoNascimento(novo: string | undefined, atual: string | null): string
 }
 
 /**
+ * O id da equipe que agenda. Vem da gaveta de canais, alimentada pela própria
+ * plataforma, então só se confere o formato: um UUID.
+ */
+function equipe(novo: string | undefined, atual: string | null): string | null {
+  const valor = aberto(novo, atual)
+  if (valor !== null && !UUID.test(valor)) throw new CadastroInvalidoError('Equipe da plataforma de mensagens inválida')
+  return valor
+}
+
+/**
  * A clínica resultante: a entrada mesclada sobre a existente (ou sobre nada,
  * no cadastro). Lança `CadastroInvalidoError` com frase para a tela.
  *
@@ -191,6 +203,7 @@ export function montarClinica(entrada: EntradaDeClinica, existente: Clinica | nu
         token: tokenMensageria,
         from: aberto(entrada.mensageriaFrom, antes?.mensageria.from ?? null),
         channelId: aberto(entrada.mensageriaChannelId, antes?.mensageria.channelId ?? null),
+        equipeId: equipe(entrada.mensageriaEquipeId, antes?.mensageria.equipeId ?? null),
         campoNascimento: campoNascimento(entrada.mensageriaCampoNascimento, antes?.mensageria.campoNascimento ?? null),
       },
     },
@@ -214,6 +227,7 @@ export interface EntradaDeUnidade {
   clinicorpBaseUrl?: string
   mensageriaFrom?: string
   mensageriaChannelId?: string
+  mensageriaEquipeId?: string
 }
 
 const CAMPOS_DA_UNIDADE: (keyof EntradaDeUnidade)[] = [
@@ -227,6 +241,7 @@ const CAMPOS_DA_UNIDADE: (keyof EntradaDeUnidade)[] = [
   'clinicorpBaseUrl',
   'mensageriaFrom',
   'mensageriaChannelId',
+  'mensageriaEquipeId',
 ]
 
 /** Só string, só os campos conhecidos — o resto do JSON é ignorado. */
@@ -276,6 +291,7 @@ export function montarUnidade(entrada: EntradaDeUnidade, existente: Clinica | nu
     },
     from: aberto(entrada.mensageriaFrom, antes?.mensageria.from ?? null),
     channelId: aberto(entrada.mensageriaChannelId, antes?.mensageria.channelId ?? null),
+    equipeId: equipe(entrada.mensageriaEquipeId, antes?.mensageria.equipeId ?? null),
   }
 }
 
@@ -292,7 +308,12 @@ export function unidadeComoClinica(base: Clinica, dados: DadosDaUnidade, unidade
     credenciais: {
       eclinica: dados.eclinica,
       clinicorp: dados.clinicorp,
-      mensageria: { ...base.credenciais.mensageria, from: dados.from, channelId: dados.channelId },
+      mensageria: {
+        ...base.credenciais.mensageria,
+        from: dados.from,
+        channelId: dados.channelId,
+        equipeId: dados.equipeId,
+      },
     },
   }
 }
@@ -317,6 +338,7 @@ export function camposAlterados(antes: Clinica, depois: Clinica): string[] {
     mensageriaToken: c.credenciais.mensageria.token,
     mensageriaFrom: c.credenciais.mensageria.from,
     mensageriaChannelId: c.credenciais.mensageria.channelId,
+    mensageriaEquipeId: c.credenciais.mensageria.equipeId,
     mensageriaCampoNascimento: c.credenciais.mensageria.campoNascimento,
   })
   const a = achatar(antes)

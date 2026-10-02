@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Aviso, Botao } from '@/ui/primitivos'
 import { chamarApi, NOME_DO_SISTEMA, type ClinicaNoSetup, type UnidadeNoSetup } from './api'
 import { Campo, CampoSecreto, Escolha, Secao } from './campos'
+import { EscolhaDeCanal } from './EscolhaDeCanal'
 import { ResultadoDoTesteDeConexao, Sincronizacao, type ResultadoDaConexao } from './FormularioDeClinica'
 
 // As unidades de uma clínica na área de setup.
@@ -26,6 +27,7 @@ interface FormularioDaUnidade {
   clinicorpBaseUrl: string
   mensageriaFrom: string
   mensageriaChannelId: string
+  mensageriaEquipeId: string
 }
 
 const EM_BRANCO: FormularioDaUnidade = {
@@ -39,6 +41,7 @@ const EM_BRANCO: FormularioDaUnidade = {
   clinicorpBaseUrl: '',
   mensageriaFrom: '',
   mensageriaChannelId: '',
+  mensageriaEquipeId: '',
 }
 
 function doSalvo(u: UnidadeNoSetup): FormularioDaUnidade {
@@ -52,6 +55,7 @@ function doSalvo(u: UnidadeNoSetup): FormularioDaUnidade {
     clinicorpBaseUrl: u.clinicorp.baseUrl,
     mensageriaFrom: u.mensageria.from ?? '',
     mensageriaChannelId: u.mensageria.channelId ?? '',
+    mensageriaEquipeId: u.mensageria.equipeId ?? '',
   }
 }
 
@@ -311,22 +315,17 @@ function FormularioDeUnidade({
             />
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Campo
-              rotulo="Número remetente (opcional)"
-              inputMode="tel"
-              placeholder="5545999990000"
-              value={form.mensageriaFrom}
-              onChange={(e) => mudar('mensageriaFrom', e.target.value)}
-              dica="Sem número, vale o canal da conta — que não é o da clínica principal."
-            />
-            <Campo
-              rotulo="Channel ID (opcional)"
-              spellCheck={false}
-              value={form.mensageriaChannelId}
-              onChange={(e) => mudar('mensageriaChannelId', e.target.value)}
-            />
-          </div>
+          <EscolhaDeCanal
+            clinicaId={clinicaId}
+            tokenDigitado=""
+            valor={{ from: form.mensageriaFrom, channelId: form.mensageriaChannelId, equipeId: form.mensageriaEquipeId }}
+            aoMudar={(v) => {
+              mudar('mensageriaFrom', v.from)
+              mudar('mensageriaChannelId', v.channelId)
+              mudar('mensageriaEquipeId', v.equipeId)
+            }}
+            semCanal="Nenhum canal escolhido: vale o canal da conta — que não é o da clínica principal."
+          />
         </>
       )}
 

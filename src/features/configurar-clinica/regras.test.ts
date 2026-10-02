@@ -13,7 +13,8 @@ import {
   unidadeComoClinica,
   type EntradaDeClinica,
 } from './regras'
-import { conferirRemetente, testarConexao } from './conexao'
+import { conferirRemetente, testarConexao, type ContaDeMensagens } from './conexao'
+import type { CanalDaConta, EquipeDaConta } from '@/providers/mensageria'
 
 const COMPANY = '7b1a1c2e-3d4f-4a5b-8c6d-0e1f2a3b4c5d'
 
@@ -183,31 +184,107 @@ describe('testarConexao', () => {
 })
 
 describe('conferirRemetente', () => {
-  const CANAL = '556231930175' // como listarRemetentes devolve
+  const NUMERO = '556231930175' // como a listagem de canais devolve
+  const canal = (id: string, numero: string, ativo = true): CanalDaConta => ({ id, numero, nome: `Canal ${id}`, ativo })
+  const equipe = (id: string, canais: EquipeDaConta['canais'], padrao = false): EquipeDaConta => ({
+    id,
+    nome: `Equipe ${id}`,
+    padrao,
+    canais,
+  })
+  const conta = (canais: CanalDaConta[], equipes: EquipeDaConta[] = []): ContaDeMensagens => ({ canais, equipes })
+  const UM = conta([canal('c1', NUMERO)])
 
   it('aceita o mesmo número escrito de outro jeito', () => {
-    expect(conferirRemetente('(62) 3193-0175', [CANAL])).toMatchObject({ ok: true })
-    expect(conferirRemetente('556231930175', [CANAL])).toMatchObject({ ok: true })
+    expect(conferirRemetente('(62) 3193-0175', null, UM)).toMatchObject({ ok: true })
+    expect(conferirRemetente('556231930175', null, UM)).toMatchObject({ ok: true })
   })
 
   it('recusa número que não é canal — e lista os disponíveis', () => {
     // O caso real: o 9 a mais num número fixo.
-    const r = conferirRemetente('5562931930175', [CANAL])
+    const r = conferirRemetente('5562931930175', null, UM)
     expect(r.ok).toBe(false)
     expect(r.mensagem).toMatch(/não é um canal desta conta/)
     expect(r.mensagem).toMatch(/\(62\) 3193-0175/)
   })
 
+  it('canal inativo não conta', () => {
+    expect(conferirRemetente(NUMERO, null, conta([canal('c1', NUMERO, false)]))).toMatchObject({ ok: false })
+  })
+
   it('remetente vazio com um canal só: usa o da conta', () => {
-    expect(conferirRemetente('', [CANAL])).toMatchObject({ ok: true, mensagem: expect.stringMatching(/canal da conta/) })
+    expect(conferirRemetente('', null, UM)).toMatchObject({ ok: true, mensagem: expect.stringMatching(/canal da conta/) })
   })
 
   it('remetente vazio com vários canais: avisa que falta escolher', () => {
-    expect(conferirRemetente(null, [CANAL, '5562999990000']).mensagem).toMatch(/defina qual usar/)
+    expect(conferirRemetente(null, null, conta([canal('c1', NUMERO), canal('c2', '5562999990000')])).mensagem).toMatch(
+      /defina qual usar/
+    )
   })
 
   it('conta sem canal ativo falha', () => {
-    expect(conferirRemetente(null, [])).toMatchObject({ ok: false })
+    expect(conferirRemetente(null, null, conta([]))).toMatchObject({ ok: false })
+  })
+
+  describe('a equipe que agenda', () => {
+    it('sem equipe escolhida, a padrão que NÃO atende o canal derruba o teste', () => {
+      // O caso real: "Esse canal não esta associado a esse departamento" em todo
+      // agendamento, mostrado como "recurso desativado".
+      const r = conferirRemetente(NUMERO, null, conta([canal('c1', NUMERO)], [equipe('e1', ['outro'], true)]))
+      expect(r.ok).toBe(false)
+      expect(r.mensagem).toMatch(/equipe padrão da conta \(Equipe e1\) não atende/)
+    })
+
+    it('sem equipe escolhida, a padrão que atende passa e aparece na frase', () => {
+      const r = conferirRemetente(NUMERO, null, conta([canal('c1', NUMERO)], [equipe('e1', 'todos', true)]))
+      expect(r).toEqual({ ok: true, mensagem: expect.stringMatching(/equipe padrão \(Equipe e1\)/) })
+    })
+
+    it('equipe escolhida que atende o canal passa', () => {
+      const r = conferirRemetente(NUMERO, 'e2', conta([canal('c1', NUMERO)], [equipe('e1', [], true), equipe('e2', ['c1'])]))
+      expect(r).toEqual({ ok: true, mensagem: expect.stringMatching(/equipe Equipe e2/) })
+    })
+
+    it('equipe escolhida que deixou de atender o canal falha', () => {
+      const r = conferirRemetente(NUMERO, 'e2', conta([canal('c1', NUMERO)], [equipe('e2', ['c9'])]))
+      expect(r).toMatchObject({ ok: false, mensagem: expect.stringMatching(/não atende o remetente/) })
+    })
+
+    it('equipe escolhida que sumiu da conta falha', () => {
+      const r = conferirRemetente(NUMERO, 'e9', conta([canal('c1', NUMERO)], [equipe('e1', 'todos', true)]))
+      expect(r).toMatchObject({ ok: false, mensagem: expect.stringMatching(/não existe mais/) })
+    })
+
+    it('conta sem equipe padrão na lista: não acusa o que não sabe', () => {
+      expect(conferirRemetente(NUMERO, null, conta([canal('c1', NUMERO)], [equipe('e1', [])]))).toMatchObject({ ok: true })
+    })
+  })
+})
+
+describe('equipe que agenda no cadastro', () => {
+  const EQUIPE = '0b7e3c1a-2d4f-4a5b-8c6d-9e1f2a3b4c5d'
+
+  it('guarda o id; em branco limpa; ausente mantém', () => {
+    const c = montarClinica({ ...NOVA, mensageriaEquipeId: EQUIPE }, null)
+    expect(c.credenciais.mensageria.equipeId).toBe(EQUIPE)
+    expect(montarClinica({ mensageriaEquipeId: '' }, c).credenciais.mensageria.equipeId).toBeNull()
+    expect(montarClinica({}, c).credenciais.mensageria.equipeId).toBe(EQUIPE)
+  })
+
+  it('recusa o que não é id de equipe', () => {
+    expect(() => montarClinica({ ...NOVA, mensageriaEquipeId: 'Recepção' }, null)).toThrow(/Equipe/)
+  })
+
+  it('aparece no log de campos alterados', () => {
+    const antes = montarClinica(NOVA, null)
+    const depois = montarClinica({ mensageriaEquipeId: EQUIPE }, antes)
+    expect(camposAlterados(antes, depois)).toEqual(['mensageriaEquipeId'])
+  })
+
+  it('a unidade tem a própria', () => {
+    expect(montarUnidade({ nome: 'Filial', sistemaProntuario: 'eclinica', eclinicaToken: 't', mensageriaEquipeId: EQUIPE }, null).equipeId).toBe(
+      EQUIPE
+    )
   })
 })
 
@@ -246,6 +323,7 @@ describe('unidades adicionais', () => {
       eclinica: { token: 'tk-filial', baseUrl: BASE_URL_ECLINICA },
       from: '5545888880000',
       channelId: null,
+      equipeId: null,
     })
   })
 

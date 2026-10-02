@@ -15,6 +15,8 @@ export interface CredenciaisDaUnidade {
   /** Número remetente e canal na plataforma de mensagens. */
   from: string | null
   channelId: string | null
+  /** A equipe que agenda pelo remetente. `null` = a padrão da conta. */
+  equipeId: string | null
 }
 
 /**
@@ -41,6 +43,7 @@ export function credenciaisDaUnidade(clinica: ClinicaRow, unidade: UnidadeRow): 
       },
       from: clinica.helena_from,
       channelId: clinica.helena_channel_id,
+      equipeId: clinica.helena_department_id,
     }
   }
 
@@ -59,6 +62,7 @@ export function credenciaisDaUnidade(clinica: ClinicaRow, unidade: UnidadeRow): 
     },
     from: unidade.helena_from,
     channelId: unidade.helena_channel_id,
+    equipeId: unidade.helena_department_id,
   }
 }
 

@@ -11,6 +11,7 @@ const clinica: ClinicaRow = {
   helena_token: 'tk',
   helena_channel_id: 'canal-matriz',
   helena_from: '5545999990000',
+  helena_department_id: 'equipe-matriz',
   helena_campo_nascimento: null,
   timezone: 'America/Sao_Paulo',
   created_at: '2026-01-01',
@@ -35,6 +36,7 @@ const base: UnidadeRow = {
   clinicorp_base_url: null,
   helena_from: null,
   helena_channel_id: null,
+  helena_department_id: null,
   created_at: '2026-01-01',
 }
 
@@ -45,6 +47,7 @@ describe('credenciaisDaUnidade', () => {
     expect(c.clinicorp.subscriberId).toBe('sub-matriz')
     expect(c.from).toBe('5545999990000')
     expect(c.channelId).toBe('canal-matriz')
+    expect(c.equipeId).toBe('equipe-matriz')
   })
 
   it('a principal ignora credencial gravada na própria unidade', () => {
@@ -58,11 +61,13 @@ describe('credenciaisDaUnidade', () => {
       sistema_prontuario: 'eclinica',
       eclinica_token: 'tk-filial',
       helena_from: '5545888880000',
+      helena_department_id: 'equipe-filial',
     })
     expect(c.sistemaProntuario).toBe('eclinica')
     expect(c.eclinica.token).toBe('tk-filial')
     expect(c.clinicorp.subscriberId).toBeNull()
     expect(c.from).toBe('5545888880000')
+    expect(c.equipeId).toBe('equipe-filial')
   })
 
   it('a adicional sem remetente NÃO herda o número da clínica', () => {
@@ -75,6 +80,8 @@ describe('credenciaisDaUnidade', () => {
     })
     expect(c.from).toBeNull()
     expect(c.channelId).toBeNull()
+    // A equipe anda com o remetente: a da clínica não serve ao número da filial.
+    expect(c.equipeId).toBeNull()
   })
 
   it('a URL da API em branco cai na da clínica', () => {

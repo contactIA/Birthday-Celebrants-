@@ -85,6 +85,31 @@ export interface MensagemNaPlataforma {
   status: StatusEnvio
 }
 
+/** Um canal de WhatsApp da conta. */
+export interface CanalDaConta {
+  /** Id do canal na plataforma. */
+  id: string
+  /** Dígitos com país ("556231930175") — o formato do remetente. */
+  numero: string
+  /** Como a conta chama o canal; o número formatado quando não tem nome. */
+  nome: string
+  ativo: boolean
+}
+
+/**
+ * Uma equipe da conta (a API a chama de "department").
+ *
+ * Todo agendamento pertence a uma equipe, e a equipe só agenda pelos canais que
+ * atende. Sem equipe no pedido, vale a padrão.
+ */
+export interface EquipeDaConta {
+  id: string
+  nome: string
+  padrao: boolean
+  /** Os canais que a equipe atende: todos os da conta, ou só os listados (ids). */
+  canais: 'todos' | string[]
+}
+
 export interface ProvedorDeMensageria {
   listarModelos(): Promise<ListagemDeModelos>
   agendar(pedido: AgendamentoSolicitado): Promise<AgendamentoCriado>
@@ -100,11 +125,14 @@ export interface ProvedorDeMensageria {
   listarAgendadas(janela: { de: string; ate: string }): Promise<MensagemNaPlataforma[]>
 
   /**
-   * Os números de WhatsApp (canais ativos) da conta, como dígitos com país
-   * ("556231930175"). Usado pelo teste de conexão da área de setup para
-   * conferir o "número remetente" antes de alguém tentar agendar.
+   * Os canais de WhatsApp da conta, ativos ou não. Alimenta a escolha do canal
+   * na área de setup e o teste de conexão, que confere o remetente antes de
+   * alguém tentar agendar.
    */
-  listarRemetentes(): Promise<string[]>
+  listarCanais(): Promise<CanalDaConta[]>
+
+  /** As equipes da conta, cada uma com os canais que atende. */
+  listarEquipes(): Promise<EquipeDaConta[]>
 
   /**
    * Cria o contato do paciente, ou completa o que estiver vazio num contato
@@ -135,6 +163,27 @@ export class RemetenteNaoEncontradoError extends Error {
         'mensagens. Peça a quem administra a conta para conferir o número remetente.'
     )
     this.name = 'RemetenteNaoEncontradoError'
+  }
+}
+
+/**
+ * A equipe que agenda não atende o número remetente.
+ *
+ * Tipo próprio pelo mesmo motivo do remetente: a plataforma devolve isto como
+ * "não encontrado" (ENTITY_NOT_FOUND), e tratar todo "não encontrado" como
+ * recurso desativado mandou a equipe procurar o problema no lugar errado. O
+ * conserto é de configuração: escolher, no setup, uma equipe que atenda o
+ * canal — ou associar o canal à equipe na plataforma.
+ */
+export class CanalForaDaEquipeError extends Error {
+  readonly status = 502
+  readonly codigo = 'CANAL_FORA_DA_EQUIPE' as const
+  constructor() {
+    super(
+      'O número remetente desta clínica não está associado à equipe que agenda as mensagens na plataforma de ' +
+        'mensagens. Peça a quem administra a conta para conferir o canal e a equipe no cadastro da clínica.'
+    )
+    this.name = 'CanalForaDaEquipeError'
   }
 }
 

@@ -1,5 +1,6 @@
 import type { Clinica } from '@/shared/clinica/repositorio'
 import {
+  CanalForaDaEquipeError,
   MensageriaIndisponivelError,
   MensagemNaoEstaAgendadaError,
   RecursoNaoHabilitadoError,
@@ -8,15 +9,17 @@ import {
   type AgendamentoCriado,
   type AgendamentoSolicitado,
   type CampoDeData,
+  type CanalDaConta,
   type ContatoDoPaciente,
   type ContatoSalvo,
+  type EquipeDaConta,
   type ListagemDeModelos,
   type MensagemNaPlataforma,
   type ModeloDeMensagem,
   type ProvedorDeMensageria,
 } from './porta'
 import type { StatusEnvio } from '@/shared/db'
-import { digitosComPais } from '@/shared/telefone/e164'
+import { digitosComPais, formatarTelefoneBR } from '@/shared/telefone/e164'
 
 // Adapter da plataforma de mensagens atual.
 //
@@ -30,8 +33,13 @@ import { digitosComPais } from '@/shared/telefone/e164'
 //  · Respostas de sucesso nem sempre têm corpo. O cancelamento responde 200
 //    vazio, e `res.json()` direto estourava "Unexpected end of JSON input" — um
 //    cancelamento bem-sucedido virava 500 do nosso lado.
-//  · "App Mensagens agendadas não está habilitado" (ENTITY_NOT_FOUND) é erro de
-//    conta, não de código.
+//  · Os erros vêm como {"key": "ENTITY_NOT_FOUND", "text": "<frase>"}, e a
+//    MESMA chave cobre coisas bem diferentes — só o `text` as separa:
+//      "App Mensagens agendadas não está habilitado" → recurso desligado na conta;
+//      "Esse canal não esta associado a esse departamento." → a equipe que agenda
+//        não atende o remetente (500). Sem equipe no pedido, vale a padrão.
+//    Ler só a chave fez um canal fora da equipe aparecer como "recurso
+//    desativado" — e a equipe foi procurar o problema no lugar errado.
 //  · Cancelar mensagem que já não está agendada devolve ENTITY_ERROR_SAVE.
 //  · Remetente (`from`) que não é canal da conta devolve **500** com
 //    "Canal de comunicação não encontrado (<número>)" — não 4xx. Os canais
@@ -42,6 +50,9 @@ import { digitosComPais } from '@/shared/telefone/e164'
 //    (com ou sem +55, até sem o nono dígito): a plataforma normaliza.
 //  · Campo personalizado de data volta como LISTA: {"data-de-nascimento":
 //    ["2006/03/01"]}.
+//  · Equipes ("department") ficam em `/core/v2/department`, mas os canais de
+//    cada uma só vêm certos em `/core/v1/department/{id}/channel`, que diz o
+//    escopo: ALL (todos os canais da conta), NONE ou SELECTED (os listados).
 //
 // O nome do fornecedor não aparece em nenhuma string que possa chegar à tela.
 
@@ -145,6 +156,82 @@ function normalizarStatus(bruto: unknown): StatusEnvio | null {
   return STATUS_CONHECIDOS.has(minusculo) ? (minusculo as StatusEnvio) : null
 }
 
+/** O que fazer com uma resposta de erro, decidido pelo corpo. */
+export type ErroDaPlataforma =
+  | 'contato-nao-encontrado'
+  | 'remetente-nao-encontrado'
+  | 'canal-fora-da-equipe'
+  | 'recurso-nao-habilitado'
+  | 'mensagem-nao-esta-agendada'
+  | 'nao-encontrado'
+  | 'outro'
+
+function semAcento(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+/**
+ * Classifica o erro pelo `text` da resposta (sem acento, sem caixa: a própria
+ * plataforma escreve "não esta") e, só no fim, pela chave. Corpo que não é JSON
+ * casa pelo texto cru.
+ */
+export function classificarErro(corpo: string): ErroDaPlataforma {
+  let texto = corpo
+  try {
+    const json = JSON.parse(corpo) as { text?: unknown } | null
+    if (typeof json?.text === 'string') texto = json.text
+  } catch {
+    // Não é JSON: segue com o corpo.
+  }
+  const t = semAcento(texto)
+
+  if (t.includes('contato nao encontrado')) return 'contato-nao-encontrado'
+  if (t.includes('canal de comunicacao nao encontrado')) return 'remetente-nao-encontrado'
+  if (/nao esta associado a (esse|este) departamento/.test(t)) return 'canal-fora-da-equipe'
+  if (t.includes('mensagens agendadas') && t.includes('habilitad')) return 'recurso-nao-habilitado'
+  if (corpo.includes('ENTITY_ERROR_SAVE') || t.includes('so e possivel cancelar mensagens que estao agendadas')) {
+    return 'mensagem-nao-esta-agendada'
+  }
+  if (corpo.includes('ENTITY_NOT_FOUND')) return 'nao-encontrado'
+  return 'outro'
+}
+
+interface CanalBruto {
+  id?: unknown
+  active?: unknown
+  number?: unknown
+  name?: unknown
+  identity?: { displayName?: unknown } | null
+}
+
+/**
+ * Os canais de WhatsApp da listagem. Canal sem número (Instagram, Messenger,
+ * WebChat) não serve de remetente e fica de fora.
+ */
+export function paraCanais(lista: CanalBruto[]): CanalDaConta[] {
+  return lista.flatMap((canal) => {
+    const numero = digitosComPais(typeof canal?.number === 'string' ? canal.number : null)
+    if (!numero || typeof canal?.id !== 'string') return []
+    const nome = [canal.identity?.displayName, canal.name].find(
+      (n): n is string => typeof n === 'string' && n.trim() !== ''
+    )
+    return [{ id: canal.id, numero, nome: nome?.trim() ?? formatarTelefoneBR(numero), ativo: canal.active !== false }]
+  })
+}
+
+/** O escopo de canais de uma equipe, como `/department/{id}/channel` devolve. */
+export function canaisDaEquipe(bruto: unknown): 'todos' | string[] {
+  const { scope, channels } = (bruto ?? {}) as { scope?: unknown; channels?: unknown }
+  const escopo = typeof scope === 'string' ? scope.toUpperCase() : ''
+  if (escopo === 'ALL') return 'todos'
+  if (escopo === 'NONE' || !Array.isArray(channels)) return []
+  return channels.flatMap((c: unknown) => {
+    if (typeof c === 'string') return [c]
+    const id = (c as { id?: unknown } | null)?.id
+    return typeof id === 'string' ? [id] : []
+  })
+}
+
 /** A listagem já veio em três formatos diferentes; aceita os três. */
 function extrairLista(dados: unknown): { id?: unknown; status?: unknown }[] {
   if (!dados) return []
@@ -154,8 +241,11 @@ function extrairLista(dados: unknown): { id?: unknown; status?: unknown }[] {
   return Array.isArray(lista) ? lista : []
 }
 
-export function provedorHelena(clinica: Clinica): ProvedorDeMensageria {
-  const { token, from } = clinica.credenciais.mensageria
+/** O que o adapter precisa da clínica: só as credenciais da conta de mensagens. */
+export type CredenciaisDeMensageria = Clinica['credenciais']['mensageria']
+
+export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDeMensageria {
+  const { token, from, equipeId, campoNascimento } = credenciais
 
   function cabecalhos() {
     return {
@@ -192,20 +282,27 @@ export function provedorHelena(clinica: Clinica): ProvedorDeMensageria {
     const corpo = await resposta.text().catch(() => '')
 
     if (!resposta.ok) {
+      const erro = classificarErro(corpo)
       // Antes do log: contato inexistente é o caminho normal de "criar", não erro.
-      if (corpo.includes('Contato não encontrado')) throw new ContatoNaoEncontradoError()
+      if (erro === 'contato-nao-encontrado') throw new ContatoNaoEncontradoError()
       console.error(`[mensageria/${rotulo}] HTTP ${resposta.status}: ${corpo}`)
-      if (corpo.includes('ENTITY_NOT_FOUND')) throw new RecursoNaoHabilitadoError()
-      if (corpo.includes('Canal de comunicação não encontrado')) throw new RemetenteNaoEncontradoError()
-      if (
-        corpo.includes('ENTITY_ERROR_SAVE') ||
-        corpo.toLowerCase().includes('só é possível cancelar mensagens que estão agendadas')
-      ) {
-        throw new MensagemNaoEstaAgendadaError()
+      switch (erro) {
+        case 'remetente-nao-encontrado':
+          throw new RemetenteNaoEncontradoError()
+        case 'canal-fora-da-equipe':
+          throw new CanalForaDaEquipeError()
+        case 'recurso-nao-habilitado':
+          throw new RecursoNaoHabilitadoError()
+        case 'mensagem-nao-esta-agendada':
+          throw new MensagemNaoEstaAgendadaError()
+        case 'nao-encontrado':
+          throw new MensageriaIndisponivelError(
+            'A plataforma de mensagens não encontrou um item que o pedido usa (modelo, canal ou equipe). ' +
+              'Peça a quem administra a conta para conferir o cadastro da clínica.'
+          )
+        default:
+          throw new MensageriaIndisponivelError(`A plataforma de mensagens respondeu ${resposta.status}`)
       }
-      throw new MensageriaIndisponivelError(
-        `A plataforma de mensagens respondeu ${resposta.status}`
-      )
     }
 
     if (!corpo.trim()) return null
@@ -263,6 +360,9 @@ export function provedorHelena(clinica: Clinica): ProvedorDeMensageria {
           body: JSON.stringify({
             to: pedido.para,
             from: from ?? null,
+            // Sem equipe, a plataforma usa a padrão — que pode não atender o
+            // remetente. A escolhida no setup é uma que atende.
+            ...(equipeId ? { department: { id: equipeId } } : {}),
             type: 'TEMPLATE',
             templateId: pedido.modeloId,
             scheduling: pedido.quando,
@@ -309,7 +409,7 @@ export function provedorHelena(clinica: Clinica): ProvedorDeMensageria {
     },
 
     async salvarContato(contato: ContatoDoPaciente): Promise<ContatoSalvo> {
-      const campo = clinica.credenciais.mensageria.campoNascimento
+      const campo = campoNascimento
       const nascimento = campo ? paraCampoDeData(contato.dataNascimento) : null
       const caminho = `/core/v1/contact/phonenumber/${encodeURIComponent(contato.telefone)}`
 
@@ -350,12 +450,29 @@ export function provedorHelena(clinica: Clinica): ProvedorDeMensageria {
         .map((c) => ({ chave: c.key as string, nome: typeof c.name === 'string' ? c.name.trim() : (c.key as string) }))
     },
 
-    async listarRemetentes(): Promise<string[]> {
+    async listarCanais(): Promise<CanalDaConta[]> {
       const dados = await chamar('/chat/v1/channel?PageSize=100', { method: 'GET' }, 'listar-canais')
-      return (extrairLista(dados) as { active?: unknown; number?: unknown }[])
-        .filter((canal) => canal?.active !== false)
-        .map((canal) => digitosComPais(typeof canal?.number === 'string' ? canal.number : null))
-        .filter((numero): numero is string => numero !== null)
+      return paraCanais(extrairLista(dados) as CanalBruto[])
+    },
+
+    async listarEquipes(): Promise<EquipeDaConta[]> {
+      const dados = await chamar('/core/v2/department', { method: 'GET' }, 'listar-equipes')
+      const equipes = (extrairLista(dados) as { id?: unknown; name?: unknown; isDefault?: unknown }[]).filter(
+        (e): e is { id: string; name?: unknown; isDefault?: unknown } => typeof e?.id === 'string'
+      )
+
+      // Uma chamada por equipe: a listagem não diz o escopo ("todos os canais"),
+      // e é ele que decide se a equipe atende um canal. Contas têm poucas equipes.
+      return Promise.all(
+        equipes.map(async (e) => ({
+          id: e.id,
+          nome: typeof e.name === 'string' && e.name.trim() ? e.name.trim() : 'Equipe sem nome',
+          padrao: e.isDefault === true,
+          canais: canaisDaEquipe(
+            await chamar(`/core/v1/department/${encodeURIComponent(e.id)}/channel`, { method: 'GET' }, 'listar-canais-da-equipe')
+          ),
+        }))
+      )
     },
   }
 }

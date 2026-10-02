@@ -27,6 +27,7 @@ export const CONTRATO = {
     'helena_token',
     'helena_channel_id',
     'helena_from',
+    'helena_department_id',
     'helena_campo_nascimento',
     'timezone',
     'created_at',
@@ -50,6 +51,7 @@ export const CONTRATO = {
     'clinicorp_base_url',
     'helena_from',
     'helena_channel_id',
+    'helena_department_id',
     'created_at',
   ],
   aniversariantes_templates: [

@@ -47,7 +47,7 @@ export interface UnidadeNoSetup {
     subscriberId: string | null
     baseUrl: string
   }
-  mensageria: { from: string | null; channelId: string | null }
+  mensageria: { from: string | null; channelId: string | null; equipeId: string | null }
 }
 
 /** A clínica como a API de setup devolve — espelho de `ClinicaNoSetup`. */
@@ -71,8 +71,20 @@ export interface ClinicaNoSetup {
     tokenConfigurado: boolean
     from: string | null
     channelId: string | null
+    equipeId: string | null
     campoNascimento: string | null
   }
+}
+
+/** Um canal de WhatsApp da conta, como a gaveta o recebe — espelho de `CanalParaEscolher`. */
+export interface CanalParaEscolher {
+  id: string
+  numero: string
+  numeroFormatado: string
+  nome: string
+  /** A padrão primeiro. Vazia = nenhuma equipe agenda por este canal. */
+  equipes: { id: string; nome: string; padrao: boolean }[]
+  equipeSugerida: string | null
 }
 
 /** O prontuário tem tudo que o sistema escolhido exige? Espelha a check constraint. */
