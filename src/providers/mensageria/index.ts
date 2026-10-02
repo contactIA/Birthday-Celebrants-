@@ -1,5 +1,5 @@
 import type { Clinica } from '@/shared/clinica/repositorio'
-import { provedorHelena } from './helena'
+import { provedorHelena, type CredenciaisDeMensageria } from './helena'
 import type { ProvedorDeMensageria } from './porta'
 
 export * from './porta'
@@ -12,5 +12,13 @@ export * from './porta'
  * ponto — nenhuma fatia muda, porque todas falam com a porta.
  */
 export function mensageriaDe(clinica: Clinica): ProvedorDeMensageria {
-  return provedorHelena(clinica)
+  return provedorHelena(clinica.credenciais.mensageria)
+}
+
+/**
+ * Com credenciais avulsas — para a área de setup listar canais e equipes com o
+ * token digitado no formulário, antes de a clínica existir.
+ */
+export function mensageriaComCredenciais(credenciais: CredenciaisDeMensageria): ProvedorDeMensageria {
+  return provedorHelena(credenciais)
 }

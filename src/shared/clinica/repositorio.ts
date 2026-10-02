@@ -56,6 +56,8 @@ export interface Clinica {
       token: string
       from: string | null
       channelId: string | null
+      /** A equipe ("department") que agenda pelo remetente. `null` = a padrão da conta. */
+      equipeId: string | null
       /** Chave do campo de nascimento no contato da plataforma. `null` = não preencher. */
       campoNascimento: string | null
     }
@@ -139,6 +141,7 @@ function paraDominio(row: ClinicaRow, unidade: UnidadeRow): Clinica {
         token: row.helena_token,
         from: cred.from,
         channelId: cred.channelId,
+        equipeId: cred.equipeId,
         campoNascimento: row.helena_campo_nascimento,
       },
     },
@@ -284,6 +287,7 @@ export interface ClinicaNoSetup {
     tokenConfigurado: boolean
     from: string | null
     channelId: string | null
+    equipeId: string | null
     campoNascimento: string | null
   }
 }
@@ -301,7 +305,7 @@ export interface UnidadeNoSetup {
     subscriberId: string | null
     baseUrl: string
   }
-  mensageria: { from: string | null; channelId: string | null }
+  mensageria: { from: string | null; channelId: string | null; equipeId: string | null }
 }
 
 function unidadeParaSetup(clinica: ClinicaRow, unidade: UnidadeRow): UnidadeNoSetup {
@@ -318,7 +322,7 @@ function unidadeParaSetup(clinica: ClinicaRow, unidade: UnidadeRow): UnidadeNoSe
       subscriberId: cred.clinicorp.subscriberId,
       baseUrl: cred.clinicorp.baseUrl,
     },
-    mensageria: { from: cred.from, channelId: cred.channelId },
+    mensageria: { from: cred.from, channelId: cred.channelId, equipeId: cred.equipeId },
   }
 }
 
@@ -342,6 +346,7 @@ function paraSetup(row: ClinicaRow, unidades: UnidadeRow[]): ClinicaNoSetup {
       tokenConfigurado: !!row.helena_token,
       from: row.helena_from,
       channelId: row.helena_channel_id,
+      equipeId: row.helena_department_id,
       campoNascimento: row.helena_campo_nascimento,
     },
   }
@@ -363,6 +368,7 @@ function paraLinha(clinica: Clinica): ClinicaInsert {
     helena_token: mensageria.token,
     helena_from: mensageria.from,
     helena_channel_id: mensageria.channelId,
+    helena_department_id: mensageria.equipeId,
     helena_campo_nascimento: mensageria.campoNascimento,
   }
 }
@@ -506,6 +512,7 @@ export interface DadosDaUnidade {
   }
   from: string | null
   channelId: string | null
+  equipeId: string | null
 }
 
 function unidadeParaLinha(dados: DadosDaUnidade): Omit<UnidadeInsert, 'clinica_id'> {
@@ -520,6 +527,7 @@ function unidadeParaLinha(dados: DadosDaUnidade): Omit<UnidadeInsert, 'clinica_i
     clinicorp_base_url: dados.clinicorp.baseUrl,
     helena_from: dados.from,
     helena_channel_id: dados.channelId,
+    helena_department_id: dados.equipeId,
   }
 }
 

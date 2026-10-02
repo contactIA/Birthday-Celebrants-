@@ -32,8 +32,13 @@ export function dependenciasReais(agora: Date): DependenciasDoTeste {
 
     async testarMensageria(clinica) {
       const mensageria = mensageriaDe(clinica)
-      const [{ modelos }, canais] = await Promise.all([mensageria.listarModelos(), mensageria.listarRemetentes()])
-      const remetente = conferirRemetente(clinica.credenciais.mensageria.from, canais)
+      const [{ modelos }, canais, equipes] = await Promise.all([
+        mensageria.listarModelos(),
+        mensageria.listarCanais(),
+        mensageria.listarEquipes(),
+      ])
+      const { from, equipeId } = clinica.credenciais.mensageria
+      const remetente = conferirRemetente(from, equipeId, { canais, equipes })
       if (!remetente.ok) throw new Error(remetente.mensagem)
       return `Conectada: ${plural(modelos.length, 'modelo aprovado', 'modelos aprovados')} · ${remetente.mensagem}`
     },

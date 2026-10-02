@@ -39,6 +39,8 @@ export interface ClinicaRow {
   helena_token: string
   helena_channel_id: string | null
   helena_from: string | null
+  /** Equipe ("department") que agenda pelo remetente. Nulo = a equipe padrão da conta. */
+  helena_department_id: string | null
   /** Chave do campo personalizado de data de nascimento no contato. Nulo = não preencher. */
   helena_campo_nascimento: string | null
   timezone: string
@@ -73,6 +75,7 @@ export interface UnidadeRow {
   clinicorp_base_url: string | null
   helena_from: string | null
   helena_channel_id: string | null
+  helena_department_id: string | null
   created_at: string
 }
 
