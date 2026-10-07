@@ -95,6 +95,10 @@ export function PainelDeEnvio({
   // Zera a data escolhida e o resultado anterior quando a SELEÇÃO muda de
   // fato — não a cada render, senão apaga o horário que a pessoa está digitando.
   //
+  // O resultado só sai quando alguém é SELECIONADO: a Agenda esvazia a seleção
+  // no mesmo instante em que o agendamento responde, e apagar ali sumiria com
+  // o resultado que acabou de chegar.
+  //
   // Ajuste durante o render, e não `useEffect`: com o efeito, o painel chegaria
   // a renderizar uma vez mostrando o resultado do envio anterior ao lado da
   // seleção nova.
@@ -102,7 +106,7 @@ export function PainelDeEnvio({
   if (chaveDaSelecao !== selecaoAnterior) {
     setSelecaoAnterior(chaveDaSelecao)
     setQuandoManual('')
-    setResultados(null)
+    if (chaveDaSelecao) setResultados(null)
   }
 
   const modelo = modelos.find((m) => m.config?.id === escolhido)

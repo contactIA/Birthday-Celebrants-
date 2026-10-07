@@ -1,6 +1,7 @@
 import { db } from '@/shared/db'
 import type { Clinica } from '@/shared/clinica/repositorio'
-import type { ConfiguracaoDeModelo, EnvioParaGravar } from './agendamento'
+import type { StatusEnvio } from '@/shared/db'
+import type { ConfiguracaoDeModelo, EnvioExistente, EnvioParaGravar } from './agendamento'
 
 /**
  * A configuração do modelo, escopada à clínica.
@@ -41,10 +42,37 @@ export async function buscarModeloConfig(
 }
 
 /**
+ * Os envios já gravados desses pacientes, de qualquer ano.
+ *
+ * Sem filtro de ano: o ano de cada paciente depende do mês do aniversário (em
+ * dezembro, janeiro já é do ano que vem), e quem decide é a regra.
+ */
+export async function buscarEnvios(clinica: Clinica, pacienteIds: string[]): Promise<EnvioExistente[]> {
+  const { data, error } = await db()
+    .from('aniversariantes_envios')
+    .select('paciente_id_eclinica, ano, status')
+    .eq('clinica_id', clinica.id)
+    .eq('unidade_id', clinica.unidade.id)
+    .in('paciente_id_eclinica', pacienteIds)
+    .returns<{ paciente_id_eclinica: string; ano: number; status: StatusEnvio }[]>()
+
+  if (error) throw new Error(`Erro ao buscar os envios: ${error.message}`)
+
+  return (data ?? []).map((linha) => ({
+    // Nome legado da coluna: guarda o id em qualquer prontuário.
+    pacienteId: linha.paciente_id_eclinica,
+    ano: linha.ano,
+    status: linha.status,
+  }))
+}
+
+/**
  * Grava o agendamento.
  *
- * `upsert` na chave (clínica, paciente, ano): um parabéns por paciente por ano.
- * Reagendar sobrescreve a linha em vez de duplicar.
+ * `upsert` na chave (unidade, paciente, ano): um parabéns por paciente por ano.
+ * Só chega aqui por cima de linha cancelada ou falha — a regra recusa antes
+ * quem já tem mensagem valendo. Sobrescrever uma agendada deixaria a anterior
+ * viva na plataforma, sem ninguém aqui que a conheça.
  */
 export async function registrarEnvio(clinica: Clinica, envio: EnvioParaGravar): Promise<void> {
   const { error } = await db()

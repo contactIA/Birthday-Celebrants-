@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { Aviso, Vazio } from '@/ui/primitivos'
 import { PainelDeEnvio } from './PainelDeEnvio'
-import { temMensagemValida } from '@/ui/statusDoEnvio'
 import { EstadoComIcone, SituacaoDoEnvio } from '@/ui/SituacaoDoEnvio'
 import { aoClicarNaLinha, BotaoAtualizar, CampoDeBusca, Contato, ESTILO_CONTROLE, Marcador } from '@/ui/tabela'
+import { temMensagemValida } from '@/shared/envio/situacao'
 import { formatarTelefoneBR, paraE164BR } from '@/shared/telefone/e164'
 import {
   MESES_TITULO,
@@ -65,7 +65,8 @@ function temTelefone(p: Aniversariante) {
 /**
  * Já tem parabéns resolvido este ano: agendado, a caminho ou entregue.
  * Cancelado e falho ficam de fora — a mensagem não vai sair, e a pessoa volta
- * para "Sem mensagem" para poder agendar de novo.
+ * para "Sem mensagem" para poder agendar de novo. A regra é a mesma com que o
+ * servidor recusa agendar de novo (`shared/envio/situacao`).
  */
 function estaAgendado(p: Aniversariante) {
   return temMensagemValida(p.envio?.status)
@@ -393,7 +394,15 @@ export function Agenda() {
             <PainelDeEnvio
               selecionados={pacientesSelecionados}
               semTelefone={grupos.corrigir.length}
-              aoAgendar={recarregar}
+              aoAgendar={() => {
+                // A seleção sai JUNTO com o agendamento, não só no "Concluir":
+                // com ela marcada, o botão seguia oferecendo "Agendar N
+                // mensagens" para quem acabou de receber mensagem — e os
+                // marcadores dessas linhas já vinham desabilitados, sem como
+                // desmarcar. Um segundo clique agendava o lote de novo.
+                setSelecionados(new Set())
+                recarregar()
+              }}
               aoConcluir={() => setSelecionados(new Set())}
             />
           </div>

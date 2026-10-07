@@ -5,7 +5,7 @@ import { ParametroInvalidoError, responderErro } from '@/shared/http'
 import { provedorDe } from '@/providers/prontuario'
 import { mensageriaDe } from '@/providers/mensageria'
 import { agendarMensagens } from '@/features/agendar-mensagem/agendamento'
-import { buscarModeloConfig, registrarEnvio } from '@/features/agendar-mensagem/dados'
+import { buscarEnvios, buscarModeloConfig, registrarEnvio } from '@/features/agendar-mensagem/dados'
 
 // POST /api/agendamentos
 //
@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
       {
         buscarModelo: (id) => buscarModeloConfig(clinica, id),
         buscarPacientes: (ids) => prontuario.buscarPorIds(ids),
+        buscarEnvios: (ids) => buscarEnvios(clinica, ids),
         agendar: (p) => mensageria.agendar(p),
         salvarContato: (c) => mensageria.salvarContato(c),
         registrarEnvio: (envio) => registrarEnvio(clinica, envio),

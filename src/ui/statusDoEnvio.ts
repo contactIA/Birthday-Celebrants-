@@ -25,12 +25,3 @@ const STATUS: Record<string, { rotulo: string; tom: TomDoEstado; icone: IconeDoE
 export function estadoDoEnvio(status: string): { rotulo: string; tom: TomDoEstado; icone: IconeDoEstado } {
   return STATUS[status] ?? { rotulo: status, tom: 'neutro', icone: 'alerta' }
 }
-
-/**
- * O paciente já tem parabéns resolvido este ano — agendado, a caminho ou
- * entregue. Cancelado e falho NÃO contam: nos dois a mensagem não vai sair, e
- * a pessoa precisa poder agendar de novo (o registro é sobrescrito).
- */
-export function temMensagemValida(status: string | undefined | null): boolean {
-  return !!status && status !== 'canceled' && status !== 'failed'
-}
