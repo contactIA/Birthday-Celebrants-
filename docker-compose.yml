@@ -19,7 +19,8 @@ services:
         EMBED_HOSTS: ${EMBED_HOSTS:-}
     restart: unless-stopped
     # Segredos em runtime: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, LINK_SECRET,
-    # CRON_SECRET. Nenhum é necessário no build.
+    # CRON_SECRET e, com o CADASTRO_UNIFICADO ligado, CADASTRO_CHAVE_CIFRAGEM.
+    # Nenhum é necessário no build.
     env_file: .env
     expose:
       - "3000"
