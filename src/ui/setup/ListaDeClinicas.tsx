@@ -37,7 +37,10 @@ export function ListaDeClinicas() {
               : 'Cadastro e credenciais de integração'}
           </p>
         </div>
-        {clinicas && !cadastroComum && (
+        {/* Escondido só enquanto carrega, para não piscar com o cadastro comum
+            ligado. Com erro ao carregar, aparece como antes: ligado, a página de
+            nova clínica explica, do servidor, que o cadastro é no CRM. */}
+        {(clinicas || erro) && !cadastroComum && (
           <Link
             href="/setup/clinicas/nova"
             className="botao-marca inline-flex h-10 items-center rounded-[10px] px-4 text-sm font-medium"
