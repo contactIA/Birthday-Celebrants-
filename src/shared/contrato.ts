@@ -1,4 +1,15 @@
-import type { ClinicaRow, EnvioRow, InteressadoRow, PacienteCacheRow, TemplateRow, UnidadeRow } from './db'
+import type {
+  ClinicaDoCadastroRow,
+  ClinicaRow,
+  EnvioRow,
+  InteressadoRow,
+  OrigemDaUnidadeRow,
+  PacienteCacheRow,
+  ProdutoDoCadastroRow,
+  TemplateRow,
+  UnidadeDoCadastroRow,
+  UnidadeRow,
+} from './db'
 
 // O contrato de schema: as colunas de que o código DEPENDE, por tabela.
 //
@@ -126,11 +137,55 @@ const cache: Igual<Colunas<'aniversariantes_pacientes_cache'>, keyof PacienteCac
 const interessados: Igual<Colunas<'aniversariantes_interessados'>, keyof InteressadoRow> = true
 export const _contratoConfereComOsTipos = [clinicas, unidades, templates, envios, cache, interessados]
 
-/** Colunas do contrato que faltam no banco, por tabela. Vazio = contrato ok. */
+// ─── O cadastro comum (visões do esquema `cadastro`, do CRM) ────────────────
+//
+// As colunas que este app LÊ das visões, com o CADASTRO_UNIFICADO ligado. O
+// dono é o CRM (ADR 0014 de lá, docs/modelo-de-dados.md, "Esquema cadastro
+// (contrato)"), e o teste dele falha se uma coluna sumir. Daqui, as mesmas
+// listas montam os `select` (shared/clinica/cadastro.ts) e o deploy.sh as
+// confere contra o banco antes de subir com a leitura ligada.
+
+export const CONTRATO_DO_CADASTRO = {
+  clinicas: ['id', 'company_id', 'nome', 'fuso_horario', 'token_plataforma_cifrado'],
+  unidades: [
+    'id',
+    'clinica_id',
+    'company_id',
+    'nome',
+    'principal',
+    'ativa',
+    'canal_envio_id',
+    'canal_envio_numero',
+    'equipe_envio_id',
+    'prontuario_sistema',
+    'prontuario_credenciais_cifradas',
+  ],
+  produtos: ['clinica_id', 'company_id', 'produto', 'ligado', 'configuracao'],
+  unidade_origens: ['unidade_id', 'clinica_id', 'company_id', 'origem', 'id_na_origem'],
+} as const
+
+type ColunasDoCadastro<T extends keyof typeof CONTRATO_DO_CADASTRO> = (typeof CONTRATO_DO_CADASTRO)[T][number]
+
+const visaoClinicas: Igual<ColunasDoCadastro<'clinicas'>, keyof ClinicaDoCadastroRow> = true
+const visaoUnidades: Igual<ColunasDoCadastro<'unidades'>, keyof UnidadeDoCadastroRow> = true
+const visaoProdutos: Igual<ColunasDoCadastro<'produtos'>, keyof ProdutoDoCadastroRow> = true
+const visaoOrigens: Igual<ColunasDoCadastro<'unidade_origens'>, keyof OrigemDaUnidadeRow> = true
+export const _cadastroConfereComOsTipos = [visaoClinicas, visaoUnidades, visaoProdutos, visaoOrigens]
+
+/** A lista de colunas de uma visão, no formato do `select` do PostgREST. */
+export function colunasDoCadastro(visao: keyof typeof CONTRATO_DO_CADASTRO): string {
+  return CONTRATO_DO_CADASTRO[visao].join(',')
+}
+
+/**
+ * Colunas do contrato que faltam no banco, por tabela (ou visão). Vazio =
+ * contrato ok. Sem o segundo argumento, confere as tabelas deste app.
+ */
 export function colunasFaltando(
-  noBanco: Record<string, string[]>
+  noBanco: Record<string, string[]>,
+  contrato: Record<string, readonly string[]> = CONTRATO
 ): { tabela: string; faltando: string[] }[] {
-  return Object.entries(CONTRATO)
+  return Object.entries(contrato)
     .map(([tabela, esperadas]) => ({
       tabela,
       faltando: esperadas.filter((coluna) => !(noBanco[tabela] ?? []).includes(coluna)),

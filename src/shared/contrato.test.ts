@@ -1,5 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import { CONTRATO, colunasFaltando } from './contrato'
+import { CONTRATO, CONTRATO_DO_CADASTRO, colunasDoCadastro, colunasFaltando } from './contrato'
+
+describe('o contrato do cadastro comum', () => {
+  const CADASTRO_OK = Object.fromEntries(Object.entries(CONTRATO_DO_CADASTRO).map(([v, cols]) => [v, [...cols]]))
+
+  it('confere as visões quando recebe o contrato delas', () => {
+    expect(colunasFaltando(CADASTRO_OK, CONTRATO_DO_CADASTRO)).toEqual([])
+    const semCanal = { ...CADASTRO_OK, unidades: CADASTRO_OK.unidades!.filter((c) => c !== 'canal_envio_numero') }
+    expect(colunasFaltando(semCanal, CONTRATO_DO_CADASTRO)).toEqual([{ tabela: 'unidades', faltando: ['canal_envio_numero'] }])
+  })
+
+  it('o esquema não exposto aparece com as quatro visões inteiras', () => {
+    expect(colunasFaltando({}, CONTRATO_DO_CADASTRO).map((r) => r.tabela)).toEqual([
+      'clinicas',
+      'unidades',
+      'produtos',
+      'unidade_origens',
+    ])
+  })
+
+  it('o select pede só as colunas do contrato', () => {
+    expect(colunasDoCadastro('clinicas')).toBe('id,company_id,nome,fuso_horario,token_plataforma_cifrado')
+  })
+})
 
 const BANCO_OK = Object.fromEntries(Object.entries(CONTRATO).map(([t, cols]) => [t, [...cols]]))
 

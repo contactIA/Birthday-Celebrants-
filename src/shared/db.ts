@@ -79,7 +79,14 @@ export interface UnidadeRow {
   created_at: string
 }
 
-export type UnidadeInsert = Omit<UnidadeRow, 'id' | 'created_at' | 'principal'> & { principal?: boolean }
+/**
+ * `id` é opcional: o banco gera, salvo na unidade criada a partir do cadastro
+ * comum, que nasce com o id da unidade do CRM (ver shared/clinica/montagem.ts).
+ */
+export type UnidadeInsert = Omit<UnidadeRow, 'id' | 'created_at' | 'principal'> & {
+  id?: string
+  principal?: boolean
+}
 
 export interface TemplateRow {
   id: string
@@ -201,6 +208,65 @@ export interface PacienteCacheInsert {
   synced_at?: string
 }
 
+// ─── O cadastro comum dos produtos (visões do CRM, só leitura) ─────────────
+//
+// Com o CADASTRO_UNIFICADO ligado, a clínica vem das visões do esquema
+// `cadastro`, que o CRM mantém para os quatro produtos (ADR 0014 do CRM,
+// contactIA/CRM-Contact-IA#215). Os tipos abaixo têm SÓ as colunas que este app
+// lê: o contrato (`src/shared/contrato.ts`) é o que o código usa, não a visão
+// inteira. Os segredos vêm cifrados e se abrem em `shared/clinica`.
+
+/** `cadastro.clinicas`: a clínica, pela conta na plataforma (`company_id`). */
+export interface ClinicaDoCadastroRow {
+  id: string
+  company_id: string
+  nome: string
+  fuso_horario: string
+  /** O token da plataforma, cifrado com a CADASTRO_CHAVE_CIFRAGEM. Nulo = sem token. */
+  token_plataforma_cifrado: string | null
+}
+
+/** `cadastro.unidades`: a unidade, com o canal e a equipe que enviam e o prontuário. */
+export interface UnidadeDoCadastroRow {
+  id: string
+  clinica_id: string
+  company_id: string
+  nome: string
+  /** Uma por clínica, sempre ativa. */
+  principal: boolean
+  ativa: boolean
+  /** O id do canal que envia, na plataforma. */
+  canal_envio_id: string | null
+  /** O número desse canal, só dígitos com o país: é o `from`. */
+  canal_envio_numero: string | null
+  equipe_envio_id: string | null
+  /** Nulo = a unidade não tem prontuário no cadastro. */
+  prontuario_sistema: SistemaProntuario | null
+  /** O JSON das credenciais, cifrado (ver `decifrador-do-cadastro.ts`). */
+  prontuario_credenciais_cifradas: string | null
+}
+
+export type ProdutoDoCadastro = 'crm' | 'aniversariantes' | 'lembretes' | 'botao'
+
+/** `cadastro.produtos`: sempre quatro linhas por clínica, uma por produto. */
+export interface ProdutoDoCadastroRow {
+  clinica_id: string
+  company_id: string
+  produto: ProdutoDoCadastro
+  ligado: boolean
+  /** A configuração do produto (jsonb). Nos Aniversariantes, `{ campoNascimento }`. */
+  configuracao: unknown
+}
+
+/** `cadastro.unidade_origens`: o id que a unidade tinha em cada app, gravado pela importação. */
+export interface OrigemDaUnidadeRow {
+  unidade_id: string
+  clinica_id: string
+  company_id: string
+  origem: 'aniversariantes' | 'lembretes' | 'botao'
+  id_na_origem: string
+}
+
 // `Relationships` é exigido pelo parser de `select()` do supabase-js: sem ele o
 // cliente não infere o shape de uma projeção parcial e a devolve como `never`.
 // Vazio porque não usamos joins embutidos.
@@ -208,6 +274,12 @@ interface Tabela<Row, Insert> {
   Row: Row
   Insert: Insert
   Update: Partial<Insert>
+  Relationships: []
+}
+
+/** Visão só de leitura: sem `Insert`/`Update`, o cliente não oferece escrita. */
+interface Visao<Row> {
+  Row: Row
   Relationships: []
 }
 
@@ -238,7 +310,23 @@ export type Database = {
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }
   }
+  // O cadastro comum, do CRM. Só o service_role lê, e só lê; este app só o
+  // consulta com o CADASTRO_UNIFICADO ligado (ver shared/clinica/cadastro.ts).
+  cadastro: {
+    Tables: { [_ in never]: never }
+    Views: {
+      clinicas: Visao<ClinicaDoCadastroRow>
+      unidades: Visao<UnidadeDoCadastroRow>
+      produtos: Visao<ProdutoDoCadastroRow>
+      unidade_origens: Visao<OrigemDaUnidadeRow>
+    }
+    Functions: { [_ in never]: never }
+    Enums: { [_ in never]: never }
+    CompositeTypes: { [_ in never]: never }
+  }
 }
+
+export type ClienteDoBanco = SupabaseClient<Database>
 
 let cliente: SupabaseClient<Database> | null = null
 
@@ -277,4 +365,14 @@ function conectar(): SupabaseClient<Database> {
  */
 export function db() {
   return conectar().schema(SCHEMA)
+}
+
+/**
+ * O cliente inteiro, para quem lê de mais de um esquema: a leitura do cadastro
+ * comum (`shared/clinica/cadastro.ts`) consulta o `cadastro` e grava as linhas
+ * locais no `aniversariantes`. Ela recebe o cliente por parâmetro, e os testes
+ * passam um falso no lugar.
+ */
+export function clienteDoBanco(): ClienteDoBanco {
+  return conectar()
 }
