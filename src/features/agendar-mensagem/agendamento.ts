@@ -1,7 +1,9 @@
 import { anoDoAniversario, aniversarioJaPassou, instanteDoEnvio, type DiaEnvio } from '@/shared/data/agendamento'
 import { mesDiaDe, paraExibicao } from '@/shared/data/parse'
+import { temMensagemValida } from '@/shared/envio/situacao'
 import { paraE164BR } from '@/shared/telefone/e164'
 import { resolverParametros } from '@/shared/template/parametros'
+import type { StatusEnvio } from '@/shared/db'
 import type { Aniversariante } from '@/providers/prontuario'
 import type { AgendamentoCriado, AgendamentoSolicitado, ContatoDoPaciente } from '@/providers/mensageria'
 
@@ -42,6 +44,13 @@ export interface EnvioParaGravar {
   agendadoPara: string
 }
 
+/** Um envio que o paciente já tem gravado, de qualquer ano. */
+export interface EnvioExistente {
+  pacienteId: string
+  ano: number
+  status: StatusEnvio
+}
+
 export interface Pedido {
   modeloConfigId: string
   pacienteIds: string[]
@@ -68,9 +77,15 @@ export interface ResultadoPorPaciente {
 export const AVISO_CONTATO_NAO_SALVO =
   'Agendado, mas o contato não foi salvo na plataforma de mensagens. O nome pode aparecer como o número.'
 
+export const ERRO_JA_AGENDADO =
+  'Já tem mensagem de aniversário agendada. Para trocar, cancele no Histórico e agende de novo.'
+export const ERRO_JA_ENVIADO = 'A mensagem de aniversário deste ano já foi enviada.'
+
 export interface Dependencias {
   buscarModelo: (modeloConfigId: string) => Promise<ConfiguracaoDeModelo | null>
   buscarPacientes: (ids: string[]) => Promise<Aniversariante[]>
+  /** Os envios já gravados desses pacientes, de qualquer ano. */
+  buscarEnvios: (pacienteIds: string[]) => Promise<EnvioExistente[]>
   agendar: (pedido: AgendamentoSolicitado) => Promise<AgendamentoCriado>
   /** Cria ou completa o contato do paciente na plataforma. Roda ANTES de agendar. */
   salvarContato: (contato: ContatoDoPaciente) => Promise<unknown>
@@ -136,9 +151,10 @@ export async function agendarMensagens(
     ? quandoManualValido(pedido.quandoManual, contexto.agora)
     : null
 
-  // Uma consulta ao prontuário para o lote inteiro. Ids repetidos viram um só.
+  // Uma consulta ao prontuário e uma ao banco para o lote inteiro. Ids
+  // repetidos viram um só.
   const ids = [...new Set(pedido.pacienteIds)]
-  const encontrados = await deps.buscarPacientes(ids)
+  const [encontrados, envios] = await Promise.all([deps.buscarPacientes(ids), deps.buscarEnvios(ids)])
   const porId = new Map(encontrados.map((p) => [p.id, p]))
 
   const resultados: ResultadoPorPaciente[] = []
@@ -158,7 +174,8 @@ export async function agendarMensagens(
       continue
     }
 
-    resultados.push(await agendarUm(paciente, modelo, quandoManual, contexto, deps))
+    const doPaciente = envios.filter((e) => e.pacienteId === id)
+    resultados.push(await agendarUm(paciente, doPaciente, modelo, quandoManual, contexto, deps))
   }
 
   return resultados
@@ -166,6 +183,7 @@ export async function agendarMensagens(
 
 async function agendarUm(
   paciente: Aniversariante,
+  envios: EnvioExistente[],
   modelo: ConfiguracaoDeModelo,
   quandoManual: string | null,
   contexto: Contexto,
@@ -184,6 +202,18 @@ async function agendarUm(
   // vem, e a chave única (clínica, paciente, ano) precisa dizer isso — senão o
   // parabéns de janeiro sobrescreveria o do janeiro que já passou.
   const ano = anoDoAniversario(mes, contexto.timezone, contexto.agora)
+
+  // Um parabéns por paciente por ano — conferido AQUI, não só na tela. A tela
+  // esconde quem já tem mensagem, mas recebe pedido que ela não filtrou: outra
+  // aba, outra pessoa, ou um segundo clique com o lote anterior ainda marcado.
+  // Sem esta conferência o registro era sobrescrito e a mensagem anterior
+  // continuava agendada na plataforma: saíam as duas, e o banco só guardava a
+  // última (duplicatas na Salutar, 2026-10-07).
+  const status = envios.find((e) => e.ano === ano)?.status
+  if (temMensagemValida(status)) {
+    const aindaNaoSaiu = status === 'scheduled' || status === 'processed'
+    return { ...base, ok: false, erro: aindaNaoSaiu ? ERRO_JA_AGENDADO : ERRO_JA_ENVIADO }
+  }
 
   let quando: string
   if (quandoManual) {

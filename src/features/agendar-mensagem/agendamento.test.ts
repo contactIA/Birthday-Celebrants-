@@ -5,8 +5,11 @@ import {
   PedidoInvalidoError,
   MAXIMO_POR_LOTE,
   AVISO_CONTATO_NAO_SALVO,
+  ERRO_JA_AGENDADO,
+  ERRO_JA_ENVIADO,
   type ConfiguracaoDeModelo,
   type Dependencias,
+  type EnvioExistente,
 } from './agendamento'
 import type { Aniversariante } from '@/providers/prontuario'
 
@@ -38,6 +41,7 @@ function deps(over: Partial<Dependencias> = {}) {
   const d = {
     buscarModelo: vi.fn(async () => MODELO as ConfiguracaoDeModelo | null),
     buscarPacientes: vi.fn(async () => [paciente()]),
+    buscarEnvios: vi.fn(async () => [] as EnvioExistente[]),
     agendar: vi.fn(async () => ({ id: 'msg-1' })),
     salvarContato: vi.fn(async () => 'criado' as const),
     registrarEnvio: vi.fn(async () => {}),
@@ -146,6 +150,87 @@ describe('recusas', () => {
     expect(r!.ok).toBe(false)
     expect(r!.erro).toMatch(/é hoje/i)
     expect(d.agendar).not.toHaveBeenCalled()
+  })
+})
+
+describe('um parabéns por paciente por ano', () => {
+  function jaTem(status: EnvioExistente['status'], over: Partial<EnvioExistente> = {}) {
+    return vi.fn(async () => [{ pacienteId: 'p1', ano: 2026, status, ...over }])
+  }
+
+  it.each(['scheduled', 'processed'] as const)(
+    'com mensagem %s, recusa sem tocar na plataforma',
+    async (status) => {
+      // Era o caminho da duplicata: a linha era sobrescrita e a mensagem
+      // anterior continuava agendada lá.
+      const d = deps({ buscarEnvios: jaTem(status) })
+      const [r] = await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+
+      expect(r).toMatchObject({ ok: false, erro: ERRO_JA_AGENDADO })
+      expect(d.salvarContato).not.toHaveBeenCalled()
+      expect(d.agendar).not.toHaveBeenCalled()
+      expect(d.registrarEnvio).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['sent', 'delivered', 'read'] as const)('com mensagem %s, diz que já foi enviada', async (status) => {
+    const d = deps({ buscarEnvios: jaTem(status) })
+    const [r] = await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+
+    expect(r).toMatchObject({ ok: false, erro: ERRO_JA_ENVIADO })
+    expect(d.agendar).not.toHaveBeenCalled()
+  })
+
+  it.each(['canceled', 'failed'] as const)('com mensagem %s, agenda de novo', async (status) => {
+    const d = deps({ buscarEnvios: jaTem(status) })
+    const [r] = await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+
+    expect(r!.ok).toBe(true)
+    expect(d.agendar).toHaveBeenCalledTimes(1)
+  })
+
+  it('a data manual não passa por cima', async () => {
+    const d = deps({ buscarEnvios: jaTem('scheduled') })
+    const [r] = await agendarMensagens(
+      { modeloConfigId: 'config-1', pacienteIds: ['p1'], quandoManual: '2026-11-01T15:00:00.000Z' },
+      CONTEXTO,
+      d
+    )
+    expect(r).toMatchObject({ ok: false, erro: ERRO_JA_AGENDADO })
+    expect(d.agendar).not.toHaveBeenCalled()
+  })
+
+  it('mensagem de outro ano não conta', async () => {
+    const d = deps({ buscarEnvios: jaTem('read', { ano: 2025 }) })
+    const [r] = await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+    expect(r!.ok).toBe(true)
+  })
+
+  it('em dezembro, o janeiro que passou não bloqueia o janeiro do ano que vem', async () => {
+    const d = deps({
+      buscarPacientes: vi.fn(async () => [paciente({ aniversario: '01/05' })]),
+      buscarEnvios: jaTem('read', { ano: 2026 }),
+    })
+    const [r] = await agendarMensagens(
+      { modeloConfigId: 'config-1', pacienteIds: ['p1'] },
+      { timezone: SP, agora: new Date('2026-12-20T15:00:00Z') },
+      d
+    )
+    expect(r!.ok).toBe(true)
+    expect(d.registrarEnvio).toHaveBeenCalledWith(expect.objectContaining({ ano: 2027 }))
+  })
+
+  it('no lote, uma consulta ao banco, e só quem já tem mensagem fica de fora', async () => {
+    const d = deps({
+      buscarPacientes: vi.fn(async () => [paciente({ id: 'p1' }), paciente({ id: 'p2' })]),
+      buscarEnvios: jaTem('scheduled', { pacienteId: 'p2' }),
+    })
+    const r = await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1', 'p2'] }, CONTEXTO, d)
+
+    expect(d.buscarEnvios).toHaveBeenCalledTimes(1)
+    expect(d.buscarEnvios).toHaveBeenCalledWith(['p1', 'p2'])
+    expect(r.map((x) => x.ok)).toEqual([true, false])
+    expect(d.agendar).toHaveBeenCalledTimes(1)
   })
 })
 
