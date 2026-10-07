@@ -111,7 +111,7 @@ async function resolvidaPorIdLocal(id: string): Promise<ClinicaResolvida> {
   if (!conta) throw new ClinicaNaoEncontradaError()
   try {
     const resolvida = await lerClinicaDoCadastro(clienteDoBanco(), conta, avisar)
-    if (resolvida.idLocal !== id) throw new ClinicaNaoEncontradaError()
+    if (resolvida.idLocal.toLowerCase() !== id.toLowerCase()) throw new ClinicaNaoEncontradaError()
     return resolvida
   } catch (err) {
     // No setup, a clínica sem o produto ligado é "não encontrada": a lista não a

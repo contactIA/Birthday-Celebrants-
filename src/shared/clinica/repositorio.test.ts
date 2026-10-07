@@ -191,6 +191,8 @@ describe('CADASTRO_UNIFICADO ligado: a clínica vem do cadastro comum', () => {
     ligar()
     const setup = await buscarClinicaNoSetup(CLINICA_AQUI)
     expect(setup).toMatchObject({ id: CLINICA_AQUI, cadastroComum: true, nome: 'Prev Odonto' })
+    // O id da URL com outra caixa abre a mesma clínica, como no modo local.
+    expect((await buscarClinicaNoSetup(CLINICA_AQUI.toUpperCase())).id).toBe(CLINICA_AQUI)
     expect((await buscarClinicaPorId(CLINICA_AQUI, PRINCIPAL_AQUI)).unidade.id).toBe(PRINCIPAL_AQUI)
     expect(() => exigirCadastroLocal()).toThrow(CadastroNoCrmError)
     await expect(
