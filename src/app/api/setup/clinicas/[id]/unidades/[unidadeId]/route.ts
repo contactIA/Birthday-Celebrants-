@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { exigirSessaoDeSetup } from '@/acesso/escopo'
-import { atualizarUnidade, buscarClinicaPorId, removerUnidade } from '@/shared/clinica/repositorio'
+import {
+  atualizarUnidade,
+  buscarClinicaPorId,
+  exigirCadastroLocal,
+  removerUnidade,
+} from '@/shared/clinica/repositorio'
 import { responderErro } from '@/shared/http'
 import { lerEntradaDeUnidade, montarUnidade } from '@/features/configurar-clinica/regras'
 
@@ -9,13 +14,14 @@ import { lerEntradaDeUnidade, montarUnidade } from '@/features/configurar-clinic
 //   adicional SEM envios no histórico.
 //
 // Na unidade principal o PATCH só troca o nome: as credenciais dela são as da
-// clínica.
+// clínica. Com o cadastro comum ligado, os dois recusam: a unidade é do CRM.
 
 type Ctx = RouteContext<'/api/setup/clinicas/[id]/unidades/[unidadeId]'>
 
 export async function PATCH(request: NextRequest, ctx: Ctx) {
   try {
     exigirSessaoDeSetup(request)
+    exigirCadastroLocal()
     const { id, unidadeId } = await ctx.params
     const entrada = lerEntradaDeUnidade(await request.json().catch(() => null))
 
@@ -33,6 +39,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 export async function DELETE(request: NextRequest, ctx: Ctx) {
   try {
     exigirSessaoDeSetup(request)
+    exigirCadastroLocal()
     const { id, unidadeId } = await ctx.params
     const clinica = await removerUnidade(id, unidadeId)
     console.info(`[setup] unidade ${unidadeId} removida da clínica ${id} (${clinica.companyId})`)

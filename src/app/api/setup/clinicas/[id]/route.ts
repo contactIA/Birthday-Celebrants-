@@ -1,11 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { exigirSessaoDeSetup } from '@/acesso/escopo'
-import { atualizarClinica, buscarClinicaNoSetup, buscarClinicaPorId } from '@/shared/clinica/repositorio'
+import {
+  atualizarClinica,
+  buscarClinicaNoSetup,
+  buscarClinicaPorId,
+  exigirCadastroLocal,
+} from '@/shared/clinica/repositorio'
 import { responderErro } from '@/shared/http'
 import { camposAlterados, lerEntrada, montarClinica } from '@/features/configurar-clinica/regras'
 
 // GET   /api/setup/clinicas/:id — uma clínica, sem o valor dos segredos.
-// PATCH /api/setup/clinicas/:id — edita. Segredo em branco = manter.
+// PATCH /api/setup/clinicas/:id — edita. Segredo em branco = manter. Com o
+//   cadastro comum ligado, recusa: a clínica se edita no setup do CRM.
 
 export async function GET(request: NextRequest, ctx: RouteContext<'/api/setup/clinicas/[id]'>) {
   try {
@@ -20,6 +26,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<'/api/setup/cl
 export async function PATCH(request: NextRequest, ctx: RouteContext<'/api/setup/clinicas/[id]'>) {
   try {
     exigirSessaoDeSetup(request)
+    exigirCadastroLocal()
     const { id } = await ctx.params
     const entrada = lerEntrada(await request.json().catch(() => null))
 

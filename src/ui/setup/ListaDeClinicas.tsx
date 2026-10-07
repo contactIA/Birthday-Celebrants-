@@ -8,14 +8,21 @@ import { chamarApi, NOME_DO_SISTEMA, prontuarioCompleto, type ClinicaNoSetup } f
 // A lista de clínicas da área de setup. O que importa numa olhada é QUAL
 // clínica está com integração incompleta — por isso o estado das credenciais
 // fica na própria linha, sem precisar abrir cada uma.
+//
+// Com o cadastro comum ligado, a lista é a das clínicas com os Aniversariantes
+// ligados no setup do CRM, e clínica nova se cadastra lá.
 
 export function ListaDeClinicas() {
   const [clinicas, setClinicas] = useState<ClinicaNoSetup[] | null>(null)
+  const [cadastroComum, setCadastroComum] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
   useEffect(() => {
-    chamarApi<{ clinicas: ClinicaNoSetup[] }>('/api/setup/clinicas')
-      .then((r) => setClinicas(r.clinicas))
+    chamarApi<{ clinicas: ClinicaNoSetup[]; cadastroComum?: boolean }>('/api/setup/clinicas')
+      .then((r) => {
+        setClinicas(r.clinicas)
+        setCadastroComum(!!r.cadastroComum)
+      })
       .catch((e: Error) => setErro(e.message))
   }, [])
 
@@ -30,20 +37,31 @@ export function ListaDeClinicas() {
               : 'Cadastro e credenciais de integração'}
           </p>
         </div>
-        <Link
-          href="/setup/clinicas/nova"
-          className="botao-marca inline-flex h-10 items-center rounded-[10px] px-4 text-sm font-medium"
-        >
-          Nova clínica
-        </Link>
+        {clinicas && !cadastroComum && (
+          <Link
+            href="/setup/clinicas/nova"
+            className="botao-marca inline-flex h-10 items-center rounded-[10px] px-4 text-sm font-medium"
+          >
+            Nova clínica
+          </Link>
+        )}
       </div>
+
+      {cadastroComum && (
+        <Aviso tom="neutro" titulo="Cadastro comum dos produtos">
+          As clínicas, as unidades, o prontuário e o remetente vêm do setup do CRM e se editam lá. Aparece aqui a
+          clínica com os Aniversariantes ligados no CRM. Os modelos de mensagem continuam no painel de cada clínica.
+        </Aviso>
+      )}
 
       {erro && <Aviso tom="erro">{erro}</Aviso>}
       {!clinicas && !erro && <Carregando>Carregando clínicas…</Carregando>}
 
       {clinicas?.length === 0 && (
         <Vazio titulo="Nenhuma clínica cadastrada">
-          Cadastre a primeira para liberar o painel de aniversariantes para ela.
+          {cadastroComum
+            ? 'Ligue os Aniversariantes numa clínica, no setup do CRM, para liberar o painel para ela.'
+            : 'Cadastre a primeira para liberar o painel de aniversariantes para ela.'}
         </Vazio>
       )}
 
@@ -62,7 +80,9 @@ export function ListaDeClinicas() {
                     <p className="mt-0.5 text-xs text-ink-2">{c.unidades.length} unidades</p>
                   )}
                 </div>
-                <span className="text-[13px] text-ink-2">{NOME_DO_SISTEMA[c.sistemaProntuario]}</span>
+                <span className="text-[13px] text-ink-2">
+                  {c.sistemaProntuario ? NOME_DO_SISTEMA[c.sistemaProntuario] : 'Sem prontuário'}
+                </span>
                 <div className="flex gap-1.5">
                   {prontuarioCompleto(c) ? (
                     <Estado tom="ok">● Prontuário</Estado>
