@@ -21,6 +21,25 @@ apertar constraint exige PR nos dois repos.
 - Contrato coluna por coluna: [Clinic-Control/docs/reference/schema-aniversariantes.md](https://github.com/g4bs2006/Clinic-Control/blob/main/docs/reference/schema-aniversariantes.md)
 - Decisão: [Clinic-Control ADR 0006](https://github.com/g4bs2006/Clinic-Control/blob/main/docs/adr/0006-dono-unico-das-migrations.md) · [nosso ADR 0002](../docs/adr/0002-banco-compartilhado.md)
 
+## Com o cadastro comum ligado
+
+Com o `CADASTRO_UNIFICADO` ligado ([ADR 0005](../docs/adr/0005-cadastro-comum.md)),
+a clínica vem das visões do esquema `cadastro`, que é do CRM, e este repositório não
+cria migração nenhuma por isso. Muda o seguinte:
+
+- A clínica e a unidade que só existem no cadastro ganham aqui uma linha-âncora
+  (`aniversariantes_clinicas`, `aniversariantes_unidades`), criada pelo app na
+  primeira leitura, só para as chaves estrangeiras. As colunas de credencial dela
+  ficam com texto vazio onde a check constraint exige valor.
+- As colunas de credencial, remetente, nome, fuso e campo de nascimento das duas
+  tabelas ficam sem uso, e o que o Clinic Control grava nelas não chega ao painel.
+- **A migração de limpeza dessas colunas fica para depois**, quando a leitura
+  estiver ligada e estável e o #211 (o Clinic Control para de gravar?) estiver
+  decidido. Remover coluna aqui ainda é breaking change lá.
+
+A lista do que fica sem uso está em
+[docs/cadastro-unificado.md](../docs/cadastro-unificado.md#as-colunas-antigas-e-o-clinic-control).
+
 ## A baseline
 
 `20260915_baseline.sql` reconstrói o estado real de produção, obtido por

@@ -55,6 +55,8 @@ nano .env
 | `LINK_SECRET` | **o mesmo valor do Clinic Control** — senão todo link é recusado |
 | `CRON_SECRET` | segredo novo: `openssl rand -hex 32` |
 | `EMBED_HOSTS` | deixar vazio se o host do white label for `app.fluxodonto.com` |
+| `CADASTRO_UNIFICADO` | vazio até o cadastro comum do CRM estar pronto; `1` liga a leitura por ele ([cadastro-unificado.md](cadastro-unificado.md)) |
+| `CADASTRO_CHAVE_CIFRAGEM` | **a mesma do `.env` do CRM**; obrigatória só com o `CADASTRO_UNIFICADO` ligado |
 
 `EMBED_HOSTS` entra também no build, porque a CSP `frame-ancestors` é montada
 ali (`next.config.ts`). Mudou o valor → rodar o deploy de novo, não só reiniciar.
@@ -161,6 +163,10 @@ da plataforma para `https://aniversariantes.contactia.com.br`.
 clínicas, troca credenciais, testa conexão e gera o link do painel. Decisão em
 [ADR 0003](adr/0003-area-de-setup.md).
 
+Com o `CADASTRO_UNIFICADO` ligado, a clínica e as unidades se cadastram no setup do
+CRM, e aqui aparecem só para leitura; seguem daqui o teste de conexão, a
+sincronização e o link do painel ([cadastro-unificado.md](cadastro-unificado.md)).
+
 **Na sua máquina**, na pasta do projeto (a senha é digitada no terminal e não
 sai dela):
 
@@ -203,3 +209,9 @@ Antes do build, o script confere o **contrato de schema** contra o banco real
 coluna de que o código depende — removida ou renomeada, por exemplo pelo Clinic
 Control —, o deploy para com a lista do que falta, e o container no ar não é
 trocado.
+
+Com o `CADASTRO_UNIFICADO` ligado, confere também o cadastro comum: para se faltar a
+`CADASTRO_CHAVE_CIFRAGEM`, se o esquema `cadastro` não estiver exposto ou sem as
+colunas que o app lê, ou se a chave não abrir os segredos das clínicas com o
+produto ligado. Os passos para ligar estão em
+[cadastro-unificado.md](cadastro-unificado.md#a-ordem-para-ligar-em-produção).

@@ -9,9 +9,11 @@ decisão é cara de reverter ou quando alguém vai questioná-la depois.
 | [0002](0002-banco-compartilhado.md) | Banco do Clinic Control, schema `aniversariantes` | Aceito |
 | [0003](0003-area-de-setup.md) | Área de setup própria, com senha da equipe | Aceito |
 | [0004](0004-unidades.md) | Unidades: várias por clínica | Aceito |
+| [0005](0005-cadastro-comum.md) | A clínica do cadastro comum do CRM, atrás de uma variável | Aceito |
 
 Decisões herdadas, que vivem no repositório vizinho e continuam valendo aqui:
 
 - [Clinic-Control 0001](https://github.com/g4bs2006/Clinic-Control/blob/main/docs/adr/0001-banco-unico-compartilhado.md) — um projeto Supabase, isolamento por schema
 - [Clinic-Control 0003](https://github.com/g4bs2006/Clinic-Control/blob/main/docs/adr/0003-sem-painel-para-cliente-final.md) — por que o pessoal da clínica não recebe sessão do Clinic Control
 - [Clinic-Control 0006](https://github.com/g4bs2006/Clinic-Control/blob/main/docs/adr/0006-dono-unico-das-migrations.md) — este repo é dono das migrations `aniversariantes_*`
+- [CRM 0014](https://github.com/contactIA/CRM-Contact-IA/blob/main/docs/adr/0014-setup-unificado-dos-produtos.md) — um setup só para os quatro produtos, e o cadastro comum que a 0005 lê
