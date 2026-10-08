@@ -104,15 +104,16 @@ function naoConfigurado(request: NextRequest) {
 /**
  * Gate da área de setup — um acesso à parte, que NÃO passa pelo escopo de
  * clínica. A área grava credenciais de todas as clínicas, então o que a abre é
- * a senha da equipe, nunca o link ou o cookie de uma clínica.
+ * a senha da equipe ou o link assinado do setup do CRM, nunca o link ou o
+ * cookie de uma clínica.
  */
 function proxySetup(request: NextRequest) {
   const segredos = segredosDoSetup()
   if (!segredos) {
     // Configuração, não ataque — mesma distinção do LINK_SECRET acima.
     console.error(
-      '[proxy] SETUP_PASSWORD_HASH ou LINK_SECRET ausente: a área de setup fica fechada. ' +
-        'Gerar o hash com `npm run setup:senha` e cadastrar no .env do servidor.'
+      '[proxy] LINK_SECRET ausente, ou sem SETUP_PASSWORD_HASH e sem SETUP_LINK_SEGREDO: a área de setup fica fechada. ' +
+        'Cadastrar no .env do servidor o segredo do link do setup do CRM, ou o hash da senha (`npm run setup:senha`).'
     )
     return ehApi(request)
       ? NextResponse.json({ error: 'Setup não configurado', codigo: 'SETUP_NAO_CONFIGURADO' }, { status: 503 })
@@ -127,7 +128,8 @@ function proxySetup(request: NextRequest) {
     metodo: request.method,
     tokenDoCookie: request.cookies.get(COOKIE_SETUP)?.value ?? null,
     agora: new Date(),
-    ...segredos,
+    linkSecret: segredos.linkSecret,
+    ancora: segredos.ancora,
   })
 
   if (decisao.tipo === 'negar') {

@@ -4,7 +4,7 @@ import { sessaoValida } from './setup'
 // (`decisao.ts`). O `proxy.ts` só traduz o resultado em resposta.
 
 export type DecisaoDeSetup =
-  /** Rota pública da área: a tela de entrar e o POST que abre a sessão. */
+  /** Rota pública da área: a tela de entrar, o POST da senha e o link do CRM. */
   | { tipo: 'publica' }
   | { tipo: 'seguir' }
   /** Página sem sessão: mandar para a tela de entrar. */
@@ -34,13 +34,18 @@ export function decidirSetup(e: {
   tokenDoCookie: string | null
   agora: Date
   linkSecret: string
-  hashDaSenha: string
+  /** A âncora da chave da sessão (`SegredosDoSetup.ancora`). */
+  ancora: string
 }): DecisaoDeSetup {
+  // O GET do link do CRM é público como o POST da senha: os dois SÃO a entrada,
+  // e cada um confere a própria credencial (a senha, ou a assinatura do link).
   const publica =
-    e.caminho === '/setup/entrar' || (e.caminho === '/api/setup/sessao' && e.metodo === 'POST')
+    e.caminho === '/setup/entrar' ||
+    (e.caminho === '/api/setup/sessao' && e.metodo === 'POST') ||
+    (e.caminho === '/api/setup/entrar' && e.metodo === 'GET')
   if (publica) return { tipo: 'publica' }
 
-  if (sessaoValida(e.tokenDoCookie, e.agora, e.linkSecret, e.hashDaSenha)) return { tipo: 'seguir' }
+  if (sessaoValida(e.tokenDoCookie, e.agora, e.linkSecret, e.ancora)) return { tipo: 'seguir' }
 
   return e.caminho.startsWith('/api/') ? { tipo: 'negar' } : { tipo: 'entrar' }
 }

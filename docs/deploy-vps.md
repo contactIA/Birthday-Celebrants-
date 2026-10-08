@@ -55,6 +55,8 @@ nano .env
 | `LINK_SECRET` | **o mesmo valor do Clinic Control** — senão todo link é recusado |
 | `CRON_SECRET` | segredo novo: `openssl rand -hex 32` |
 | `EMBED_HOSTS` | deixar vazio se o host do white label for `app.fluxodonto.com` |
+| `CADASTRO_UNIFICADO` | vazio até o cadastro comum do CRM estar pronto; `1` liga a leitura por ele ([cadastro-unificado.md](cadastro-unificado.md)) |
+| `CADASTRO_CHAVE_CIFRAGEM` | **a mesma do `.env` do CRM**; obrigatória só com o `CADASTRO_UNIFICADO` ligado |
 
 `EMBED_HOSTS` entra também no build, porque a CSP `frame-ancestors` é montada
 ali (`next.config.ts`). Mudou o valor → rodar o deploy de novo, não só reiniciar.
@@ -161,6 +163,10 @@ da plataforma para `https://aniversariantes.contactia.com.br`.
 clínicas, troca credenciais, testa conexão e gera o link do painel. Decisão em
 [ADR 0003](adr/0003-area-de-setup.md).
 
+Com o `CADASTRO_UNIFICADO` ligado, a clínica e as unidades se cadastram no setup do
+CRM, e aqui aparecem só para leitura; seguem daqui o teste de conexão, a
+sincronização e o link do painel ([cadastro-unificado.md](cadastro-unificado.md)).
+
 **Na sua máquina**, na pasta do projeto (a senha é digitada no terminal e não
 sai dela):
 
@@ -176,6 +182,26 @@ segue funcionando.
 
 Trocar a senha = gerar outro hash, substituir no `.env` e redeployar. Toda
 sessão aberta cai.
+
+### Entrar pelo setup do CRM (uma senha só)
+
+O setup do CRM abre este setup com um link assinado de 120 segundos, no botão do
+produto (contactIA/CRM-Contact-IA#219). O link chega em `/api/setup/entrar?t=`, abre a
+mesma sessão de 8 horas que a senha abre e leva à clínica, ou à lista.
+
+1. A equipe gera o segredo e o grava **nos dois `.env`**: `SETUP_LINK_SEGREDO` aqui e
+   `ANIVERSARIANTES_SETUP_SEGREDO` no CRM, com o mesmo valor. Diferente do `LINK_SECRET`.
+2. `./deploy/deploy.sh` aqui, e o deploy do CRM.
+3. Conferir: o botão do CRM abre este setup sem pedir senha.
+4. **Só com o OK da equipe:** `SETUP_SENHA_DESLIGADA=1` no `.env` e o `deploy.sh`.
+   A tela de entrar passa a dizer para abrir pelo setup do CRM, e o POST da senha
+   responde 403 (`SENHA_DESLIGADA`). Depois disso o `SETUP_PASSWORD_HASH` pode sair do
+   `.env`: sem ele, a chave da sessão deriva do segredo do link, e as sessões abertas
+   caem uma vez.
+
+Link vencido, adulterado ou com o segredo errado volta à tela de entrar com o aviso
+"O link de acesso não vale mais", sem o motivo. Trocar o segredo derruba os links em
+trânsito (duram 2 minutos), não as sessões abertas pela senha.
 
 O log registra login, cadastros e alterações — nomes dos campos, nunca valores:
 
@@ -203,3 +229,9 @@ Antes do build, o script confere o **contrato de schema** contra o banco real
 coluna de que o código depende — removida ou renomeada, por exemplo pelo Clinic
 Control —, o deploy para com a lista do que falta, e o container no ar não é
 trocado.
+
+Com o `CADASTRO_UNIFICADO` ligado, confere também o cadastro comum: para se faltar a
+`CADASTRO_CHAVE_CIFRAGEM`, se o esquema `cadastro` não estiver exposto ou sem as
+colunas que o app lê, ou se a chave não abrir os segredos das clínicas com o
+produto ligado. Os passos para ligar estão em
+[cadastro-unificado.md](cadastro-unificado.md#a-ordem-para-ligar-em-produção).

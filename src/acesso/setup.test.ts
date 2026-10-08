@@ -90,7 +90,7 @@ describe('ehRotaDeSetup', () => {
 })
 
 describe('decidirSetup', () => {
-  const base = { agora: AGORA, linkSecret: LINK_SECRET, hashDaSenha: HASH, tokenDoCookie: null }
+  const base = { agora: AGORA, linkSecret: LINK_SECRET, ancora: HASH, tokenDoCookie: null }
   const sessao = assinarSessao(AGORA, LINK_SECRET, HASH)
 
   it('a tela de entrar é pública', () => {

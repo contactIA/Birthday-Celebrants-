@@ -35,6 +35,11 @@ git pull --ff-only
 # código depende — removida ou renomeada, por exemplo pelo Clinic Control —, o
 # deploy para AQUI, antes de trocar o container que está no ar. Container Node
 # descartável porque a VPS não tem Node instalado.
+#
+# Com o CADASTRO_UNIFICADO ligado (ADR 0005, docs/cadastro-unificado.md), para
+# também se faltar a CADASTRO_CHAVE_CIFRAGEM, se o esquema `cadastro` não estiver
+# exposto ou sem as colunas que o app lê, ou se a chave não abrir os segredos das
+# clínicas com o produto ligado.
 echo "==> contrato de schema"
 docker run --rm \
   --env-file .env \

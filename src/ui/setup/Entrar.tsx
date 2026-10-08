@@ -15,7 +15,11 @@ function destinoSeguro(): string {
   return /^\/setup(\/[\w\-/]*)?$/.test(volta) && volta !== '/setup/entrar' ? volta : '/setup'
 }
 
-export function Entrar() {
+/** As frases do link do CRM. Sem o motivo da recusa: vencido e forjado dizem o mesmo. */
+const LINK_RECUSADO = 'O link de acesso não vale mais. Abra este setup de novo pelo setup do CRM.'
+const SENHA_DESLIGADA = 'A entrada por senha foi desligada. Abra este setup pelo setup do CRM, no produto da clínica.'
+
+export function Entrar({ senhaDesligada, linkRecusado }: { senhaDesligada: boolean; linkRecusado: boolean }) {
   const [senha, setSenha] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -43,6 +47,25 @@ export function Entrar() {
     setEnviando(false)
   }
 
+  if (senhaDesligada) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6 py-16">
+        <div className="entrar w-full max-w-sm rounded-[14px] border border-line-soft bg-surface px-8 py-9 shadow-sm">
+          <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+            Setup
+          </span>
+          <h1 className="mt-4 text-[17px] font-semibold leading-snug text-ink">Área da equipe</h1>
+          {linkRecusado && (
+            <p role="alert" className="mt-3 text-sm text-erro">
+              {LINK_RECUSADO}
+            </p>
+          )}
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">{SENHA_DESLIGADA}</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center px-6 py-16">
       <form
@@ -56,6 +79,12 @@ export function Entrar() {
         <p className="mt-1.5 text-sm leading-relaxed text-muted">
           Cadastro e credenciais das clínicas. Informe a senha de setup.
         </p>
+
+        {linkRecusado && (
+          <p role="alert" className="mt-3 text-sm text-erro">
+            {LINK_RECUSADO}
+          </p>
+        )}
 
         <label className="mt-6 flex flex-col gap-1.5">
           <span className="text-[13px] font-medium text-ink-2">Senha</span>

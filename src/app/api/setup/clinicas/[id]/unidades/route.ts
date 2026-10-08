@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { exigirSessaoDeSetup } from '@/acesso/escopo'
-import { buscarClinicaNoSetup, criarUnidade } from '@/shared/clinica/repositorio'
+import { buscarClinicaNoSetup, criarUnidade, exigirCadastroLocal } from '@/shared/clinica/repositorio'
 import { responderErro } from '@/shared/http'
 import { lerEntradaDeUnidade, montarUnidade } from '@/features/configurar-clinica/regras'
 
@@ -8,7 +8,8 @@ import { lerEntradaDeUnidade, montarUnidade } from '@/features/configurar-clinic
 // POST /api/setup/clinicas/:id/unidades — cadastra uma unidade ADICIONAL.
 //
 // A principal não é cadastrada aqui: nasce com a clínica (trigger no banco) e
-// suas credenciais são as da clínica, editadas no formulário dela.
+// suas credenciais são as da clínica, editadas no formulário dela. Com o
+// cadastro comum ligado, o POST recusa: as unidades se cadastram no CRM.
 
 export async function GET(request: NextRequest, ctx: RouteContext<'/api/setup/clinicas/[id]/unidades'>) {
   try {
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<'/api/setup/cl
 export async function POST(request: NextRequest, ctx: RouteContext<'/api/setup/clinicas/[id]/unidades'>) {
   try {
     exigirSessaoDeSetup(request)
+    exigirCadastroLocal()
     const { id } = await ctx.params
     const dados = montarUnidade(lerEntradaDeUnidade(await request.json().catch(() => null)), null)
     const clinica = await criarUnidade(id, dados)

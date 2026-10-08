@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Aviso, Botao, Carregando, Estado } from '@/ui/primitivos'
 import { FUSOS_SUPORTADOS } from '@/shared/data/fuso'
 import { chamarApi, NOME_DO_FUSO, NOME_DO_SISTEMA, type ClinicaNoSetup } from './api'
+import { ClinicaDoCadastroComum } from './CadastroComum'
 import { Campo, CampoSecreto, Escolha, Secao } from './campos'
 import { EscolhaDeCanal } from './EscolhaDeCanal'
 import { UnidadesDaClinica } from './UnidadesDaClinica'
@@ -60,7 +61,8 @@ function doSalvo(c: ClinicaNoSetup): Formulario {
     companyId: c.companyId,
     nome: c.nome,
     timezone: c.timezone,
-    sistemaProntuario: c.sistemaProntuario,
+    // Nulo só no cadastro comum, que não usa este formulário.
+    sistemaProntuario: c.sistemaProntuario ?? EM_BRANCO.sistemaProntuario,
     eclinicaBaseUrl: c.eclinica.baseUrl,
     clinicorpUsuarioApi: c.clinicorp.usuarioApi ?? '',
     clinicorpSubscriberId: c.clinicorp.subscriberId ?? '',
@@ -181,6 +183,10 @@ export function FormularioDeClinica({
     )
   }
   if (editando && !salva) return <Carregando>Carregando clínica…</Carregando>
+
+  // Com o cadastro comum ligado, a clínica se edita no setup do CRM: aqui, só
+  // leitura (com o teste de conexão, a sincronização e o link do painel).
+  if (salva?.cadastroComum) return <ClinicaDoCadastroComum clinica={salva} />
 
   // Com mais de uma unidade, os campos do prontuário são os da PRINCIPAL. Dizer
   // isso aqui é o que leva a pessoa até a seção de unidades, no fim da página —
@@ -563,7 +569,7 @@ const VALIDADES = [
 
 type Validade = (typeof VALIDADES)[number]['valor']
 
-function LinkDoPainel({ id }: { id: string }) {
+export function LinkDoPainel({ id }: { id: string }) {
   const [validade, setValidade] = useState<Validade>('7d')
   const [gerando, setGerando] = useState(false)
   const [link, setLink] = useState<{ url: string; expiraEm: string | null } | null>(null)
