@@ -38,7 +38,7 @@ O painel **não tem login**. A clínica entra por:
   origem é conferida).
 - **Link assinado:** gerado no setup (`/?t=…`), com validade escolhida.
 
-A área de setup tem senha própria da equipe ([ADR 0003](docs/adr/0003-area-de-setup.md)).
+A área de setup tem senha própria da equipe ([ADR 0003](docs/adr/0003-area-de-setup.md)). O setup do CRM também a abre, com um link assinado de 120 segundos (`/api/setup/entrar`, `SETUP_LINK_SEGREDO`); `SETUP_SENHA_DESLIGADA=1` desliga a senha ([deploy, seção 8](docs/deploy-vps.md#8-área-de-setup)).
 O desenho do acesso e os incidentes que o moldaram estão em `src/acesso/`.
 
 ## Cadastro comum dos produtos

@@ -41,6 +41,22 @@ trocar o token da plataforma de mensagens dela.
 - Tokens são **só de escrita**: a API nunca devolve o valor, só "configurado".
 - `frame-ancestors 'none'` e `Cache-Control: no-store` na área inteira.
 
+### Atualização (2026-10-08): a entrada pelo setup do CRM
+
+Com o setup unificado (contactIA/CRM-Contact-IA#219), o setup do CRM abre esta área
+com um link assinado (`GET /api/setup/entrar?t=`, `src/acesso/link-de-setup.ts`), no
+formato do token de painel, com `tipo: "setup"`, `companyId` e 120 segundos de
+validade. O link abre a mesma sessão, no mesmo cookie.
+
+- Um segredo só para isso, `SETUP_LINK_SEGREDO`, diferente do `LINK_SECRET` (igual,
+  não vale) e da chave da sessão. Um link de painel não abre o setup, e o cookie
+  da sessão não serve de link.
+- A ida à página do setup é uma página que navega sozinha, e não um 302: com o
+  cookie `SameSite=Strict`, o navegador não o mandaria num redirect que começou no
+  CRM.
+- `SETUP_SENHA_DESLIGADA` (`1` ou `true`) desliga a senha. Sem `SETUP_PASSWORD_HASH`,
+  a chave da sessão deriva do segredo do link.
+
 ## Consequências
 
 - O cadastro não depende mais do Clinic Control. Os dois continuam podendo

@@ -183,6 +183,26 @@ segue funcionando.
 Trocar a senha = gerar outro hash, substituir no `.env` e redeployar. Toda
 sessão aberta cai.
 
+### Entrar pelo setup do CRM (uma senha só)
+
+O setup do CRM abre este setup com um link assinado de 120 segundos, no botão do
+produto (contactIA/CRM-Contact-IA#219). O link chega em `/api/setup/entrar?t=`, abre a
+mesma sessão de 8 horas que a senha abre e leva à clínica, ou à lista.
+
+1. A equipe gera o segredo e o grava **nos dois `.env`**: `SETUP_LINK_SEGREDO` aqui e
+   `ANIVERSARIANTES_SETUP_SEGREDO` no CRM, com o mesmo valor. Diferente do `LINK_SECRET`.
+2. `./deploy/deploy.sh` aqui, e o deploy do CRM.
+3. Conferir: o botão do CRM abre este setup sem pedir senha.
+4. **Só com o OK da equipe:** `SETUP_SENHA_DESLIGADA=1` no `.env` e o `deploy.sh`.
+   A tela de entrar passa a dizer para abrir pelo setup do CRM, e o POST da senha
+   responde 403 (`SENHA_DESLIGADA`). Depois disso o `SETUP_PASSWORD_HASH` pode sair do
+   `.env`: sem ele, a chave da sessão deriva do segredo do link, e as sessões abertas
+   caem uma vez.
+
+Link vencido, adulterado ou com o segredo errado volta à tela de entrar com o aviso
+"O link de acesso não vale mais", sem o motivo. Trocar o segredo derruba os links em
+trânsito (duram 2 minutos), não as sessões abertas pela senha.
+
 O log registra login, cadastros e alterações — nomes dos campos, nunca valores:
 
 ```bash
