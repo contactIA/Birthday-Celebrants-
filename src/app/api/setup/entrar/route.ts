@@ -12,12 +12,10 @@ import { listarClinicasNoSetup } from '@/shared/clinica/repositorio'
 // link.
 
 /** A tela de entrar com o aviso de link recusado. Sem o motivo: vencido e forjado dão o mesmo. */
-function paraEntrar(request: NextRequest) {
-  const destino = request.nextUrl.clone()
-  destino.pathname = '/setup/entrar'
-  destino.search = ''
-  destino.searchParams.set('aviso', 'link')
-  return NextResponse.redirect(destino, 303)
+function paraEntrar() {
+  // Location relativo: atrás do nginx, a URL do pedido é a interna do container
+  // (0.0.0.0:3000), e o navegador resolve o caminho no domínio público.
+  return new NextResponse(null, { status: 303, headers: { Location: '/setup/entrar?aviso=link' } })
 }
 
 /** O caminho da clínica no setup deste app (o id local), ou a lista quando não há clínica ou ela não está aqui. */
@@ -76,7 +74,7 @@ export async function GET(request: NextRequest) {
   const link = verificarLinkDeSetup(request.nextUrl.searchParams.get('t'), agora, segredos.segredoDoLink)
   if (!link) {
     console.warn(`[setup/entrar] link recusado de ${request.headers.get('x-real-ip') ?? 'desconhecido'}`)
-    return paraEntrar(request)
+    return paraEntrar()
   }
 
   const destino = await destinoDaClinica(link.companyId)
