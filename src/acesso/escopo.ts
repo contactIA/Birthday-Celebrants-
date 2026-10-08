@@ -46,7 +46,7 @@ export function unidadeDaRequisicao(request: NextRequest): string | null {
 export function exigirSessaoDeSetup(request: NextRequest): void {
   const segredos = segredosDoSetup()
   const token = request.cookies.get(COOKIE_SETUP)?.value
-  if (!segredos || !sessaoValida(token, new Date(), segredos.linkSecret, segredos.hashDaSenha)) {
+  if (!segredos || !sessaoValida(token, new Date(), segredos.linkSecret, segredos.ancora)) {
     throw new SemSessaoDeSetupError()
   }
 }

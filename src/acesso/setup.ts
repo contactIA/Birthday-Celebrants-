@@ -1,6 +1,8 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 
-// Credencial da tela de setup: senha da equipe e a sessão que ela abre.
+// Credencial da tela de setup: senha da equipe e a sessão que ela abre. A mesma
+// sessão abre também pelo link assinado do setup do CRM (`link-de-setup.ts`,
+// contactIA/CRM-Contact-IA#219), com um segredo próprio, diferente dos dois daqui.
 //
 // É um acesso SEPARADO do escopo de clínica, e a separação é criptográfica, não
 // só de rota. A tela de setup lê e grava credenciais de TODAS as clínicas; o
@@ -75,28 +77,29 @@ interface PayloadDaSessao {
 }
 
 /**
- * A chave que assina a sessão, derivada de LINK_SECRET e do hash da senha.
+ * A chave que assina a sessão, derivada de LINK_SECRET e da âncora (ver
+ * `ancoraDaSessao`: o hash da senha, ou o segredo do link quando não há senha).
  *
  * Derivar do LINK_SECRET evita mais um segredo para cadastrar; derivar TAMBÉM
  * do hash da senha faz a troca de senha derrubar toda sessão aberta — que é o
  * que se espera quando a senha vazou.
  */
-function chaveDaSessao(linkSecret: string, hashDaSenha: string): Buffer {
-  return createHmac('sha256', linkSecret).update(`setup-sessao:${hashDaSenha}`).digest()
+function chaveDaSessao(linkSecret: string, ancora: string): Buffer {
+  return createHmac('sha256', linkSecret).update(`setup-sessao:${ancora}`).digest()
 }
 
 function assinatura(codificado: string, chave: Buffer): string {
   return createHmac('sha256', chave).update(codificado).digest('base64url')
 }
 
-export function assinarSessao(agora: Date, linkSecret: string, hashDaSenha: string): string {
+export function assinarSessao(agora: Date, linkSecret: string, ancora: string): string {
   const payload: PayloadDaSessao = {
     v: 1,
     tipo: 'setup',
     exp: Math.floor(agora.getTime() / 1000) + TTL_SESSAO_SETUP,
   }
   const codificado = Buffer.from(JSON.stringify(payload)).toString('base64url')
-  return `${codificado}.${assinatura(codificado, chaveDaSessao(linkSecret, hashDaSenha))}`
+  return `${codificado}.${assinatura(codificado, chaveDaSessao(linkSecret, ancora))}`
 }
 
 /** `true` só para sessão de setup válida e dentro da validade. Nunca lança. */
@@ -104,7 +107,7 @@ export function sessaoValida(
   token: string | null | undefined,
   agora: Date,
   linkSecret: string,
-  hashDaSenha: string
+  ancora: string
 ): boolean {
   if (!token) return false
   const partes = token.split('.')
@@ -112,7 +115,7 @@ export function sessaoValida(
   const [codificado, recebida] = partes as [string, string]
 
   // Autenticar antes de interpretar, como no token de clínica.
-  const esperada = Buffer.from(assinatura(codificado, chaveDaSessao(linkSecret, hashDaSenha)))
+  const esperada = Buffer.from(assinatura(codificado, chaveDaSessao(linkSecret, ancora)))
   const informada = Buffer.from(recebida)
   if (esperada.length !== informada.length || !timingSafeEqual(esperada, informada)) return false
 
@@ -127,14 +130,82 @@ export function sessaoValida(
 }
 
 /**
- * Os dois segredos do setup, ou `null` quando falta algum.
+ * O cookie da sessão. Um lugar só, porque duas rotas o gravam: a senha
+ * (`/api/setup/sessao`) e o link do CRM (`/api/setup/entrar`), e as duas abrem
+ * a MESMA sessão.
+ */
+export function cookieDaSessaoDeSetup(valor: string, maxAge: number, producao: boolean) {
+  return {
+    name: COOKIE_SETUP,
+    value: valor,
+    httpOnly: true,
+    secure: producao,
+    // `strict`, não `none` como o cookie de clínica: a área de setup NUNCA roda
+    // em iframe, e `strict` impede que outro site dispare ações com a sessão.
+    sameSite: 'strict' as const,
+    path: '/',
+    maxAge,
+  }
+}
+
+/** Só `1` ou `true` desligam a senha. Qualquer outro valor, ou nenhum, a deixa ligada. */
+export function senhaDesligadaPor(valor: string | undefined): boolean {
+  const v = (valor ?? '').trim().toLowerCase()
+  return v === '1' || v === 'true'
+}
+
+export interface SegredosDoSetup {
+  linkSecret: string
+  /** O hash da senha da equipe; `null` quando não há senha cadastrada. */
+  hashDaSenha: string | null
+  /**
+   * O segredo dos links de setup que o CRM assina (`SETUP_LINK_SEGREDO`, ver
+   * `link-de-setup.ts`). `null` quando falta, ou quando é igual ao LINK_SECRET:
+   * os dois têm de ser diferentes, senão quem tem o segredo dos painéis
+   * assinaria a entrada no setup.
+   */
+  segredoDoLink: string | null
+  /** `SETUP_SENHA_DESLIGADA`: a entrada por senha recusa, só o link do CRM abre. */
+  senhaDesligada: boolean
+  /** O que a chave da sessão deriva junto do LINK_SECRET (ver `ancoraDaSessao`). */
+  ancora: string
+}
+
+/**
+ * A âncora da chave da sessão: o hash da senha, como sempre foi (trocar a senha
+ * derruba as sessões); sem senha cadastrada, o segredo do link (trocar o segredo
+ * derruba as sessões). O prefixo separa os dois casos: um hash nunca coincide
+ * com um segredo de link.
+ */
+function ancoraDaSessao(hashDaSenha: string | null, segredoDoLink: string | null): string | null {
+  if (hashDaSenha) return hashDaSenha
+  if (segredoDoLink) return `link:${segredoDoLink}`
+  return null
+}
+
+/**
+ * Os segredos do setup, ou `null` quando o setup não tem como abrir: sem
+ * LINK_SECRET, ou sem senha E sem segredo de link.
  *
  * `null` e não exceção: setup não configurado é estado legítimo (o painel das
  * clínicas funciona sem ele), e quem chama responde 503 em vez de derrubar.
  */
-export function segredosDoSetup(): { linkSecret: string; hashDaSenha: string } | null {
+export function segredosDoSetup(): SegredosDoSetup | null {
   const linkSecret = process.env.LINK_SECRET
-  const hashDaSenha = process.env.SETUP_PASSWORD_HASH
-  if (!linkSecret || !hashDaSenha) return null
-  return { linkSecret, hashDaSenha }
+  if (!linkSecret) return null
+  const hashDaSenha = process.env.SETUP_PASSWORD_HASH || null
+  const informado = process.env.SETUP_LINK_SEGREDO || null
+  if (informado && informado === linkSecret) {
+    console.error('[setup] SETUP_LINK_SEGREDO igual ao LINK_SECRET: o link do CRM fica desligado até os dois serem diferentes.')
+  }
+  const segredoDoLink = informado && informado !== linkSecret ? informado : null
+  const ancora = ancoraDaSessao(hashDaSenha, segredoDoLink)
+  if (!ancora) return null
+  return {
+    linkSecret,
+    hashDaSenha,
+    segredoDoLink,
+    senhaDesligada: senhaDesligadaPor(process.env.SETUP_SENHA_DESLIGADA),
+    ancora,
+  }
 }

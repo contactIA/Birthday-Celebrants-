@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { assinarSessao, COOKIE_SETUP, segredosDoSetup, senhaConfere, TTL_SESSAO_SETUP } from '@/acesso/setup'
+import { assinarSessao, cookieDaSessaoDeSetup, segredosDoSetup, senhaConfere, TTL_SESSAO_SETUP } from '@/acesso/setup'
 import {
   estaBloqueado,
   limparVencidos,
@@ -11,7 +11,9 @@ import {
 // POST /api/setup/sessao — entra na área de setup com a senha da equipe.
 // DELETE /api/setup/sessao — sai.
 //
-// O POST é a única rota pública da API de setup (ver decisao-setup.ts).
+// O POST é rota pública da API de setup, como o GET de /api/setup/entrar, o link
+// do setup do CRM (ver decisao-setup.ts). Com SETUP_SENHA_DESLIGADA, o POST
+// recusa: só o link abre a sessão.
 
 const falhasPorIp = new Map<string, Registro>()
 
@@ -29,23 +31,28 @@ function ipDe(request: NextRequest): string {
 }
 
 function cookieDaSessao(valor: string, maxAge: number) {
-  return {
-    name: COOKIE_SETUP,
-    value: valor,
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    // `strict`, não `none` como o cookie de clínica: a área de setup NUNCA roda
-    // em iframe, e `strict` impede que outro site dispare ações com a sessão.
-    sameSite: 'strict' as const,
-    path: '/',
-    maxAge,
-  }
+  return cookieDaSessaoDeSetup(valor, maxAge, process.env.NODE_ENV === 'production')
 }
 
 export async function POST(request: NextRequest) {
   const segredos = segredosDoSetup()
   if (!segredos) {
     return NextResponse.json({ error: 'Setup não configurado neste servidor' }, { status: 503 })
+  }
+  // Antes do limite de tentativas e da leitura do corpo: com a senha desligada
+  // não há o que tentar. A frase é a que a tela de entrar mostra.
+  if (segredos.senhaDesligada) {
+    return NextResponse.json(
+      { error: 'A entrada por senha está desligada. Abra este setup pelo setup do CRM.', codigo: 'SENHA_DESLIGADA' },
+      { status: 403 }
+    )
+  }
+  const { hashDaSenha } = segredos
+  if (!hashDaSenha) {
+    return NextResponse.json(
+      { error: 'Este servidor não tem senha de setup. Abra este setup pelo setup do CRM.', codigo: 'SEM_SENHA' },
+      { status: 503 }
+    )
   }
 
   const agora = Date.now()
@@ -64,7 +71,7 @@ export async function POST(request: NextRequest) {
   const senha = typeof corpo?.senha === 'string' ? corpo.senha : ''
 
   // Senha vazia também conta como tentativa: não há motivo para ela ser grátis.
-  if (!senha || !senhaConfere(senha, segredos.hashDaSenha)) {
+  if (!senha || !senhaConfere(senha, hashDaSenha)) {
     falhasPorIp.set(ip, registrarFalha(registro, agora))
     console.warn(`[setup/sessao] senha incorreta de ${ip}`)
     return NextResponse.json({ error: 'Senha incorreta' }, { status: 401 })
@@ -75,7 +82,7 @@ export async function POST(request: NextRequest) {
 
   const res = NextResponse.json({ ok: true })
   res.cookies.set(
-    cookieDaSessao(assinarSessao(new Date(agora), segredos.linkSecret, segredos.hashDaSenha), TTL_SESSAO_SETUP)
+    cookieDaSessao(assinarSessao(new Date(agora), segredos.linkSecret, segredos.ancora), TTL_SESSAO_SETUP)
   )
   return res
 }
