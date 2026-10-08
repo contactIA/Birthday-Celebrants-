@@ -53,7 +53,7 @@ com aviso no log (`[cadastro]`).
 O deploy deste código é seguro antes de tudo isso: desligada, a variável não toca
 no cadastro. Ligar vem por último:
 
-1. **No CRM:** a migração `0017_cadastro_dos_produtos` aplicada (com o OK da
+1. **No CRM:** a migração `0018_cadastro_dos_produtos` aplicada (com o OK da
    equipe).
 2. **No Supabase:** expor o esquema `cadastro` no PostgREST (Data API, "Exposed
    schemas"), à mão, como foi com os esquemas dos apps.

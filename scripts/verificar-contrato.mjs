@@ -104,7 +104,7 @@ async function verificar() {
   const doCadastro = colunasFaltando(await colunasDoEsquema('cadastro'), CONTRATO_DO_CADASTRO)
   if (doCadastro.length > 0) {
     relatar(
-      'O CADASTRO COMUM NÃO TEM o que este app lê (a migração 0017 do CRM está aplicada e o esquema exposto?):',
+      'O CADASTRO COMUM NÃO TEM o que este app lê (a migração 0018 do CRM está aplicada e o esquema exposto?):',
       doCadastro,
       'Não suba com o CADASTRO_UNIFICADO ligado. Ver docs/cadastro-unificado.md.'
     )
