@@ -47,9 +47,10 @@ export async function POST(request: NextRequest) {
       value: pedida,
       httpOnly: true,
       // Mesmos atributos do cookie de escopo (proxy.ts): a página roda em iframe
-      // de outro domínio, então `none` + `secure` em produção.
+      // de outro domínio, então `none` + `secure` + particionado em produção.
       secure: producao,
       sameSite: producao ? 'none' : 'lax',
+      partitioned: producao,
       path: '/',
     })
     return res

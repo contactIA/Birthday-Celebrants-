@@ -20,8 +20,13 @@ export function exigirCompanyId(request: NextRequest): string {
   return companyId
 }
 
-/** Cookie com a unidade escolhida no seletor do painel. */
-export const COOKIE_UNIDADE = 'av_unidade'
+/**
+ * Cookie com a unidade escolhida no seletor do painel. Particionado, como o de
+ * escopo, e com nome novo pelo mesmo motivo (ver `COOKIE` em proxy.ts).
+ */
+export const COOKIE_UNIDADE = 'av_unidade_p'
+/** Nome de antes da partição: lido só na falta do novo. Remover a partir de 2026-10-23. */
+const COOKIE_UNIDADE_ANTIGO = 'av_unidade'
 
 /**
  * A unidade que o usuário escolheu no seletor, ou `null`.
@@ -33,7 +38,7 @@ export const COOKIE_UNIDADE = 'av_unidade'
  * sendo o header do proxy.
  */
 export function unidadeDaRequisicao(request: NextRequest): string | null {
-  return request.cookies.get(COOKIE_UNIDADE)?.value || null
+  return request.cookies.get(COOKIE_UNIDADE)?.value || request.cookies.get(COOKIE_UNIDADE_ANTIGO)?.value || null
 }
 
 /**
