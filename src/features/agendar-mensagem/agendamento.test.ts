@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   agendarMensagens,
+  exigirModeloDoRemetente,
   ModeloNaoEncontradoError,
   PedidoInvalidoError,
   MAXIMO_POR_LOTE,
@@ -15,7 +16,7 @@ import type { Aniversariante } from '@/providers/prontuario'
 
 const SP = 'America/Sao_Paulo'
 const AGORA = new Date('2026-09-15T17:00:00Z') // 14:00 em São Paulo
-const CONTEXTO = { timezone: SP, agora: AGORA }
+const CONTEXTO = { timezone: SP, agora: AGORA, remetente: null }
 
 const MODELO: ConfiguracaoDeModelo = {
   id: 'config-1',
@@ -40,6 +41,7 @@ function paciente(over: Partial<Aniversariante> = {}): Aniversariante {
 function deps(over: Partial<Dependencias> = {}) {
   const d = {
     buscarModelo: vi.fn(async () => MODELO as ConfiguracaoDeModelo | null),
+    listarDaPlataforma: vi.fn(async () => ({ modelos: [], canais: [], filtradoPorTipo: true })),
     buscarPacientes: vi.fn(async () => [paciente()]),
     buscarEnvios: vi.fn(async () => [] as EnvioExistente[]),
     agendar: vi.fn(async () => ({ id: 'msg-1' })),
@@ -213,7 +215,7 @@ describe('um parabéns por paciente por ano', () => {
     })
     const [r] = await agendarMensagens(
       { modeloConfigId: 'config-1', pacienteIds: ['p1'] },
-      { timezone: SP, agora: new Date('2026-12-20T15:00:00Z') },
+      { ...CONTEXTO, agora: new Date('2026-12-20T15:00:00Z') },
       d
     )
     expect(r!.ok).toBe(true)
@@ -352,7 +354,7 @@ describe('registro do envio', () => {
     const d = deps({ buscarPacientes: vi.fn(async () => [paciente({ aniversario: '12/31' })]) })
     await agendarMensagens(
       { modeloConfigId: 'config-1', pacienteIds: ['p1'], quandoManual: '2027-01-01T01:30:00Z' },
-      { timezone: SP, agora: viradaUTC },
+      { ...CONTEXTO, agora: viradaUTC },
       d
     )
     expect(d.registrarEnvio).toHaveBeenCalledWith(expect.objectContaining({ ano: 2026 }))
@@ -385,7 +387,7 @@ describe('virada de ano', () => {
     const d = deps({ buscarPacientes: vi.fn(async () => [paciente({ aniversario: '01/05' })]) })
     const [r] = await agendarMensagens(
       { modeloConfigId: 'config-1', pacienteIds: ['p1'] },
-      { timezone: SP, agora: new Date('2026-12-20T15:00:00Z') },
+      { ...CONTEXTO, agora: new Date('2026-12-20T15:00:00Z') },
       d
     )
     expect(r!.ok).toBe(true)
@@ -433,5 +435,37 @@ describe('o contato do paciente é salvo antes da mensagem', () => {
     const d = deps({ buscarPacientes: vi.fn(async () => [paciente({ telefone: '000000' })]) })
     await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
     expect(d.salvarContato).not.toHaveBeenCalled()
+  })
+})
+
+describe('o número do modelo', () => {
+  const canais = [
+    { id: 'c1', numero: '556231930175', nome: 'Recepção', ativo: true },
+    { id: 'c2', numero: '5571981270357', nome: 'Comercial', ativo: true },
+  ]
+  const plataforma = (canalId: string) => ({
+    modelos: [{ id: 'modelo-na-plataforma', nome: 'Parabéns', conteudo: '', canalId }],
+    canais,
+    filtradoPorTipo: true,
+  })
+
+  it('modelo de outro número: recusa o lote inteiro, sem chamar a plataforma', async () => {
+    const d = deps({ listarDaPlataforma: vi.fn(async () => plataforma('c2')) })
+    await expect(
+      agendarMensagens(
+        { modeloConfigId: 'config-1', pacienteIds: ['p1'] },
+        { ...CONTEXTO, remetente: '556231930175' },
+        d
+      )
+    ).rejects.toThrow(/é do número \(71\) 98127-0357, e esta clínica agenda pelo \(62\) 3193-0175/)
+    expect(d.agendar).not.toHaveBeenCalled()
+  })
+
+  it('modelo do número da clínica: segue', () => {
+    expect(() => exigirModeloDoRemetente('modelo-na-plataforma', plataforma('c1'), '556231930175')).not.toThrow()
+  })
+
+  it('modelo fora da listagem: quem decide é a plataforma', () => {
+    expect(() => exigirModeloDoRemetente('outro', plataforma('c2'), '556231930175')).not.toThrow()
   })
 })

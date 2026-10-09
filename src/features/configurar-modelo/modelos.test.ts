@@ -8,6 +8,14 @@ import {
   type ConfiguracaoParaSalvar,
 } from './modelos'
 
+const CANAIS = [
+  { id: 'c1', numero: '556231930175', nome: 'Recepção', ativo: true },
+  { id: 'c2', numero: '5571981270357', nome: 'Comercial', ativo: true },
+]
+const REMETENTE = '556231930175'
+/** Modelo de outro número da conta: o caso real de 2026-10-09, no app de lembretes. */
+const DE_OUTRO_NUMERO = { id: 'm2', nome: 'Parabéns', conteudo: 'Feliz aniversário!', canalId: 'c2' }
+
 function config(over: Partial<ConfiguracaoParaSalvar> = {}): ConfiguracaoParaSalvar {
   return {
     modeloId: 'm1',
@@ -35,12 +43,14 @@ describe('listagem', () => {
     return {
       listarDaPlataforma: vi.fn(async () => ({
         modelos: [
-          { id: 'm1', nome: 'Parabéns', conteudo: 'Oi {{1}}, parabéns! {{2}}' },
-          { id: 'm2', nome: 'Outro', conteudo: 'Sem variáveis' },
+          { id: 'm1', nome: 'Parabéns', conteudo: 'Oi {{1}}, parabéns! {{2}}', canalId: null },
+          { id: 'm2', nome: 'Outro', conteudo: 'Sem variáveis', canalId: null },
         ],
+        canais: [],
         filtradoPorTipo: true,
       })),
       buscarConfiguracoes: vi.fn(async () => new Map(configs)),
+      remetente: null,
     }
   }
 
@@ -58,7 +68,7 @@ describe('listagem', () => {
 
   it('repassa o aviso de filtro não garantido', async () => {
     const d = deps()
-    d.listarDaPlataforma = vi.fn(async () => ({ modelos: [], filtradoPorTipo: false }))
+    d.listarDaPlataforma = vi.fn(async () => ({ modelos: [], canais: [], filtradoPorTipo: false }))
     const r = await listarModelos(d)
     expect(r.filtradoPorTipo).toBe(false)
   })
@@ -68,6 +78,23 @@ describe('listagem', () => {
     // não vira item fantasma.
     const r = await listarModelos(deps([['modelo-que-nao-existe-mais', salva]]))
     expect(r.modelos.map((m) => m.modeloId)).toEqual(['m1', 'm2'])
+  })
+
+  it('diz por qual número cada modelo sai, com o de outro número por último', async () => {
+    const r = await listarModelos({
+      listarDaPlataforma: async () => ({
+        modelos: [DE_OUTRO_NUMERO, { id: 'm1', nome: 'Parabéns', conteudo: 'Oi', canalId: 'c1' }],
+        canais: CANAIS,
+        filtradoPorTipo: true,
+      }),
+      buscarConfiguracoes: async () => new Map(),
+      remetente: REMETENTE,
+    })
+    expect(r.modelos.map((m) => [m.modeloId, m.envio.saiPeloRemetente])).toEqual([
+      ['m1', true],
+      ['m2', false],
+    ])
+    expect(r.modelos[1]!.envio.numero).toEqual({ numero: '5571981270357', nome: 'Comercial' })
   })
 })
 
@@ -108,12 +135,33 @@ describe('validação', () => {
   it('recusa modelo não informado', () => {
     expect(() => validarConfiguracao(config({ modeloId: '' }))).toThrow(ConfiguracaoInvalidaError)
   })
+
+  it('recusa modelo de outro número, dizendo os dois números', () => {
+    const envio = {
+      numero: { numero: '5571981270357', nome: 'Comercial' },
+      remetente: { numero: REMETENTE, nome: 'Recepção' },
+      saiPeloRemetente: false,
+    }
+    expect(() => validarConfiguracao(config(), envio)).toThrow(/\(71\) 98127-0357.*\(62\) 3193-0175/)
+    expect(() => validarConfiguracao(config({ ativo: false }), envio)).not.toThrow()
+  })
 })
 
 describe('salvar', () => {
-  function deps() {
-    return { limparPadrao: vi.fn(async () => {}), gravar: vi.fn(async () => {}) }
+  const plataforma = {
+    listarDaPlataforma: vi.fn(async () => ({ modelos: [DE_OUTRO_NUMERO], canais: CANAIS, filtradoPorTipo: true })),
+    remetente: REMETENTE,
   }
+
+  function deps() {
+    return { ...plataforma, limparPadrao: vi.fn(async () => {}), gravar: vi.fn(async () => {}) }
+  }
+
+  it('modelo de outro número não grava', async () => {
+    const d = deps()
+    await expect(salvarConfiguracao(config({ modeloId: 'm2' }), d)).rejects.toThrow(/agenda pelo/)
+    expect(d.gravar).not.toHaveBeenCalled()
+  })
 
   it('não mexe no padrão quando o modelo não é padrão', async () => {
     const d = deps()
@@ -127,6 +175,7 @@ describe('salvar', () => {
     // padrões (a tela pede para escolher) e não dois (ambíguo e silencioso).
     const ordem: string[] = []
     const d = {
+      ...plataforma,
       limparPadrao: vi.fn(async () => {
         ordem.push('limpar')
       }),

@@ -1,9 +1,10 @@
 import { CAMPOS_DISPONIVEIS, parametrosDoTemplate } from '@/shared/template/parametros'
 import type { DiaEnvio } from '@/shared/data/agendamento'
+import { envioDoModelo, motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
 import type { ListagemDeModelos } from '@/providers/mensageria'
 
 // A tela de modelos: casa os modelos aprovados na plataforma com a configuração
-// que salvamos para cada um.
+// que salvamos para cada um, e diz por qual número cada um sai.
 
 export interface ConfiguracaoSalva {
   id: string
@@ -21,6 +22,8 @@ export interface ModeloNaTela {
   conteudo: string
   /** `{{1}}`, `{{2}}`... encontrados no texto, para a tela montar o formulário. */
   parametrosDoTexto: string[]
+  /** Por qual número o modelo sai, e se é o da clínica. */
+  envio: EnvioDoModelo
   config: ConfiguracaoSalva | null
 }
 
@@ -36,6 +39,8 @@ export interface ListagemParaTela {
 export interface DependenciasDeLeitura {
   listarDaPlataforma: () => Promise<ListagemDeModelos>
   buscarConfiguracoes: () => Promise<Map<string, ConfiguracaoSalva>>
+  /** O número remetente da clínica, como cadastrado. */
+  remetente: string | null
 }
 
 export async function listarModelos(deps: DependenciasDeLeitura): Promise<ListagemParaTela> {
@@ -44,15 +49,20 @@ export async function listarModelos(deps: DependenciasDeLeitura): Promise<Listag
     deps.buscarConfiguracoes(),
   ])
 
+  const modelos = daPlataforma.modelos.map((modelo) => ({
+    modeloId: modelo.id,
+    nome: modelo.nome,
+    conteudo: modelo.conteudo,
+    parametrosDoTexto: parametrosDoTemplate(modelo.conteudo),
+    envio: envioDoModelo(modelo.canalId, deps.remetente, daPlataforma.canais),
+    config: configs.get(modelo.id) ?? null,
+  }))
+  // Os de outro número por último: a conta pode ter o mesmo modelo, com o mesmo
+  // nome, em vários números, e o que serve à clínica precisa ser o primeiro.
+  const foraDoRemetente = (m: ModeloNaTela) => Number(m.envio.saiPeloRemetente === false)
   return {
     filtradoPorTipo: daPlataforma.filtradoPorTipo,
-    modelos: daPlataforma.modelos.map((modelo) => ({
-      modeloId: modelo.id,
-      nome: modelo.nome,
-      conteudo: modelo.conteudo,
-      parametrosDoTexto: parametrosDoTemplate(modelo.conteudo),
-      config: configs.get(modelo.id) ?? null,
-    })),
+    modelos: modelos.sort((a, b) => foraDoRemetente(a) - foraDoRemetente(b)),
   }
 }
 
@@ -94,11 +104,16 @@ const HORARIO = /^([01]\d|2[0-3]):([0-5]\d)$/
  * string vazia — silenciosamente. Sem checar aqui, um erro de digitação no
  * mapeamento só aparece como um "Olá ," já entregue no WhatsApp do paciente.
  * É mais barato recusar agora do que descobrir depois.
+ *
+ * E o modelo precisa sair pelo número da clínica: um modelo de outro número
+ * salvo como ativo só falharia no envio, paciente por paciente.
  */
-export function validarConfiguracao(config: ConfiguracaoParaSalvar): void {
+export function validarConfiguracao(config: ConfiguracaoParaSalvar, envio: EnvioDoModelo | null = null): void {
   if (!config.modeloId) {
     throw new ConfiguracaoInvalidaError('Modelo não informado')
   }
+  const foraDoNumero = config.ativo && envio ? motivoDeNaoSair(envio) : null
+  if (foraDoNumero) throw new ConfiguracaoInvalidaError(foraDoNumero)
   if (!DIAS_VALIDOS.has(config.diaEnvio)) {
     throw new ConfiguracaoInvalidaError('Dia de envio inválido')
   }
@@ -116,6 +131,10 @@ export function validarConfiguracao(config: ConfiguracaoParaSalvar): void {
 }
 
 export interface DependenciasDeEscrita {
+  /** Os modelos e canais, como estão hoje na plataforma. */
+  listarDaPlataforma: () => Promise<ListagemDeModelos>
+  /** O número remetente da clínica, como cadastrado. */
+  remetente: string | null
   /** Tira o padrão de todos os modelos da clínica. */
   limparPadrao: () => Promise<void>
   gravar: (config: ConfiguracaoParaSalvar) => Promise<void>
@@ -125,7 +144,11 @@ export async function salvarConfiguracao(
   config: ConfiguracaoParaSalvar,
   deps: DependenciasDeEscrita
 ): Promise<void> {
-  validarConfiguracao(config)
+  // Modelo fora da listagem não é recusado por número: a listagem tem teto de
+  // página, e quem decide nesse caso é a plataforma.
+  const plataforma = await deps.listarDaPlataforma()
+  const modelo = plataforma.modelos.find((m) => m.id === config.modeloId)
+  validarConfiguracao(config, modelo ? envioDoModelo(modelo.canalId, deps.remetente, plataforma.canais) : null)
 
   // Só um modelo padrão por clínica. São duas escritas, e o banco não nos dá
   // transação por aqui — então a ORDEM é a garantia: limpar antes de gravar faz

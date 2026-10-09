@@ -19,10 +19,17 @@ export interface ModeloDeMensagem {
   nome: string
   /** O corpo com `{{1}}`, `{{2}}`... */
   conteudo: string
+  /**
+   * O canal (número) do modelo. Na plataforma cada modelo é de um canal só, e
+   * agendar por outro remetente é recusado. `null` = a listagem não disse.
+   */
+  canalId: string | null
 }
 
 export interface ListagemDeModelos {
   modelos: ModeloDeMensagem[]
+  /** Os canais da conta, para quem precisa dizer o número de cada modelo. */
+  canais: CanalDaConta[]
   /**
    * `false` = o filtro por tipo "mensagem agendada" voltou vazio nesta conta e
    * caímos para "só aprovados". A tela precisa avisar que não deu para garantir
@@ -184,6 +191,28 @@ export class CanalForaDaEquipeError extends Error {
         'mensagens. Peça a quem administra a conta para conferir o canal e a equipe no cadastro da clínica.'
     )
     this.name = 'CanalForaDaEquipeError'
+  }
+}
+
+/**
+ * O modelo não está associado ao canal do remetente.
+ *
+ * A plataforma devolve isto como "não encontrado" (ENTITY_NOT_FOUND), e a frase
+ * genérica ("modelo, canal ou equipe") deixou um lote inteiro falhar sem pista
+ * de onde olhar (no app de lembretes). O conserto é de configuração: cada
+ * modelo é de um número só, então é usar um modelo do número da clínica (ou
+ * criá-lo nesse número). Quem confere antes de agendar passa a frase com os
+ * números.
+ */
+export class ModeloForaDoCanalError extends Error {
+  readonly status = 409
+  readonly codigo = 'MODELO_FORA_DO_CANAL' as const
+  constructor(
+    mensagem = 'O modelo de mensagem não está associado ao número remetente desta clínica. ' +
+      'Confira em Modelos por qual número cada modelo sai.'
+  ) {
+    super(mensagem)
+    this.name = 'ModeloForaDoCanalError'
   }
 }
 

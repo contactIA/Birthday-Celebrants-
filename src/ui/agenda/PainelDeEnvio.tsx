@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Aviso, Botao, Carregando } from '@/ui/primitivos'
 import { renderizar } from '@/shared/template/parametros'
+import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
+import { formatarTelefoneBR } from '@/shared/telefone/e164'
 import type { Aniversariante } from './Agenda'
 
 // O painel do lado direito mostra O QUE SERÁ ENVIADO, com o nome do primeiro
@@ -21,6 +23,7 @@ interface ModeloNaTela {
   modeloId: string
   nome: string
   conteudo: string
+  envio: EnvioDoModelo
   config: {
     id: string
     parametros: Record<string, string>
@@ -110,6 +113,8 @@ export function PainelDeEnvio({
   }
 
   const modelo = modelos.find((m) => m.config?.id === escolhido)
+  // A MESMA conferência que o servidor faz antes do lote: aqui só adianta a frase.
+  const foraDoNumero = modelo ? motivoDeNaoSair(modelo.envio) : null
 
   const previa = useMemo(() => {
     if (!modelo?.config) return ''
@@ -181,7 +186,8 @@ export function PainelDeEnvio({
             >
               {modelos.map((m) => (
                 <option key={m.config!.id} value={m.config!.id}>
-                  {m.nome}
+                  {/* O número desempata modelos de mesmo nome em números diferentes. */}
+                  {m.envio.numero ? `${m.nome} · ${formatarTelefoneBR(m.envio.numero.numero)}` : m.nome}
                 </option>
               ))}
             </select>
@@ -214,6 +220,11 @@ export function PainelDeEnvio({
                 : QUANDO[modelo?.config?.diaEnvio ?? 'aniversario']}
             </Linha>
             <Linha rotulo="Horário">{modelo?.config?.horarioEnvio ?? 'Não definido'}</Linha>
+            {modelo?.envio.numero && (
+              <Linha rotulo="Envia por">
+                <span className="tnum">{formatarTelefoneBR(modelo.envio.numero.numero)}</span>
+              </Linha>
+            )}
             <Linha rotulo="Selecionados">
               <span className="tnum">{selecionados.length}</span>
             </Linha>
@@ -239,7 +250,9 @@ export function PainelDeEnvio({
             </p>
           )}
 
-          <Botao onClick={confirmar} disabled={selecionados.length === 0 || !modelo || enviando}>
+          {foraDoNumero && <Aviso tom="erro">{foraDoNumero}</Aviso>}
+
+          <Botao onClick={confirmar} disabled={selecionados.length === 0 || !modelo || enviando || !!foraDoNumero}>
             {enviando
               ? 'Agendando…'
               : selecionados.length === 0

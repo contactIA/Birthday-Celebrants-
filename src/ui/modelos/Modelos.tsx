@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { Aviso, Botao, Carregando, Vazio } from '@/ui/primitivos'
 import { CAMPOS_DISPONIVEIS, renderizar } from '@/shared/template/parametros'
+import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
+import { formatarTelefoneBR } from '@/shared/telefone/e164'
 
 // Onde a clínica liga as variáveis de um modelo aprovado aos dados do paciente.
 //
@@ -22,6 +24,7 @@ interface Modelo {
   nome: string
   conteudo: string
   parametrosDoTexto: string[]
+  envio: EnvioDoModelo
   config: {
     id: string
     parametros: Record<string, string>
@@ -119,6 +122,8 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
   const [ehPadrao, setEhPadrao] = useState(modelo.config?.ehPadrao ?? false)
   const [salvando, setSalvando] = useState(false)
   const [resultado, setResultado] = useState<{ ok: boolean; mensagem: string } | null>(null)
+  // A MESMA frase que o servidor usa para recusar o salvar e o agendamento.
+  const foraDoNumero = motivoDeNaoSair(modelo.envio)
 
   async function salvar() {
     setSalvando(true)
@@ -172,9 +177,12 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
             não configurado
           </span>
         )}
+        <NumeroDoModelo envio={modelo.envio} />
       </header>
 
       <div className="flex flex-col gap-5 p-5">
+        {foraDoNumero && <Aviso tom="erro">{foraDoNumero}</Aviso>}
+
         <div className="rounded-[10px] bg-sunk px-4 py-3">
           <p className="mb-1 text-xs text-muted">Prévia com um paciente de exemplo</p>
           <p className="text-sm leading-relaxed whitespace-pre-wrap text-ink">
@@ -245,7 +253,12 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
             Usar como modelo padrão
           </label>
 
-          <Botao tamanho="sm" onClick={salvar} disabled={salvando || faltando.length > 0} className="ml-auto">
+          <Botao
+            tamanho="sm"
+            onClick={salvar}
+            disabled={salvando || faltando.length > 0 || !!foraDoNumero}
+            className="ml-auto"
+          >
             {salvando ? 'Salvando…' : 'Salvar configuração'}
           </Botao>
         </div>
@@ -263,5 +276,24 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
         )}
       </div>
     </section>
+  )
+}
+
+/**
+ * Por qual número o modelo sai. A conta pode ter o mesmo modelo, com o mesmo
+ * nome, em vários números: sem isto os cartões eram idênticos.
+ */
+function NumeroDoModelo({ envio }: { envio: EnvioDoModelo }) {
+  if (!envio.numero) return null
+  return (
+    <span
+      title={envio.numero.nome}
+      className={clsx(
+        'ml-auto shrink-0 text-xs',
+        envio.saiPeloRemetente === false ? 'font-medium text-erro' : 'text-muted'
+      )}
+    >
+      Envia por <span className="tnum">{formatarTelefoneBR(envio.numero.numero)}</span>
+    </span>
   )
 }

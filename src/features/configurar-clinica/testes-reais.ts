@@ -2,6 +2,7 @@ import { hojeNoTimezone } from '@/shared/data/fuso'
 import { provedorEClinica } from '@/providers/prontuario/eclinica'
 import { clienteClinicorp } from '@/providers/prontuario/clinicorp-api'
 import { mensageriaDe } from '@/providers/mensageria'
+import { canalDoRemetente } from '@/shared/mensageria/canal-do-modelo'
 import { conferirRemetente, type DependenciasDoTeste } from './conexao'
 
 // As dependências de verdade do teste de conexão — rede de verdade.
@@ -32,15 +33,17 @@ export function dependenciasReais(agora: Date): DependenciasDoTeste {
 
     async testarMensageria(clinica) {
       const mensageria = mensageriaDe(clinica)
-      const [{ modelos }, canais, equipes] = await Promise.all([
-        mensageria.listarModelos(),
-        mensageria.listarCanais(),
-        mensageria.listarEquipes(),
-      ])
+      // Os canais vêm com os modelos: a listagem precisa deles para dizer o número de cada um.
+      const [{ modelos, canais }, equipes] = await Promise.all([mensageria.listarModelos(), mensageria.listarEquipes()])
       const { from, equipeId } = clinica.credenciais.mensageria
       const remetente = conferirRemetente(from, equipeId, { canais, equipes })
       if (!remetente.ok) throw new Error(remetente.mensagem)
-      return `Conectada: ${plural(modelos.length, 'modelo aprovado', 'modelos aprovados')} · ${remetente.mensagem}`
+
+      // Quantos saem pelo remetente: "5 modelos aprovados" com nenhum do número
+      // da clínica é um setup que só falharia na hora de agendar.
+      const canal = canalDoRemetente(from, canais)
+      const doRemetente = canal ? `, ${modelos.filter((m) => m.canalId === canal.id).length} pelo remetente` : ''
+      return `Conectada: ${plural(modelos.length, 'modelo aprovado', 'modelos aprovados')}${doRemetente} · ${remetente.mensagem}`
     },
   }
 }

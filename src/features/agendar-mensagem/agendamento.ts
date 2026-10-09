@@ -5,7 +5,14 @@ import { paraE164BR } from '@/shared/telefone/e164'
 import { resolverParametros } from '@/shared/template/parametros'
 import type { StatusEnvio } from '@/shared/db'
 import type { Aniversariante } from '@/providers/prontuario'
-import type { AgendamentoCriado, AgendamentoSolicitado, ContatoDoPaciente } from '@/providers/mensageria'
+import { envioDoModelo, motivoDeNaoSair } from '@/shared/mensageria/canal-do-modelo'
+import {
+  ModeloForaDoCanalError,
+  type AgendamentoCriado,
+  type AgendamentoSolicitado,
+  type ContatoDoPaciente,
+  type ListagemDeModelos,
+} from '@/providers/mensageria'
 
 // A regra do agendamento.
 //
@@ -61,6 +68,8 @@ export interface Pedido {
 export interface Contexto {
   timezone: string
   agora: Date
+  /** O número remetente da clínica, como cadastrado. */
+  remetente: string | null
 }
 
 export interface ResultadoPorPaciente {
@@ -83,6 +92,8 @@ export const ERRO_JA_ENVIADO = 'A mensagem de aniversário deste ano já foi env
 
 export interface Dependencias {
   buscarModelo: (modeloConfigId: string) => Promise<ConfiguracaoDeModelo | null>
+  /** Os modelos e canais da plataforma, para conferir o número do modelo antes do lote. */
+  listarDaPlataforma: () => Promise<ListagemDeModelos>
   buscarPacientes: (ids: string[]) => Promise<Aniversariante[]>
   /** Os envios já gravados desses pacientes, de qualquer ano. */
   buscarEnvios: (pacienteIds: string[]) => Promise<EnvioExistente[]>
@@ -116,6 +127,22 @@ export class PedidoInvalidoError extends Error {
 /** Limite de pacientes por pedido. Protege a function e a conta da clínica. */
 export const MAXIMO_POR_LOTE = 100
 
+/**
+ * Recusa o lote INTEIRO, antes de começar, quando o modelo não sai pelo número
+ * da clínica.
+ *
+ * Sem isto a plataforma recusa paciente por paciente, e o lote termina com N
+ * falhas iguais e nenhuma mensagem (caso real no app de lembretes,
+ * 2026-10-09). Modelo que não aparece na listagem não é recusado aqui: a
+ * listagem tem teto de página, e quem decide nesse caso é a plataforma.
+ */
+export function exigirModeloDoRemetente(modeloId: string, plataforma: ListagemDeModelos, remetente: string | null): void {
+  const modelo = plataforma.modelos.find((m) => m.id === modeloId)
+  if (!modelo) return
+  const motivo = motivoDeNaoSair(envioDoModelo(modelo.canalId, remetente, plataforma.canais))
+  if (motivo) throw new ModeloForaDoCanalError(motivo)
+}
+
 function quandoManualValido(iso: string, agora: Date): string {
   const instante = new Date(iso)
   if (Number.isNaN(instante.getTime())) {
@@ -146,6 +173,7 @@ export async function agendarMensagens(
 
   const modelo = await deps.buscarModelo(pedido.modeloConfigId)
   if (!modelo) throw new ModeloNaoEncontradoError()
+  exigirModeloDoRemetente(modelo.modeloId, await deps.listarDaPlataforma(), contexto.remetente)
 
   const quandoManual = pedido.quandoManual
     ? quandoManualValido(pedido.quandoManual, contexto.agora)

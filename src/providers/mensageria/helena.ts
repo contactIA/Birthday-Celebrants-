@@ -3,6 +3,7 @@ import {
   CanalForaDaEquipeError,
   MensageriaIndisponivelError,
   MensagemNaoEstaAgendadaError,
+  ModeloForaDoCanalError,
   RecursoNaoHabilitadoError,
   RemetenteNaoEncontradoError,
   TIMEOUT_MS,
@@ -25,7 +26,9 @@ import { digitosComPais, formatarTelefoneBR } from '@/shared/telefone/e164'
 //
 // LIMITAÇÕES REAIS, descobertas em produção:
 //
-//  · O texto do modelo vem em `text`, não em `content`.
+//  · O texto do modelo vem em `text`, não em `content`, e o canal em
+//    `channelId`: cada modelo é de UM número. O mesmo texto aprovado em cinco
+//    números são cinco modelos com o mesmo nome (conta real, 2026-10-09).
 //  · O campo `type` do objeto retornado NÃO é a mesma coisa que o parâmetro de
 //    query `Type`. O `type` da resposta descreve o CONTEÚDO (modelos comuns vêm
 //    como "TEMPLATE" mesmo aprovados e usáveis em agendamento); o filtro `Type`
@@ -37,7 +40,9 @@ import { digitosComPais, formatarTelefoneBR } from '@/shared/telefone/e164'
 //    MESMA chave cobre coisas bem diferentes — só o `text` as separa:
 //      "App Mensagens agendadas não está habilitado" → recurso desligado na conta;
 //      "Esse canal não esta associado a esse departamento." → a equipe que agenda
-//        não atende o remetente (500). Sem equipe no pedido, vale a padrão.
+//        não atende o remetente (500). Sem equipe no pedido, vale a padrão;
+//      "Modelo de mensagem não esta associado a esse canal." → o modelo é de
+//        outro número da conta (500, um por paciente do lote).
 //    Ler só a chave fez um canal fora da equipe aparecer como "recurso
 //    desativado" — e a equipe foi procurar o problema no lugar errado.
 //  · Cancelar mensagem que já não está agendada devolve ENTITY_ERROR_SAVE.
@@ -72,6 +77,7 @@ interface ModeloBruto {
   id: string
   name: string
   text: string | null
+  channelId?: unknown
 }
 
 /**
@@ -161,6 +167,7 @@ export type ErroDaPlataforma =
   | 'contato-nao-encontrado'
   | 'remetente-nao-encontrado'
   | 'canal-fora-da-equipe'
+  | 'modelo-fora-do-canal'
   | 'recurso-nao-habilitado'
   | 'mensagem-nao-esta-agendada'
   | 'nao-encontrado'
@@ -188,6 +195,7 @@ export function classificarErro(corpo: string): ErroDaPlataforma {
   if (t.includes('contato nao encontrado')) return 'contato-nao-encontrado'
   if (t.includes('canal de comunicacao nao encontrado')) return 'remetente-nao-encontrado'
   if (/nao esta associado a (esse|este) departamento/.test(t)) return 'canal-fora-da-equipe'
+  if (/modelo .*nao esta associado a (esse|este) canal/.test(t)) return 'modelo-fora-do-canal'
   if (t.includes('mensagens agendadas') && t.includes('habilitad')) return 'recurso-nao-habilitado'
   if (corpo.includes('ENTITY_ERROR_SAVE') || t.includes('so e possivel cancelar mensagens que estao agendadas')) {
     return 'mensagem-nao-esta-agendada'
@@ -291,6 +299,8 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
           throw new RemetenteNaoEncontradoError()
         case 'canal-fora-da-equipe':
           throw new CanalForaDaEquipeError()
+        case 'modelo-fora-do-canal':
+          throw new ModeloForaDoCanalError()
         case 'recurso-nao-habilitado':
           throw new RecursoNaoHabilitadoError()
         case 'mensagem-nao-esta-agendada':
@@ -333,23 +343,29 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
       nome: m.name,
       // `text`, não `content`.
       conteudo: m.text ?? '',
+      canalId: typeof m.channelId === 'string' && m.channelId ? m.channelId : null,
     }))
+  }
+
+  async function buscarCanais(): Promise<CanalDaConta[]> {
+    const dados = await chamar('/chat/v1/channel?PageSize=100', { method: 'GET' }, 'listar-canais')
+    return paraCanais(extrairLista(dados) as CanalBruto[])
   }
 
   return {
     async listarModelos(): Promise<ListagemDeModelos> {
-      const filtrado = await buscarModelos(
-        new URLSearchParams({ ApprovedOnly: 'true', Type: 'SCHEDULEDMESSAGE', PageSize: '100' })
-      )
-      if (filtrado.length > 0) return { modelos: filtrado, filtradoPorTipo: true }
+      // Os canais vêm junto: o modelo diz o id do canal, a tela precisa do número.
+      const [canais, filtrado] = await Promise.all([
+        buscarCanais(),
+        buscarModelos(new URLSearchParams({ ApprovedOnly: 'true', Type: 'SCHEDULEDMESSAGE', PageSize: '100' })),
+      ])
+      if (filtrado.length > 0) return { modelos: filtrado, canais, filtradoPorTipo: true }
 
       // Conta em que o filtro por tipo não devolve nada: cai para "só
       // aprovados" — mesmo comportamento de antes do filtro existir — e avisa,
       // para a tela não afirmar o que não pode garantir.
-      const fallback = await buscarModelos(
-        new URLSearchParams({ ApprovedOnly: 'true', PageSize: '100' })
-      )
-      return { modelos: fallback, filtradoPorTipo: false }
+      const fallback = await buscarModelos(new URLSearchParams({ ApprovedOnly: 'true', PageSize: '100' }))
+      return { modelos: fallback, canais, filtradoPorTipo: false }
     },
 
     async agendar(pedido: AgendamentoSolicitado): Promise<AgendamentoCriado> {
@@ -450,10 +466,7 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
         .map((c) => ({ chave: c.key as string, nome: typeof c.name === 'string' ? c.name.trim() : (c.key as string) }))
     },
 
-    async listarCanais(): Promise<CanalDaConta[]> {
-      const dados = await chamar('/chat/v1/channel?PageSize=100', { method: 'GET' }, 'listar-canais')
-      return paraCanais(extrairLista(dados) as CanalBruto[])
-    },
+    listarCanais: buscarCanais,
 
     async listarEquipes(): Promise<EquipeDaConta[]> {
       const dados = await chamar('/core/v2/department', { method: 'GET' }, 'listar-equipes')
