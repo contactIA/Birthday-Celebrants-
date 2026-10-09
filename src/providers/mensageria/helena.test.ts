@@ -65,6 +65,13 @@ describe('classificarErro: a mesma chave, causas diferentes', () => {
     )
   })
 
+  it('modelo de outro número NÃO é o genérico "não encontrado"', () => {
+    // O corpo real, copiado do log de produção do app de lembretes (2026-10-09).
+    expect(classificarErro(erro('ENTITY_NOT_FOUND', 'Modelo de mensagem não esta associado a esse canal.'))).toBe(
+      'modelo-fora-do-canal'
+    )
+  })
+
   it('recurso desativado é só quando a frase diz isso', () => {
     expect(classificarErro(erro('ENTITY_NOT_FOUND', 'App Mensagens agendadas não está habilitado'))).toBe(
       'recurso-nao-habilitado'

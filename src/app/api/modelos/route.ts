@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
       await listarModelos({
         listarDaPlataforma: () => mensageria.listarModelos(),
         buscarConfiguracoes: () => buscarConfiguracoes(clinica),
+        remetente: clinica.credenciais.mensageria.from,
       })
     )
   } catch (err) {
@@ -75,7 +76,11 @@ export async function POST(request: NextRequest) {
       throw new ParametroInvalidoError('Corpo da requisição inválido')
     })
 
+    const mensageria = mensageriaDe(clinica)
+
     await salvarConfiguracao(lerCorpo(corpo as CorpoRecebido), {
+      listarDaPlataforma: () => mensageria.listarModelos(),
+      remetente: clinica.credenciais.mensageria.from,
       limparPadrao: () => limparPadrao(clinica),
       gravar: (config) => gravarConfiguracao(clinica, config),
     })
