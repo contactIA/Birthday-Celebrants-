@@ -17,7 +17,13 @@ import { HEADER_COMPANY_ID, segredoDoAmbiente } from '@/acesso/token'
 // Roda no runtime Node.js, default do Proxy no Next 16. É o que permite
 // `node:crypto` no token em vez de WebCrypto.
 
-const COOKIE = 'av_escopo'
+// `_p` de particionado (ver `partitioned` em `proxy()`). O nome mudou porque o
+// navegador guarda o cookie particionado e o antigo, sem partição, como DOIS
+// cookies de mesmo nome, e qual deles o servidor lê dependeria da ordem em que
+// o navegador os manda. Com nomes diferentes, a precedência é nossa.
+const COOKIE = 'av_escopo_p'
+/** Nome de antes da partição: lido só na falta do novo. Remover a partir de 2026-10-23. */
+const COOKIE_ANTIGO = 'av_escopo'
 
 // `||`, não `??`: `EMBED_HOSTS=` vazio no .env chega como string vazia e, com
 // `??`, virava lista vazia — nenhum host autorizado a informar a clínica.
@@ -165,7 +171,9 @@ export function proxy(request: NextRequest) {
     tokenDaUrl,
     companyIdDaUrl: request.nextUrl.searchParams.get('clinica'),
     referer: request.headers.get('referer'),
-    tokenDoCookie: request.cookies.get(COOKIE)?.value ?? null,
+    // O novo sempre vence. O antigo só entra quando o novo não existe: é quem
+    // estava com o painel aberto no deploy e ainda não passou por uma entrada.
+    tokenDoCookie: request.cookies.get(COOKIE)?.value || request.cookies.get(COOKIE_ANTIGO)?.value || null,
     hostsPermitidos: HOSTS_PERMITIDOS,
     agora: new Date(),
     segredo,
@@ -191,6 +199,12 @@ export function proxy(request: NextRequest) {
     // `lax` (onde não há iframe de todo modo).
     secure: producao,
     sameSite: (producao ? 'none' : 'lax') as 'none' | 'lax',
+    // Particionado (CHIPS): guardado por site de cima, a plataforma. É o que o
+    // navegador aceita mesmo com "bloquear cookies de terceiros" ligado. Sem
+    // isso, nesse navegador a página abria e TODA chamada seguinte voltava 401,
+    // como se a URL não tivesse clínica (cliente com Chrome no Mac, 2026-10-09).
+    // Exige `secure`, então só em produção.
+    partitioned: producao,
     path: '/',
     // Sem `maxAge`: cookie de sessão. O token emitido a partir do host já
     // expira sozinho em 12h.
