@@ -3,6 +3,7 @@
 import clsx from 'clsx'
 import { useCallback, useEffect, useState } from 'react'
 import { Aviso, Botao, Vazio } from '@/ui/primitivos'
+import { IconeWhatsApp } from '@/ui/NumeroDeEnvio'
 import { SituacaoDoEnvio } from '@/ui/SituacaoDoEnvio'
 import { aoClicarNaLinha, BotaoAtualizar, CampoDeBusca, Contato, ESTILO_CONTROLE, Marcador } from '@/ui/tabela'
 import { formatarTelefoneBR } from '@/shared/telefone/e164'
@@ -535,25 +536,6 @@ function IconeMensagem() {
     >
       <path d="M2.5 3.5h11v7.2H7.2L4.4 13v-2.3H2.5z" />
       <path d="M5.3 6.4h5.4M5.3 8.4h3.4" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function IconeWhatsApp() {
-  return (
-    <svg aria-hidden viewBox="0 0 16 16" className="h-[18px] w-[18px] shrink-0">
-      <rect width="16" height="16" rx="4" fill="#25d366" />
-      <path
-        d="M8 3.4a4.6 4.6 0 0 0-3.96 6.93L3.5 12.5l2.24-.53A4.6 4.6 0 1 0 8 3.4Z"
-        fill="none"
-        stroke="#fff"
-        strokeWidth="1.1"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M6.3 6.1c.1-.25.25-.3.4-.3h.3c.1 0 .2 0 .3.25l.35.85c.05.12 0 .25-.07.35l-.25.3c.3.55.75 1 1.3 1.3l.3-.25c.1-.08.23-.12.35-.07l.85.35c.25.1.25.2.25.3v.3c0 .15-.05.3-.3.4-.35.15-.95.2-1.8-.3a4.4 4.4 0 0 1-1.7-1.7c-.5-.85-.45-1.45-.3-1.8Z"
-        fill="#fff"
-      />
     </svg>
   )
 }

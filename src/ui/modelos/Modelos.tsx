@@ -5,7 +5,13 @@ import clsx from 'clsx'
 import { Aviso, Botao, Carregando, Vazio } from '@/ui/primitivos'
 import { CAMPOS_DISPONIVEIS, renderizar } from '@/shared/template/parametros'
 import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
-import { formatarTelefoneBR } from '@/shared/telefone/e164'
+import {
+  NumeroDeEnvio,
+  SituacaoDoNumero,
+  agruparPorNumero,
+  rotuloDoNumero,
+  type GrupoDeNumero,
+} from '@/ui/NumeroDeEnvio'
 
 // Onde a clínica liga as variáveis de um modelo aprovado aos dados do paciente.
 //
@@ -97,15 +103,38 @@ export function Modelos() {
         </Vazio>
       )}
 
+      {/* Um bloco por número: a conta pode ter o mesmo modelo, com o mesmo nome,
+          em vários números, e o número é o que separa um do outro. */}
       {!carregando && modelos.length > 0 && (
-        <div className="grid items-start gap-5 xl:grid-cols-2">
-          {modelos.map((modelo) => (
-            <Cartao key={modelo.modeloId} modelo={modelo} aoSalvar={recarregar} />
+        <div className="flex flex-col gap-9">
+          {agruparPorNumero(modelos).map((grupo) => (
+            <section key={grupo.chave ?? 'sem-numero'} aria-label={rotuloDoGrupo(grupo)} className="flex flex-col gap-3">
+              <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line pb-2.5 text-[15px]">
+                {grupo.numero ? (
+                  <NumeroDeEnvio numero={grupo.numero} recusado={grupo.envio.permitido === false} />
+                ) : (
+                  <span className="font-semibold text-ink-2">Número não identificado</span>
+                )}
+                <SituacaoDoNumero envio={grupo.envio} />
+                <span className="tnum ml-auto text-xs text-muted">
+                  {grupo.itens.length} {grupo.itens.length === 1 ? 'modelo' : 'modelos'}
+                </span>
+              </header>
+              <div className="grid items-start gap-5 xl:grid-cols-2">
+                {grupo.itens.map((modelo) => (
+                  <Cartao key={modelo.modeloId} modelo={modelo} aoSalvar={recarregar} />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
     </div>
   )
+}
+
+function rotuloDoGrupo(grupo: GrupoDeNumero<Modelo>): string {
+  return grupo.numero ? `Modelos do número ${rotuloDoNumero(grupo.numero)}` : 'Modelos de número não identificado'
 }
 
 function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) {
@@ -166,7 +195,7 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
   return (
     <section className="entrar overflow-hidden rounded-[14px] border border-line-soft bg-surface">
       <header className="flex items-center gap-2.5 border-b border-line-soft px-5 py-3">
-        <h2 className="text-sm font-semibold text-ink">{modelo.nome}</h2>
+        <h3 className="text-sm font-semibold text-ink">{modelo.nome}</h3>
         {modelo.config?.ehPadrao && (
           <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent-ink">
             padrão
@@ -177,7 +206,6 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
             não configurado
           </span>
         )}
-        <NumeroDoModelo envio={modelo.envio} />
       </header>
 
       <div className="flex flex-col gap-5 p-5">
@@ -276,23 +304,5 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
         )}
       </div>
     </section>
-  )
-}
-
-/**
- * Por qual número o modelo sai. A conta pode ter o mesmo modelo, com o mesmo
- * nome, em vários números: sem isto os cartões eram idênticos. Por outro número
- * que não o remetente, diz também a equipe que agenda.
- */
-function NumeroDoModelo({ envio }: { envio: EnvioDoModelo }) {
-  if (!envio.numero) return null
-  return (
-    <span
-      title={envio.numero.nome}
-      className={clsx('ml-auto shrink-0 text-xs', envio.permitido === false ? 'font-medium text-erro' : 'text-muted')}
-    >
-      Envia por <span className="tnum">{formatarTelefoneBR(envio.numero.numero)}</span>
-      {envio.equipe && <> · equipe {envio.equipe.nome}</>}
-    </span>
   )
 }
