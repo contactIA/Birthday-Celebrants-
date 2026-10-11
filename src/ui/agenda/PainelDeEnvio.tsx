@@ -5,6 +5,7 @@ import { Aviso, Botao, Carregando } from '@/ui/primitivos'
 import { renderizar } from '@/shared/template/parametros'
 import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
 import { formatarTelefoneBR } from '@/shared/telefone/e164'
+import { NumeroDeEnvio, agruparPorNumero, rotuloDoNumero } from '@/ui/NumeroDeEnvio'
 import type { Aniversariante } from './Agenda'
 
 // O painel do lado direito mostra O QUE SERÁ ENVIADO, com o nome do primeiro
@@ -66,6 +67,9 @@ export function PainelDeEnvio({
   const [erro, setErro] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [resultados, setResultados] = useState<ResultadoDeEnvio[] | null>(null)
+  // O número do lote que FOI enviado: a pessoa pode trocar de modelo depois, e a
+  // confirmação continua falando do lote dela.
+  const [numeroDoEnvio, setNumeroDoEnvio] = useState<string | null>(null)
 
   const emLote = selecionados.length > 1
   const primeiro = selecionados[0] ?? null
@@ -112,6 +116,7 @@ export function PainelDeEnvio({
     if (chaveDaSelecao) setResultados(null)
   }
 
+  const grupos = useMemo(() => agruparPorNumero(modelos), [modelos])
   const modelo = modelos.find((m) => m.config?.id === escolhido)
   // A MESMA conferência que o servidor faz antes do lote: aqui só adianta a frase.
   const foraDoNumero = modelo ? motivoDeNaoSair(modelo.envio) : null
@@ -144,6 +149,7 @@ export function PainelDeEnvio({
       })
       const corpo = await resposta.json()
       if (corpo?.resultados) {
+        setNumeroDoEnvio(modelo.envio.numero?.numero ?? null)
         setResultados(corpo.resultados as ResultadoDeEnvio[])
         aoAgendar()
       } else {
@@ -184,17 +190,40 @@ export function PainelDeEnvio({
               aria-label="Modelo de mensagem"
               className="h-9 w-full rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
             >
-              {modelos.map((m) => (
-                <option key={m.config!.id} value={m.config!.id}>
-                  {/* O número desempata modelos de mesmo nome em números diferentes. */}
-                  {m.envio.numero ? `${m.nome} · ${formatarTelefoneBR(m.envio.numero.numero)}` : m.nome}
-                </option>
-              ))}
+              {/* Agrupados por número: é o número que desempata modelos de mesmo
+                  nome. Com um número só, o grupo não diz nada e fica de fora. */}
+              {grupos.length > 1
+                ? grupos.map((g) => (
+                    <optgroup key={g.chave ?? 'sem-numero'} label={g.numero ? rotuloDoNumero(g.numero) : 'Número não identificado'}>
+                      {g.itens.map((m) => (
+                        <option key={m.config!.id} value={m.config!.id}>
+                          {m.nome}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))
+                : modelos.map((m) => (
+                    <option key={m.config!.id} value={m.config!.id}>
+                      {m.nome}
+                    </option>
+                  ))}
             </select>
           )}
 
-          {/* A prévia é o coração do painel: texto real, nome real. */}
+          {/* A prévia é o coração do painel: texto real, nome real, e o número
+              de onde sai, como o paciente vai ver. */}
           <div className="rounded-[10px] bg-accent-soft px-4 py-3.5">
+            {modelo?.envio.numero && (
+              <div className="mb-3 flex flex-col gap-1 border-b border-accent-line/60 pb-2.5 text-sm">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="text-xs text-accent-ink/70">De</span>
+                  <NumeroDeEnvio numero={modelo.envio.numero} recusado={modelo.envio.permitido === false} />
+                </div>
+                {modelo.envio.equipe && (
+                  <p className="pl-[22px] text-xs text-accent-ink/70">agenda pela equipe {modelo.envio.equipe.nome}</p>
+                )}
+              </div>
+            )}
             <p className="mb-1.5 flex items-center gap-2 text-xs font-medium text-accent-ink">
               {modelo?.nome}
               {modelo?.config?.ehPadrao && (
@@ -220,12 +249,6 @@ export function PainelDeEnvio({
                 : QUANDO[modelo?.config?.diaEnvio ?? 'aniversario']}
             </Linha>
             <Linha rotulo="Horário">{modelo?.config?.horarioEnvio ?? 'Não definido'}</Linha>
-            {modelo?.envio.numero && (
-              <Linha rotulo="Envia por">
-                <span className="tnum">{formatarTelefoneBR(modelo.envio.numero.numero)}</span>
-              </Linha>
-            )}
-            {modelo?.envio.equipe && <Linha rotulo="Equipe">{modelo.envio.equipe.nome}</Linha>}
             <Linha rotulo="Selecionados">
               <span className="tnum">{selecionados.length}</span>
             </Linha>
@@ -261,7 +284,7 @@ export function PainelDeEnvio({
                 : `Agendar ${selecionados.length} ${selecionados.length === 1 ? 'mensagem' : 'mensagens'}`}
           </Botao>
 
-          {resultados && <Resultados resultados={resultados} aoFechar={() => {
+          {resultados && <Resultados resultados={resultados} numero={numeroDoEnvio} aoFechar={() => {
             setResultados(null)
             aoConcluir()
           }} />}
@@ -282,9 +305,12 @@ function Linha({ rotulo, children }: { rotulo: string; children: React.ReactNode
 
 function Resultados({
   resultados,
+  numero,
   aoFechar,
 }: {
   resultados: ResultadoDeEnvio[]
+  /** O número por onde o lote saiu, para a confirmação dizer qual. */
+  numero: string | null
   aoFechar: () => void
 }) {
   const agendados = resultados.filter((r) => r.ok).length
@@ -296,6 +322,12 @@ function Resultados({
       <p className="text-sm font-medium text-ink">
         <span className="tnum">{agendados}</span> de <span className="tnum">{resultados.length}</span>{' '}
         {resultados.length === 1 ? 'mensagem agendada' : 'mensagens agendadas'}
+        {numero && agendados > 0 && (
+          <span className="font-normal text-ink-2">
+            {' '}
+            pelo <span className="tnum whitespace-nowrap">{formatarTelefoneBR(numero)}</span>
+          </span>
+        )}
       </p>
 
       {falhas.length > 0 && (
