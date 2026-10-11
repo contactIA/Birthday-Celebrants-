@@ -28,9 +28,31 @@ colunas estão em `src/shared/contrato.ts` (`CONTRATO_DO_CADASTRO`), que monta o
 | `cadastro.clinicas` | `id`, `company_id`, `nome`, `fuso_horario`, `token_plataforma_cifrado` | A clínica pela conta (`company_id`): o nome, o fuso e o token da plataforma, decifrado no servidor. |
 | `cadastro.unidades` | `id`, `clinica_id`, `company_id`, `nome`, `principal`, `ativa`, `canal_envio_id`, `canal_envio_numero`, `equipe_envio_id`, `prontuario_sistema`, `prontuario_credenciais_cifradas` | Entram no painel as unidades ativas com prontuário. De cada uma: o prontuário decifrado (e-Clínica: `token` e `baseUrl`; Clinicorp: `usuario`, `token`, `subscriberId` e `baseUrl`), o `from` (`canal_envio_numero`), o canal (`canal_envio_id`) e a equipe (`equipe_envio_id`). |
 | `cadastro.unidade_origens` | `unidade_id`, `clinica_id`, `company_id`, `origem`, `id_na_origem` | O id que a unidade tinha neste app, gravado pela importação (origem `aniversariantes`). |
+| `cadastro.unidade_canais` | `unidade_id`, `clinica_id`, `company_id`, `canal_id`, `numero` | Os números de cada unidade (a 0025 do CRM). Os das **outras** unidades ativas da clínica viram `deOutrasUnidades`: por eles esta unidade não envia. |
 
 O resto do app recebe a mesma `Clinica` de antes, já no contexto da unidade: os
 provedores, as fatias e os crons não mudam.
+
+## Por qual número a mensagem sai
+
+Desde 2026-10-10, pelo número do **modelo** escolhido (na plataforma, cada modelo
+é de um canal só), e não só pelo remetente da unidade. A regra está em
+`src/shared/mensageria/canal-do-modelo.ts`, e a tela de Modelos, o painel de
+envio, o salvar e o lote usam a mesma:
+
+- **Pode:** o remetente da unidade, ou qualquer outro número ativo da conta que
+  não esteja cadastrado em outra unidade ativa da clínica.
+- **Não pode:** o número de outra unidade, o número desativado ou que saiu da
+  conta. O lote é recusado inteiro, antes de começar, com a frase do motivo.
+- **A equipe:** pelo remetente, a da unidade, como sempre. Por outro número, a da
+  unidade se atende esse número; senão a padrão da conta, se atende; senão a que
+  atende (a primeira pelo nome, se forem várias). Nenhuma atende: recusado. A tela
+  mostra a equipe escolhida.
+- **O histórico** mostra o número de cada envio (`aniversariantes_envios.remetente`);
+  os gravados antes disso, o remetente atual.
+
+Com a leitura desligada (tabela local), não se sabe de quem é cada número, e vale
+a regra de antes: só o remetente.
 
 ## O id da unidade
 

@@ -45,6 +45,13 @@ export interface AgendamentoSolicitado {
   /** ISO 8601 UTC. */
   quando: string
   parametros: Record<string, string>
+  /**
+   * O número que envia (dígitos com país), quando NÃO é o remetente da clínica:
+   * o do modelo, que é de outro número da conta. Ausente = o remetente.
+   */
+  remetente?: string
+  /** A equipe que agenda pelo `remetente` acima. Só vale junto com ele. */
+  equipeId?: string
 }
 
 export interface AgendamentoCriado {

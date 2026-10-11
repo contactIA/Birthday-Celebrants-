@@ -2,7 +2,7 @@ import { hojeNoTimezone } from '@/shared/data/fuso'
 import { provedorEClinica } from '@/providers/prontuario/eclinica'
 import { clienteClinicorp } from '@/providers/prontuario/clinicorp-api'
 import { mensageriaDe } from '@/providers/mensageria'
-import { canalDoRemetente } from '@/shared/mensageria/canal-do-modelo'
+import { canalDoRemetente, envioDoModelo } from '@/shared/mensageria/canal-do-modelo'
 import { conferirRemetente, type DependenciasDoTeste } from './conexao'
 
 // As dependências de verdade do teste de conexão — rede de verdade.
@@ -39,11 +39,17 @@ export function dependenciasReais(agora: Date): DependenciasDoTeste {
       const remetente = conferirRemetente(from, equipeId, { canais, equipes })
       if (!remetente.ok) throw new Error(remetente.mensagem)
 
-      // Quantos saem pelo remetente: "5 modelos aprovados" com nenhum do número
-      // da clínica é um setup que só falharia na hora de agendar.
+      // Quantos saem pelo remetente, e quantos a unidade pode usar por outros
+      // números da conta: "5 modelos aprovados" com nenhum que a unidade possa
+      // usar é um setup que só falharia na hora de agendar.
       const canal = canalDoRemetente(from, canais)
       const doRemetente = canal ? `, ${modelos.filter((m) => m.canalId === canal.id).length} pelo remetente` : ''
-      return `Conectada: ${plural(modelos.length, 'modelo aprovado', 'modelos aprovados')}${doRemetente} · ${remetente.mensagem}`
+      const porOutros = modelos.filter((m) => {
+        const envio = envioDoModelo(m.canalId, clinica.credenciais.mensageria, canais, equipes)
+        return envio.porOutroNumero && envio.permitido
+      }).length
+      const deOutros = porOutros ? `, ${porOutros} por outros números` : ''
+      return `Conectada: ${plural(modelos.length, 'modelo aprovado', 'modelos aprovados')}${doRemetente}${deOutros} · ${remetente.mensagem}`
     },
   }
 }

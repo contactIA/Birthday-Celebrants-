@@ -204,6 +204,8 @@ export function montarClinica(entrada: EntradaDeClinica, existente: Clinica | nu
         from: aberto(entrada.mensageriaFrom, antes?.mensageria.from ?? null),
         channelId: aberto(entrada.mensageriaChannelId, antes?.mensageria.channelId ?? null),
         equipeId: equipe(entrada.mensageriaEquipeId, antes?.mensageria.equipeId ?? null),
+        // A tabela local não sabe de quem é cada número: só o remetente vale.
+        deOutrasUnidades: null,
         campoNascimento: campoNascimento(entrada.mensageriaCampoNascimento, antes?.mensageria.campoNascimento ?? null),
       },
     },

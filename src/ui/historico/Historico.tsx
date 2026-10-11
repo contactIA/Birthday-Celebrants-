@@ -26,6 +26,7 @@ interface Item {
   criadoEm: string
   modeloNome: string | null
   podeCancelar: boolean
+  remetente: string | null
 }
 
 interface Pagina {
@@ -383,7 +384,8 @@ export function Historico() {
                       <SituacaoDoEnvio status={item.status} />
                     </td>
                     <td className="px-3 py-3">
-                      <Canal remetente={dados.remetente} />
+                      {/* O número de cada envio; os antigos, gravados sem ele, saíram pelo remetente. */}
+                      <Canal remetente={item.remetente ?? dados.remetente} />
                     </td>
                     <td className="px-3 py-3">
                       <span className="flex min-w-0 items-center gap-2 text-ink-2">

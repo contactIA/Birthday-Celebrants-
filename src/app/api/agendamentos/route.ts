@@ -56,10 +56,11 @@ export async function POST(request: NextRequest) {
 
     const resultados = await agendarMensagens(
       pedido,
-      { timezone: clinica.timezone, agora: new Date(), remetente: clinica.credenciais.mensageria.from },
+      { timezone: clinica.timezone, agora: new Date(), unidade: clinica.credenciais.mensageria },
       {
         buscarModelo: (id) => buscarModeloConfig(clinica, id),
         listarDaPlataforma: () => mensageria.listarModelos(),
+        listarEquipes: () => mensageria.listarEquipes(),
         buscarPacientes: (ids) => prontuario.buscarPorIds(ids),
         buscarEnvios: (ids) => buscarEnvios(clinica, ids),
         agendar: (p) => mensageria.agendar(p),

@@ -249,8 +249,12 @@ function extrairLista(dados: unknown): { id?: unknown; status?: unknown }[] {
   return Array.isArray(lista) ? lista : []
 }
 
-/** O que o adapter precisa da clínica: só as credenciais da conta de mensagens. */
-export type CredenciaisDeMensageria = Clinica['credenciais']['mensageria']
+/**
+ * O que o adapter precisa da clínica: só as credenciais da conta de mensagens.
+ * Os números das outras unidades ficam de fora: quem decide por qual número
+ * sair é a fatia, e o pedido traz o número quando não é o remetente.
+ */
+export type CredenciaisDeMensageria = Omit<Clinica['credenciais']['mensageria'], 'deOutrasUnidades'>
 
 export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDeMensageria {
   const { token, from, equipeId, campoNascimento } = credenciais
@@ -369,16 +373,19 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
     },
 
     async agendar(pedido: AgendamentoSolicitado): Promise<AgendamentoCriado> {
+      // Pelo número do modelo, quando não é o remetente da clínica, com a equipe
+      // que a fatia escolheu para ele; senão o remetente e a equipe do setup.
+      const equipe = pedido.remetente ? pedido.equipeId : equipeId
       const criado = (await chamar(
         '/chat/v1/scheduled-message',
         {
           method: 'POST',
           body: JSON.stringify({
             to: pedido.para,
-            from: from ?? null,
+            from: pedido.remetente ?? from ?? null,
             // Sem equipe, a plataforma usa a padrão — que pode não atender o
             // remetente. A escolhida no setup é uma que atende.
-            ...(equipeId ? { department: { id: equipeId } } : {}),
+            ...(equipe ? { department: { id: equipe } } : {}),
             type: 'TEMPLATE',
             templateId: pedido.modeloId,
             scheduling: pedido.quando,

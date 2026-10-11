@@ -17,6 +17,8 @@ export interface ItemDoHistorico {
   modeloNome: string | null
   /** `false` quando não há id na plataforma: cancelar não é possível. */
   podeCancelar: boolean
+  /** O número por onde a mensagem foi agendada. `null` nos envios gravados antes de 2026-10-10. */
+  remetente: string | null
 }
 
 export interface PaginaDoHistorico {
@@ -24,7 +26,10 @@ export interface PaginaDoHistorico {
   total: number
   pagina: number
   porPagina: number
-  /** O número que envia (o canal), igual para todos os envios da clínica. */
+  /**
+   * O remetente atual da unidade: o número que a tela mostra nos envios gravados
+   * sem o número (antes de 2026-10-10, quando tudo saía por ele).
+   */
   remetente: string | null
 }
 
@@ -32,7 +37,14 @@ const CANCELAVEIS = new Set<EnvioRow['status']>(['scheduled', 'processed'])
 
 type Linha = Pick<
   EnvioRow,
-  'id' | 'paciente_nome' | 'paciente_telefone' | 'status' | 'scheduled_for' | 'created_at' | 'scheduled_message_id'
+  | 'id'
+  | 'paciente_nome'
+  | 'paciente_telefone'
+  | 'status'
+  | 'scheduled_for'
+  | 'created_at'
+  | 'scheduled_message_id'
+  | 'remetente'
 > & { aniversariantes_templates: { nome: string } | null }
 
 export async function buscarHistorico(
@@ -47,7 +59,7 @@ export async function buscarHistorico(
   let consulta = db()
     .from('aniversariantes_envios')
     .select(
-      'id, paciente_nome, paciente_telefone, status, scheduled_for, created_at, scheduled_message_id, aniversariantes_templates(nome)',
+      'id, paciente_nome, paciente_telefone, status, scheduled_for, created_at, scheduled_message_id, remetente, aniversariantes_templates(nome)',
       { count: 'exact' }
     )
     .eq('clinica_id', clinica.id)
@@ -83,6 +95,7 @@ export async function buscarHistorico(
       criadoEm: linha.created_at,
       modeloNome: linha.aniversariantes_templates?.nome ?? null,
       podeCancelar: CANCELAVEIS.has(linha.status) && linha.scheduled_message_id !== null,
+      remetente: linha.remetente,
     })),
     total: count ?? 0,
     pagina,

@@ -13,8 +13,16 @@ const CANAIS = [
   { id: 'c2', numero: '5571981270357', nome: 'Comercial', ativo: true },
 ]
 const REMETENTE = '556231930175'
+/** Sem o cadastro comum: só o remetente vale. */
+const UNIDADE = { from: REMETENTE, equipeId: null, deOutrasUnidades: null }
+/** Com o cadastro comum: o c2 é livre, e nenhuma unidade o tem. */
+const UNIDADE_NO_CADASTRO = { ...UNIDADE, deOutrasUnidades: [] }
+const EQUIPES = [{ id: 'eq-geral', nome: 'Geral', padrao: true, canais: 'todos' as const }]
 /** Modelo de outro número da conta: o caso real de 2026-10-09, no app de lembretes. */
 const DE_OUTRO_NUMERO = { id: 'm2', nome: 'Parabéns', conteudo: 'Feliz aniversário!', canalId: 'c2' }
+const semEquipes = vi.fn(async () => {
+  throw new Error('não devia consultar as equipes')
+})
 
 function config(over: Partial<ConfiguracaoParaSalvar> = {}): ConfiguracaoParaSalvar {
   return {
@@ -50,7 +58,8 @@ describe('listagem', () => {
         filtradoPorTipo: true,
       })),
       buscarConfiguracoes: vi.fn(async () => new Map(configs)),
-      remetente: null,
+      listarEquipes: semEquipes,
+      unidade: { ...UNIDADE, from: null },
     }
   }
 
@@ -80,21 +89,47 @@ describe('listagem', () => {
     expect(r.modelos.map((m) => m.modeloId)).toEqual(['m1', 'm2'])
   })
 
-  it('diz por qual número cada modelo sai, com o de outro número por último', async () => {
+  const listagem = async () => ({
+    modelos: [DE_OUTRO_NUMERO, { id: 'm1', nome: 'Parabéns', conteudo: 'Oi', canalId: 'c1' }],
+    canais: CANAIS,
+    filtradoPorTipo: true,
+  })
+
+  it('sem o cadastro comum: diz por qual número cada modelo sai, com o recusado por último', async () => {
     const r = await listarModelos({
-      listarDaPlataforma: async () => ({
-        modelos: [DE_OUTRO_NUMERO, { id: 'm1', nome: 'Parabéns', conteudo: 'Oi', canalId: 'c1' }],
-        canais: CANAIS,
-        filtradoPorTipo: true,
-      }),
+      listarDaPlataforma: listagem,
+      listarEquipes: semEquipes,
       buscarConfiguracoes: async () => new Map(),
-      remetente: REMETENTE,
+      unidade: UNIDADE,
     })
-    expect(r.modelos.map((m) => [m.modeloId, m.envio.saiPeloRemetente])).toEqual([
-      ['m1', true],
-      ['m2', false],
+    expect(r.modelos.map((m) => [m.modeloId, m.envio.saiPeloRemetente, m.envio.permitido])).toEqual([
+      ['m1', true, true],
+      ['m2', false, false],
     ])
     expect(r.modelos[1]!.envio.numero).toEqual({ numero: '5571981270357', nome: 'Comercial' })
+  })
+
+  it('com o cadastro comum: o modelo de outro número livre serve, com a equipe que agenda por ele', async () => {
+    const listarEquipes = vi.fn(async () => EQUIPES)
+    const r = await listarModelos({
+      listarDaPlataforma: listagem,
+      listarEquipes,
+      buscarConfiguracoes: async () => new Map(),
+      unidade: UNIDADE_NO_CADASTRO,
+    })
+    expect(listarEquipes).toHaveBeenCalledTimes(1)
+    const m2 = r.modelos.find((m) => m.modeloId === 'm2')!
+    expect(m2.envio).toMatchObject({ porOutroNumero: true, permitido: true, equipe: { id: 'eq-geral', nome: 'Geral' } })
+  })
+
+  it('com o cadastro comum e só modelos do remetente: não consulta as equipes', async () => {
+    await listarModelos({
+      listarDaPlataforma: async () => ({ ...(await listagem()), modelos: [{ id: 'm1', nome: 'P', conteudo: 'Oi', canalId: 'c1' }] }),
+      listarEquipes: semEquipes,
+      buscarConfiguracoes: async () => new Map(),
+      unidade: UNIDADE_NO_CADASTRO,
+    })
+    expect(semEquipes).not.toHaveBeenCalled()
   })
 })
 
@@ -141,6 +176,10 @@ describe('validação', () => {
       numero: { numero: '5571981270357', nome: 'Comercial' },
       remetente: { numero: REMETENTE, nome: 'Recepção' },
       saiPeloRemetente: false,
+      porOutroNumero: false,
+      equipe: null,
+      permitido: false,
+      recusa: { tipo: 'fora-do-remetente' as const },
     }
     expect(() => validarConfiguracao(config(), envio)).toThrow(/\(71\) 98127-0357.*\(62\) 3193-0175/)
     expect(() => validarConfiguracao(config({ ativo: false }), envio)).not.toThrow()
@@ -150,7 +189,8 @@ describe('validação', () => {
 describe('salvar', () => {
   const plataforma = {
     listarDaPlataforma: vi.fn(async () => ({ modelos: [DE_OUTRO_NUMERO], canais: CANAIS, filtradoPorTipo: true })),
-    remetente: REMETENTE,
+    listarEquipes: semEquipes,
+    unidade: UNIDADE,
   }
 
   function deps() {
@@ -161,6 +201,16 @@ describe('salvar', () => {
     const d = deps()
     await expect(salvarConfiguracao(config({ modeloId: 'm2' }), d)).rejects.toThrow(/agenda pelo/)
     expect(d.gravar).not.toHaveBeenCalled()
+  })
+
+  it('com o cadastro comum, o modelo de outro número livre grava; sem equipe que o atenda, não', async () => {
+    const comEquipe = { ...deps(), unidade: UNIDADE_NO_CADASTRO, listarEquipes: vi.fn(async () => EQUIPES) }
+    await salvarConfiguracao(config({ modeloId: 'm2' }), comEquipe)
+    expect(comEquipe.gravar).toHaveBeenCalled()
+
+    const semNinguem = { ...deps(), unidade: UNIDADE_NO_CADASTRO, listarEquipes: vi.fn(async () => []) }
+    await expect(salvarConfiguracao(config({ modeloId: 'm2' }), semNinguem)).rejects.toThrow(/Nenhuma equipe da conta atende/)
+    expect(semNinguem.gravar).not.toHaveBeenCalled()
   })
 
   it('não mexe no padrão quando o modelo não é padrão', async () => {

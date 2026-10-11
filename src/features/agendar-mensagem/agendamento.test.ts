@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   agendarMensagens,
-  exigirModeloDoRemetente,
+  saidaDoLote,
   ModeloNaoEncontradoError,
   PedidoInvalidoError,
   MAXIMO_POR_LOTE,
@@ -16,7 +16,8 @@ import type { Aniversariante } from '@/providers/prontuario'
 
 const SP = 'America/Sao_Paulo'
 const AGORA = new Date('2026-09-15T17:00:00Z') // 14:00 em São Paulo
-const CONTEXTO = { timezone: SP, agora: AGORA, remetente: null }
+/** Sem remetente e sem o cadastro comum: nada a conferir sobre o número. */
+const CONTEXTO = { timezone: SP, agora: AGORA, unidade: { from: null, equipeId: null, deOutrasUnidades: null } }
 
 const MODELO: ConfiguracaoDeModelo = {
   id: 'config-1',
@@ -42,6 +43,7 @@ function deps(over: Partial<Dependencias> = {}) {
   const d = {
     buscarModelo: vi.fn(async () => MODELO as ConfiguracaoDeModelo | null),
     listarDaPlataforma: vi.fn(async () => ({ modelos: [], canais: [], filtradoPorTipo: true })),
+    listarEquipes: vi.fn(async () => [] as Awaited<ReturnType<Dependencias['listarEquipes']>>),
     buscarPacientes: vi.fn(async () => [paciente()]),
     buscarEnvios: vi.fn(async () => [] as EnvioExistente[]),
     agendar: vi.fn(async () => ({ id: 'msg-1' })),
@@ -442,30 +444,70 @@ describe('o número do modelo', () => {
   const canais = [
     { id: 'c1', numero: '556231930175', nome: 'Recepção', ativo: true },
     { id: 'c2', numero: '5571981270357', nome: 'Comercial', ativo: true },
+    { id: 'c3', numero: '5521988887777', nome: 'Méier', ativo: true },
   ]
   const plataforma = (canalId: string) => ({
     modelos: [{ id: 'modelo-na-plataforma', nome: 'Parabéns', conteudo: '', canalId }],
     canais,
     filtradoPorTipo: true,
   })
+  /** Sem o cadastro comum: só o remetente vale. */
+  const LOCAL = { from: '556231930175', equipeId: 'eq-recepcao', deOutrasUnidades: null }
+  /** Com o cadastro comum: o c3 é da unidade Méier. */
+  const CADASTRO = { ...LOCAL, deOutrasUnidades: [{ canalId: 'c3', unidade: 'Méier' }] }
+  const EQUIPES = [
+    { id: 'eq-recepcao', nome: 'Recepção', padrao: false, canais: ['c1'] },
+    { id: 'eq-comercial', nome: 'Comercial', padrao: false, canais: ['c2', 'c3'] },
+  ]
+  const semEquipes = async () => {
+    throw new Error('não devia consultar as equipes')
+  }
 
-  it('modelo de outro número: recusa o lote inteiro, sem chamar a plataforma', async () => {
+  it('sem o cadastro comum, modelo de outro número: recusa o lote inteiro, sem chamar a plataforma', async () => {
     const d = deps({ listarDaPlataforma: vi.fn(async () => plataforma('c2')) })
     await expect(
-      agendarMensagens(
-        { modeloConfigId: 'config-1', pacienteIds: ['p1'] },
-        { ...CONTEXTO, remetente: '556231930175' },
-        d
-      )
+      agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, { ...CONTEXTO, unidade: LOCAL }, d)
     ).rejects.toThrow(/é do número \(71\) 98127-0357, e esta clínica agenda pelo \(62\) 3193-0175/)
     expect(d.agendar).not.toHaveBeenCalled()
   })
 
-  it('modelo do número da clínica: segue', () => {
-    expect(() => exigirModeloDoRemetente('modelo-na-plataforma', plataforma('c1'), '556231930175')).not.toThrow()
+  it('modelo do remetente: sai como sempre, sem consultar as equipes', async () => {
+    expect(await saidaDoLote('modelo-na-plataforma', plataforma('c1'), CADASTRO, semEquipes)).toEqual({})
   })
 
-  it('modelo fora da listagem: quem decide é a plataforma', () => {
-    expect(() => exigirModeloDoRemetente('outro', plataforma('c2'), '556231930175')).not.toThrow()
+  it('modelo fora da listagem: sai pelo remetente, e quem decide é a plataforma', async () => {
+    expect(await saidaDoLote('outro', plataforma('c2'), LOCAL, semEquipes)).toEqual({})
+  })
+
+  it('outro número livre da conta: agenda por ele, com a equipe que o atende, e grava o número', async () => {
+    const d = deps({ listarDaPlataforma: vi.fn(async () => plataforma('c2')), listarEquipes: vi.fn(async () => EQUIPES) })
+    const [r] = await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, { ...CONTEXTO, unidade: CADASTRO }, d)
+    expect(r).toMatchObject({ ok: true })
+    expect(d.listarEquipes).toHaveBeenCalledTimes(1)
+    expect(d.agendar).toHaveBeenCalledWith(expect.objectContaining({ remetente: '5571981270357', equipeId: 'eq-comercial' }))
+    expect(d.registrarEnvio).toHaveBeenCalledWith(expect.objectContaining({ remetente: '5571981270357' }))
+  })
+
+  it('pelo remetente, o pedido não leva número nem equipe, e grava o remetente', async () => {
+    const d = deps({ listarDaPlataforma: vi.fn(async () => plataforma('c1')) })
+    await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, { ...CONTEXTO, unidade: CADASTRO }, d)
+    expect(d.agendar).toHaveBeenCalledWith(expect.not.objectContaining({ remetente: expect.anything() }))
+    expect(d.registrarEnvio).toHaveBeenCalledWith(expect.objectContaining({ remetente: '556231930175' }))
+  })
+
+  it('número de outra unidade: recusa o lote inteiro, dizendo de qual', async () => {
+    const d = deps({ listarDaPlataforma: vi.fn(async () => plataforma('c3')), listarEquipes: vi.fn(async () => EQUIPES) })
+    await expect(
+      agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, { ...CONTEXTO, unidade: CADASTRO }, d)
+    ).rejects.toThrow(/da unidade Méier, e esta unidade não envia por ele/)
+    expect(d.agendar).not.toHaveBeenCalled()
+  })
+
+  it('nenhuma equipe atende o número do modelo: recusa o lote inteiro', async () => {
+    const d = deps({ listarDaPlataforma: vi.fn(async () => plataforma('c2')), listarEquipes: vi.fn(async () => [EQUIPES[0]!]) })
+    await expect(
+      agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, { ...CONTEXTO, unidade: CADASTRO }, d)
+    ).rejects.toThrow(/Nenhuma equipe da conta atende o número \(71\) 98127-0357/)
+    expect(d.agendar).not.toHaveBeenCalled()
   })
 })

@@ -4,9 +4,11 @@ import type {
   OrigemDaUnidadeRow,
   ProdutoDoCadastroRow,
   SistemaProntuario,
+  UnidadeCanalDoCadastroRow,
   UnidadeDoCadastroRow,
   UnidadeInsert,
 } from '@/shared/db'
+import type { CanalDeOutraUnidade } from '@/shared/mensageria/canal-do-modelo'
 import {
   decifrarCredenciaisDoCadastro,
   decifrarDoCadastro,
@@ -268,6 +270,41 @@ export interface ClinicaResolvida {
   /** Principal primeiro. Pode ser vazia: nenhuma unidade ativa com prontuário. */
   unidades: UnidadeMapeada[]
   foraDoPainel: UnidadeForaDoPainel[]
+  /** Os números das unidades ativas da clínica (`canaisDasUnidades`). */
+  canais: CanalDaUnidade[]
+}
+
+/** Um número cadastrado numa unidade da clínica. */
+export interface CanalDaUnidade {
+  canalId: string
+  /** A unidade no cadastro (não o id local). */
+  unidadeId: string
+  /** O nome da unidade, para a frase de quem não pode usar o número. */
+  unidade: string
+}
+
+/**
+ * Os números de cada unidade ATIVA da clínica, inclusive das que não entram no
+ * painel por falta de prontuário: o número continua sendo daquela unidade. A
+ * unidade desativada não prende mais os números dela.
+ */
+export function canaisDasUnidades(unidades: UnidadeDoCadastroRow[], canais: UnidadeCanalDoCadastroRow[]): CanalDaUnidade[] {
+  const ativas = new Map(unidades.filter((u) => u.ativa).map((u) => [u.id.toLowerCase(), u.nome]))
+  return canais.flatMap((k) => {
+    const nome = ativas.get(k.unidade_id.toLowerCase())
+    return nome === undefined ? [] : [{ canalId: k.canal_id, unidadeId: k.unidade_id, unidade: nome }]
+  })
+}
+
+/**
+ * Os números das OUTRAS unidades da clínica: por eles esta unidade não envia
+ * (decisão de 2026-10-10, ver `shared/mensageria/canal-do-modelo.ts`).
+ */
+export function numerosDeOutrasUnidades(r: ClinicaResolvida, u: UnidadeMapeada): CanalDeOutraUnidade[] {
+  const desta = u.unidade.id.toLowerCase()
+  return r.canais
+    .filter((c) => c.unidadeId.toLowerCase() !== desta)
+    .map((c) => ({ canalId: c.canalId, unidade: c.unidade }))
 }
 
 /** Abre um segredo; o erro diz o que falhou, nunca o valor. */
@@ -315,7 +352,8 @@ function prontuarioDaUnidade(
  *  · da clínica: o nome, o fuso e o token da plataforma (decifrado);
  *  · da configuração do produto: o campo da data de nascimento;
  *  · da unidade: o prontuário (decifrado), o `from` (o número do canal de
- *    envio), o id do canal e a equipe.
+ *    envio), o id do canal e a equipe;
+ *  · das outras unidades: os números delas, por onde esta não envia.
  * Os ids são os locais (ver `idLocalDaUnidade`).
  *
  * Sem token no cadastro, o token fica vazio: o painel lista os aniversariantes,
@@ -342,6 +380,7 @@ export function clinicaDoCadastro(r: ClinicaResolvida, u: UnidadeMapeada, decifr
         from: u.unidade.canal_envio_numero,
         channelId: u.unidade.canal_envio_id,
         equipeId: u.unidade.equipe_envio_id,
+        deOutrasUnidades: numerosDeOutrasUnidades(r, u),
         campoNascimento: r.campoNascimento,
       },
     },

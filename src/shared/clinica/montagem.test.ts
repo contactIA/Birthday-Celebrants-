@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { UnidadeCanalDoCadastroRow } from '@/shared/db'
 import {
   CHAVE_DE_TESTE,
   CONTA,
@@ -12,6 +13,7 @@ import {
   ancoraDaClinica,
   ancoraDaUnidade,
   campoNascimentoDaConfiguracao,
+  canaisDasUnidades,
   clinicaDoCadastro,
   clinicaNoSetupDoCadastro,
   clinicaPublicaDoCadastro,
@@ -165,7 +167,7 @@ describe('o produto e a configuração', () => {
   })
 })
 
-function resolvida(unidades = [unidadeDoCadastro()], clinica = linhaDaClinica()): ClinicaResolvida {
+function resolvida(unidades = [unidadeDoCadastro()], clinica = linhaDaClinica(), canais: UnidadeCanalDoCadastroRow[] = []): ClinicaResolvida {
   const { unidades: mapeadas } = mapearUnidades(unidadesDoPainel(unidades), [origemDaUnidade()], new Set([UNIDADE_AQUI]))
   return {
     clinica,
@@ -174,7 +176,13 @@ function resolvida(unidades = [unidadeDoCadastro()], clinica = linhaDaClinica())
     campoNascimento: 'data-de-nascimento',
     unidades: mapeadas,
     foraDoPainel: [],
+    canais: canaisDasUnidades(unidades, canais),
   }
+}
+
+/** Uma linha de cadastro.unidade_canais. */
+function canal(unidadeId: string, canalId: string): UnidadeCanalDoCadastroRow {
+  return { unidade_id: unidadeId, clinica_id: 'c0000000-0000-4000-8000-000000000001', company_id: CONTA, canal_id: canalId, numero: null }
 }
 
 describe('clinicaDoCadastro: a Clinica de hoje, montada das visões', () => {
@@ -200,10 +208,31 @@ describe('clinicaDoCadastro: a Clinica de hoje, montada das visões', () => {
           from: '5545999990001',
           channelId: 'canal-centro',
           equipeId: 'e0000000-0000-4000-8000-000000000001',
+          deOutrasUnidades: [],
           campoNascimento: 'data-de-nascimento',
         },
       },
     })
+  })
+
+  it('vários números: a unidade conhece os das OUTRAS unidades ativas, e não os dela', () => {
+    const NORTE = 'a0000000-0000-4000-8000-000000000002'
+    const FECHADA = 'a0000000-0000-4000-8000-000000000003'
+    const unidades = [
+      unidadeDoCadastro(),
+      // Sem prontuário fica fora do painel, mas o número continua sendo dela.
+      unidadeDoCadastro({ id: NORTE, nome: 'Norte', principal: false, prontuario_sistema: null, prontuario_credenciais_cifradas: null }),
+      unidadeDoCadastro({ id: FECHADA, nome: 'Fechada', principal: false, ativa: false }),
+    ]
+    const r = resolvida(unidades, undefined, [
+      canal(UNIDADE_NO_CRM, 'canal-centro'),
+      canal(UNIDADE_NO_CRM, 'canal-centro-2'),
+      canal(NORTE, 'canal-norte'),
+      canal(FECHADA, 'canal-fechada'),
+    ])
+    expect(clinicaDoCadastro(r, r.unidades[0]!, decifrador).credenciais.mensageria.deOutrasUnidades).toEqual([
+      { canalId: 'canal-norte', unidade: 'Norte' },
+    ])
   })
 
   it('e-Clínica: token e endereço da API', () => {

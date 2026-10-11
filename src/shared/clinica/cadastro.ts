@@ -4,6 +4,7 @@ import type {
   ClinicaRow,
   OrigemDaUnidadeRow,
   ProdutoDoCadastroRow,
+  UnidadeCanalDoCadastroRow,
   UnidadeDoCadastroRow,
   UnidadeRow,
 } from '@/shared/db'
@@ -14,6 +15,7 @@ import {
   ancoraDaClinica,
   ancoraDaUnidade,
   campoNascimentoDaConfiguracao,
+  canaisDasUnidades,
   clinicasComOProdutoLigado,
   mapearUnidades,
   unidadesDoPainel,
@@ -46,6 +48,7 @@ interface Visoes {
   produtos: ProdutoDoCadastroRow[]
   unidades: UnidadeDoCadastroRow[]
   origens: OrigemDaUnidadeRow[]
+  canais: UnidadeCanalDoCadastroRow[]
 }
 
 type ClinicaLocal = Pick<ClinicaRow, 'id' | 'slug' | 'created_at'>
@@ -57,7 +60,7 @@ function exigir<T>(oQue: string, r: { data: T | null; error: { message: string }
 }
 
 /**
- * As quatro visões, de uma conta (`companyId`) ou de todas (`null`). Produtos e
+ * As cinco visões, de uma conta (`companyId`) ou de todas (`null`). Produtos e
  * origens já vêm filtrados pelo produto deste app.
  */
 async function lerVisoes(cliente: ClienteDoBanco, companyId: string | null): Promise<Visoes> {
@@ -66,25 +69,29 @@ async function lerVisoes(cliente: ClienteDoBanco, companyId: string | null): Pro
   let produtos = cadastro.from('produtos').select(colunasDoCadastro('produtos')).eq('produto', PRODUTO)
   let unidades = cadastro.from('unidades').select(colunasDoCadastro('unidades'))
   let origens = cadastro.from('unidade_origens').select(colunasDoCadastro('unidade_origens')).eq('origem', PRODUTO)
+  let canais = cadastro.from('unidade_canais').select(colunasDoCadastro('unidade_canais'))
   if (companyId) {
     clinicas = clinicas.eq('company_id', companyId)
     produtos = produtos.eq('company_id', companyId)
     unidades = unidades.eq('company_id', companyId)
     origens = origens.eq('company_id', companyId)
+    canais = canais.eq('company_id', companyId)
   }
   // O parser de tipos do supabase-js não infere a projeção de uma lista de
   // colunas montada em tempo de execução: o tipo da linha vem do contrato.
-  const [c, p, u, o] = await Promise.all([
+  const [c, p, u, o, k] = await Promise.all([
     clinicas.overrideTypes<ClinicaDoCadastroRow[], { merge: false }>(),
     produtos.overrideTypes<ProdutoDoCadastroRow[], { merge: false }>(),
     unidades.overrideTypes<UnidadeDoCadastroRow[], { merge: false }>(),
     origens.overrideTypes<OrigemDaUnidadeRow[], { merge: false }>(),
+    canais.overrideTypes<UnidadeCanalDoCadastroRow[], { merge: false }>(),
   ])
   return {
     clinicas: exigir('cadastro.clinicas', c),
     produtos: exigir('cadastro.produtos', p),
     unidades: exigir('cadastro.unidades', u),
     origens: exigir('cadastro.unidade_origens', o),
+    canais: exigir('cadastro.unidade_canais', k),
   }
 }
 
@@ -206,6 +213,10 @@ async function resolver(
         campoNascimento: campoNascimentoDaConfiguracao(produto?.configuracao),
         unidades,
         foraDoPainel: unidadesForaDoPainel(doCadastro),
+        canais: canaisDasUnidades(
+          doCadastro,
+          visoes.canais.filter((k) => k.clinica_id === clinica.id)
+        ),
       })
     } catch (err) {
       falhas.push({ companyId: clinica.company_id, erro: err instanceof Error ? err : new Error(String(err)) })

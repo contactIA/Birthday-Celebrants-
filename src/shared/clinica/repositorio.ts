@@ -144,6 +144,8 @@ function paraDominio(row: ClinicaRow, unidade: UnidadeRow): Clinica {
         from: cred.from,
         channelId: cred.channelId,
         equipeId: cred.equipeId,
+        // A tabela local não sabe de quem é cada número: só o remetente vale.
+        deOutrasUnidades: null,
         campoNascimento: row.helena_campo_nascimento,
       },
     },

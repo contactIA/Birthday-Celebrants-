@@ -225,6 +225,7 @@ export function PainelDeEnvio({
                 <span className="tnum">{formatarTelefoneBR(modelo.envio.numero.numero)}</span>
               </Linha>
             )}
+            {modelo?.envio.equipe && <Linha rotulo="Equipe">{modelo.envio.equipe.nome}</Linha>}
             <Linha rotulo="Selecionados">
               <span className="tnum">{selecionados.length}</span>
             </Linha>

@@ -10,12 +10,13 @@ describe('o contrato do cadastro comum', () => {
     expect(colunasFaltando(semCanal, CONTRATO_DO_CADASTRO)).toEqual([{ tabela: 'unidades', faltando: ['canal_envio_numero'] }])
   })
 
-  it('o esquema não exposto aparece com as quatro visões inteiras', () => {
+  it('o esquema não exposto aparece com as cinco visões inteiras', () => {
     expect(colunasFaltando({}, CONTRATO_DO_CADASTRO).map((r) => r.tabela)).toEqual([
       'clinicas',
       'unidades',
       'produtos',
       'unidade_origens',
+      'unidade_canais',
     ])
   })
 

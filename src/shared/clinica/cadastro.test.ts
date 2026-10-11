@@ -61,11 +61,37 @@ describe('lerClinicaDoCadastro', () => {
     expect(insercoes(banco)).toEqual([])
   })
 
+  it('traz os números das unidades da clínica, com o nome da unidade, e não os de outra conta', async () => {
+    const canal = (company_id: string, clinica_id: string, canal_id: string) => ({
+      unidade_id: unidadeDoCadastro().id,
+      clinica_id,
+      company_id,
+      canal_id,
+      numero: null,
+    })
+    const banco = bancoFalso(
+      importada({
+        'cadastro.unidade_canais': [
+          canal(CONTA, CLINICA_NO_CRM, 'canal-centro'),
+          canal('99999999-0000-4000-8000-000000000000', '99999999-0000-4000-8000-000000000001', 'de-outra-conta'),
+        ],
+      })
+    )
+    const r = await lerClinicaDoCadastro(banco.cliente, CONTA, nada)
+    expect(r.canais).toEqual([{ canalId: 'canal-centro', unidadeId: unidadeDoCadastro().id, unidade: 'Centro' }])
+  })
+
   it('lê só as visões e as colunas do contrato, filtradas pela conta e pelo produto', async () => {
     const banco = bancoFalso(importada())
     await lerClinicaDoCadastro(banco.cliente, CONTA, nada)
     const lidas = banco.operacoes.filter((o) => o.tabela.startsWith('cadastro.')).map((o) => o.tabela)
-    expect(lidas.sort()).toEqual(['cadastro.clinicas', 'cadastro.produtos', 'cadastro.unidade_origens', 'cadastro.unidades'])
+    expect(lidas.sort()).toEqual([
+      'cadastro.clinicas',
+      'cadastro.produtos',
+      'cadastro.unidade_canais',
+      'cadastro.unidade_origens',
+      'cadastro.unidades',
+    ])
   })
 
   it('clínica que só existe no cadastro: cria a âncora da clínica e a unidade com o id do cadastro', async () => {

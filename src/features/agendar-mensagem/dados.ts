@@ -91,6 +91,7 @@ export async function registrarEnvio(clinica: Clinica, envio: EnvioParaGravar): 
         scheduled_message_id: envio.mensagemId,
         status: 'scheduled' as const,
         scheduled_for: envio.agendadoPara,
+        remetente: envio.remetente,
       },
       { onConflict: 'unidade_id,paciente_id_eclinica,ano' }
     )
