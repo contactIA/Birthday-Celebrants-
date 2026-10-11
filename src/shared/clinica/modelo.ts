@@ -1,4 +1,5 @@
 import type { SistemaProntuario } from '@/shared/db'
+import type { CanalDeOutraUnidade } from '@/shared/mensageria/canal-do-modelo'
 
 // A clínica no vocabulário deste app: os tipos e os erros que o acessor
 // (`repositorio.ts`) entrega às fatias, venham da tabela local ou do cadastro
@@ -56,6 +57,13 @@ export interface Clinica {
       channelId: string | null
       /** A equipe ("department") que agenda pelo remetente. `null` = a padrão da conta. */
       equipeId: string | null
+      /**
+       * Os números cadastrados em OUTRAS unidades da clínica: por eles esta unidade
+       * não envia, e pelos demais números da conta, sim (`shared/mensageria/canal-do-modelo.ts`).
+       * `null` = sem o cadastro comum não se sabe de quem é cada número, e só o
+       * remetente vale.
+       */
+      deOutrasUnidades: CanalDeOutraUnidade[] | null
       /** Chave do campo de nascimento no contato da plataforma. `null` = não preencher. */
       campoNascimento: string | null
     }

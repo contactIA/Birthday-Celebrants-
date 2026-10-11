@@ -7,6 +7,7 @@ import type {
   PacienteCacheRow,
   ProdutoDoCadastroRow,
   TemplateRow,
+  UnidadeCanalDoCadastroRow,
   UnidadeDoCadastroRow,
   UnidadeRow,
 } from './db'
@@ -93,6 +94,7 @@ export const CONTRATO = {
     'status',
     'scheduled_for',
     'created_at',
+    'remetente',
   ],
   aniversariantes_pacientes_cache: [
     'id',
@@ -162,6 +164,8 @@ export const CONTRATO_DO_CADASTRO = {
   ],
   produtos: ['clinica_id', 'company_id', 'produto', 'ligado', 'configuracao'],
   unidade_origens: ['unidade_id', 'clinica_id', 'company_id', 'origem', 'id_na_origem'],
+  // A 0025 do CRM: os números de cada unidade (por qual número cada unidade envia).
+  unidade_canais: ['unidade_id', 'clinica_id', 'company_id', 'canal_id', 'numero'],
 } as const
 
 type ColunasDoCadastro<T extends keyof typeof CONTRATO_DO_CADASTRO> = (typeof CONTRATO_DO_CADASTRO)[T][number]
@@ -170,7 +174,8 @@ const visaoClinicas: Igual<ColunasDoCadastro<'clinicas'>, keyof ClinicaDoCadastr
 const visaoUnidades: Igual<ColunasDoCadastro<'unidades'>, keyof UnidadeDoCadastroRow> = true
 const visaoProdutos: Igual<ColunasDoCadastro<'produtos'>, keyof ProdutoDoCadastroRow> = true
 const visaoOrigens: Igual<ColunasDoCadastro<'unidade_origens'>, keyof OrigemDaUnidadeRow> = true
-export const _cadastroConfereComOsTipos = [visaoClinicas, visaoUnidades, visaoProdutos, visaoOrigens]
+const visaoCanais: Igual<ColunasDoCadastro<'unidade_canais'>, keyof UnidadeCanalDoCadastroRow> = true
+export const _cadastroConfereComOsTipos = [visaoClinicas, visaoUnidades, visaoProdutos, visaoOrigens, visaoCanais]
 
 /** A lista de colunas de uma visão, no formato do `select` do PostgREST. */
 export function colunasDoCadastro(visao: keyof typeof CONTRATO_DO_CADASTRO): string {

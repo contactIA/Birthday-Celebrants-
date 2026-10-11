@@ -20,8 +20,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       await listarModelos({
         listarDaPlataforma: () => mensageria.listarModelos(),
+        listarEquipes: () => mensageria.listarEquipes(),
         buscarConfiguracoes: () => buscarConfiguracoes(clinica),
-        remetente: clinica.credenciais.mensageria.from,
+        unidade: clinica.credenciais.mensageria,
       })
     )
   } catch (err) {
@@ -80,7 +81,8 @@ export async function POST(request: NextRequest) {
 
     await salvarConfiguracao(lerCorpo(corpo as CorpoRecebido), {
       listarDaPlataforma: () => mensageria.listarModelos(),
-      remetente: clinica.credenciais.mensageria.from,
+      listarEquipes: () => mensageria.listarEquipes(),
+      unidade: clinica.credenciais.mensageria,
       limparPadrao: () => limparPadrao(clinica),
       gravar: (config) => gravarConfiguracao(clinica, config),
     })

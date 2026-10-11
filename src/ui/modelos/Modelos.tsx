@@ -281,19 +281,18 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
 
 /**
  * Por qual número o modelo sai. A conta pode ter o mesmo modelo, com o mesmo
- * nome, em vários números: sem isto os cartões eram idênticos.
+ * nome, em vários números: sem isto os cartões eram idênticos. Por outro número
+ * que não o remetente, diz também a equipe que agenda.
  */
 function NumeroDoModelo({ envio }: { envio: EnvioDoModelo }) {
   if (!envio.numero) return null
   return (
     <span
       title={envio.numero.nome}
-      className={clsx(
-        'ml-auto shrink-0 text-xs',
-        envio.saiPeloRemetente === false ? 'font-medium text-erro' : 'text-muted'
-      )}
+      className={clsx('ml-auto shrink-0 text-xs', envio.permitido === false ? 'font-medium text-erro' : 'text-muted')}
     >
       Envia por <span className="tnum">{formatarTelefoneBR(envio.numero.numero)}</span>
+      {envio.equipe && <> · equipe {envio.equipe.nome}</>}
     </span>
   )
 }

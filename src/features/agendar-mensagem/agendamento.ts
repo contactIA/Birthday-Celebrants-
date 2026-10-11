@@ -1,11 +1,11 @@
 import { anoDoAniversario, aniversarioJaPassou, instanteDoEnvio, type DiaEnvio } from '@/shared/data/agendamento'
 import { mesDiaDe, paraExibicao } from '@/shared/data/parse'
 import { temMensagemValida } from '@/shared/envio/situacao'
-import { paraE164BR } from '@/shared/telefone/e164'
+import { digitosComPais, paraE164BR } from '@/shared/telefone/e164'
 import { resolverParametros } from '@/shared/template/parametros'
 import type { StatusEnvio } from '@/shared/db'
 import type { Aniversariante } from '@/providers/prontuario'
-import { envioDoModelo, motivoDeNaoSair } from '@/shared/mensageria/canal-do-modelo'
+import { envioDoModelo, motivoDeNaoSair, type Equipe, type UnidadeQueEnvia } from '@/shared/mensageria/canal-do-modelo'
 import {
   ModeloForaDoCanalError,
   type AgendamentoCriado,
@@ -49,6 +49,8 @@ export interface EnvioParaGravar {
   ano: number
   mensagemId: string | null
   agendadoPara: string
+  /** O número que envia (dígitos com país). `null` = o remetente não é conhecido. */
+  remetente: string | null
 }
 
 /** Um envio que o paciente já tem gravado, de qualquer ano. */
@@ -68,8 +70,8 @@ export interface Pedido {
 export interface Contexto {
   timezone: string
   agora: Date
-  /** O número remetente da clínica, como cadastrado. */
-  remetente: string | null
+  /** De onde a unidade envia: o remetente, a equipe e os números das outras unidades. */
+  unidade: UnidadeQueEnvia
 }
 
 export interface ResultadoPorPaciente {
@@ -94,6 +96,8 @@ export interface Dependencias {
   buscarModelo: (modeloConfigId: string) => Promise<ConfiguracaoDeModelo | null>
   /** Os modelos e canais da plataforma, para conferir o número do modelo antes do lote. */
   listarDaPlataforma: () => Promise<ListagemDeModelos>
+  /** As equipes da conta. Só consultadas quando o modelo sai por outro número. */
+  listarEquipes: () => Promise<Equipe[]>
   buscarPacientes: (ids: string[]) => Promise<Aniversariante[]>
   /** Os envios já gravados desses pacientes, de qualquer ano. */
   buscarEnvios: (pacienteIds: string[]) => Promise<EnvioExistente[]>
@@ -128,19 +132,40 @@ export class PedidoInvalidoError extends Error {
 export const MAXIMO_POR_LOTE = 100
 
 /**
- * Recusa o lote INTEIRO, antes de começar, quando o modelo não sai pelo número
- * da clínica.
- *
- * Sem isto a plataforma recusa paciente por paciente, e o lote termina com N
- * falhas iguais e nenhuma mensagem (caso real no app de lembretes,
- * 2026-10-09). Modelo que não aparece na listagem não é recusado aqui: a
- * listagem tem teto de página, e quem decide nesse caso é a plataforma.
+ * Por qual número e em nome de qual equipe o lote sai. Vazio = pelo remetente,
+ * com a equipe da unidade, como sempre.
  */
-export function exigirModeloDoRemetente(modeloId: string, plataforma: ListagemDeModelos, remetente: string | null): void {
+export interface SaidaDoLote {
+  remetente?: string
+  equipeId?: string
+}
+
+/**
+ * Decide, antes de começar, por qual número o lote sai: o do modelo
+ * (`shared/mensageria/canal-do-modelo.ts`). Por outro número que não o
+ * remetente, consulta as equipes e escolhe a que agenda por ele.
+ *
+ * Recusa o lote INTEIRO quando a unidade não pode usar o modelo. Sem isto a
+ * plataforma recusa paciente por paciente, e o lote termina com N falhas iguais
+ * e nenhuma mensagem (caso real no app de lembretes, 2026-10-09). Modelo que
+ * não aparece na listagem não é recusado aqui: a listagem tem teto de página,
+ * ele sai pelo remetente, e quem decide nesse caso é a plataforma.
+ */
+export async function saidaDoLote(
+  modeloId: string,
+  plataforma: ListagemDeModelos,
+  unidade: UnidadeQueEnvia,
+  listarEquipes: () => Promise<Equipe[]>
+): Promise<SaidaDoLote> {
   const modelo = plataforma.modelos.find((m) => m.id === modeloId)
-  if (!modelo) return
-  const motivo = motivoDeNaoSair(envioDoModelo(modelo.canalId, remetente, plataforma.canais))
+  if (!modelo) return {}
+  let envio = envioDoModelo(modelo.canalId, unidade, plataforma.canais)
+  if (envio.porOutroNumero) envio = envioDoModelo(modelo.canalId, unidade, plataforma.canais, await listarEquipes())
+  const motivo = motivoDeNaoSair(envio)
   if (motivo) throw new ModeloForaDoCanalError(motivo)
+  return envio.porOutroNumero && envio.numero && envio.equipe
+    ? { remetente: envio.numero.numero, equipeId: envio.equipe.id }
+    : {}
 }
 
 function quandoManualValido(iso: string, agora: Date): string {
@@ -173,7 +198,7 @@ export async function agendarMensagens(
 
   const modelo = await deps.buscarModelo(pedido.modeloConfigId)
   if (!modelo) throw new ModeloNaoEncontradoError()
-  exigirModeloDoRemetente(modelo.modeloId, await deps.listarDaPlataforma(), contexto.remetente)
+  const saida = await saidaDoLote(modelo.modeloId, await deps.listarDaPlataforma(), contexto.unidade, deps.listarEquipes)
 
   const quandoManual = pedido.quandoManual
     ? quandoManualValido(pedido.quandoManual, contexto.agora)
@@ -203,7 +228,7 @@ export async function agendarMensagens(
     }
 
     const doPaciente = envios.filter((e) => e.pacienteId === id)
-    resultados.push(await agendarUm(paciente, doPaciente, modelo, quandoManual, contexto, deps))
+    resultados.push(await agendarUm(paciente, doPaciente, modelo, saida, quandoManual, contexto, deps))
   }
 
   return resultados
@@ -213,6 +238,7 @@ async function agendarUm(
   paciente: Aniversariante,
   envios: EnvioExistente[],
   modelo: ConfiguracaoDeModelo,
+  saida: SaidaDoLote,
   quandoManual: string | null,
   contexto: Contexto,
   deps: Dependencias
@@ -288,6 +314,7 @@ async function agendarUm(
         datanascimento: paciente.datanascimento,
         aniversario: paciente.aniversario,
       }),
+      ...saida,
     })
 
     await deps.registrarEnvio({
@@ -299,6 +326,7 @@ async function agendarUm(
       ano,
       mensagemId: criado.id,
       agendadoPara: quando,
+      remetente: saida.remetente ?? (contexto.unidade.from ? digitosComPais(contexto.unidade.from) : null),
     })
 
     return aviso ? { ...base, ok: true, aviso } : { ...base, ok: true }

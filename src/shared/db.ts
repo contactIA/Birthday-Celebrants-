@@ -118,6 +118,8 @@ export interface EnvioRow {
   status: StatusEnvio
   scheduled_for: string | null
   created_at: string
+  /** O número (dígitos com país) por onde a mensagem foi agendada. Nulo nos envios de antes de 2026-10-10. */
+  remetente: string | null
 }
 
 export interface PacienteCacheRow {
@@ -168,6 +170,7 @@ export interface EnvioInsert {
   scheduled_message_id: string | null
   status?: StatusEnvio
   scheduled_for: string | null
+  remetente?: string | null
 }
 
 /** Pedido de vaga no beta, feito na página de quem ainda não tem o app. */
@@ -258,6 +261,19 @@ export interface ProdutoDoCadastroRow {
   configuracao: unknown
 }
 
+/**
+ * `cadastro.unidade_canais`: os números de cada unidade, não só o que envia. Um
+ * número cadastrado em OUTRA unidade da clínica não envia por esta.
+ */
+export interface UnidadeCanalDoCadastroRow {
+  unidade_id: string
+  clinica_id: string
+  company_id: string
+  /** O id do canal na plataforma. */
+  canal_id: string
+  numero: string | null
+}
+
 /** `cadastro.unidade_origens`: o id que a unidade tinha em cada app, gravado pela importação. */
 export interface OrigemDaUnidadeRow {
   unidade_id: string
@@ -319,6 +335,7 @@ export type Database = {
       unidades: Visao<UnidadeDoCadastroRow>
       produtos: Visao<ProdutoDoCadastroRow>
       unidade_origens: Visao<OrigemDaUnidadeRow>
+      unidade_canais: Visao<UnidadeCanalDoCadastroRow>
     }
     Functions: { [_ in never]: never }
     Enums: { [_ in never]: never }
