@@ -5,6 +5,7 @@ import {
   aniversarioAgendavel,
   aniversarioJaPassou,
   instanteDoEnvio,
+  instanteDoHorarioLocal,
   idadeAtual,
 } from './agendamento'
 
@@ -105,6 +106,23 @@ describe('instanteDoEnvio', () => {
   it('respeita o horário configurado, não um fixo', () => {
     const d = instanteDoEnvio(10, 20, { ...base, horario: '18:30' })
     expect(d?.toISOString()).toBe('2026-10-20T21:30:00.000Z')
+  })
+})
+
+describe('instanteDoHorarioLocal', () => {
+  it('o dia e o horário da tela valem no fuso da clínica', () => {
+    expect(instanteDoHorarioLocal('2026-11-01T09:00', SP)?.toISOString()).toBe('2026-11-01T12:00:00.000Z')
+    expect(instanteDoHorarioLocal('2026-11-01T09:00', 'America/Manaus')?.toISOString()).toBe('2026-11-01T13:00:00.000Z')
+  })
+
+  it('perto da meia-noite, o dia em UTC já é o seguinte', () => {
+    expect(instanteDoHorarioLocal('2026-12-31T22:30', SP)?.toISOString()).toBe('2027-01-01T01:30:00.000Z')
+  })
+
+  it('outro formato não é do campo da tela', () => {
+    expect(instanteDoHorarioLocal('2026-11-01T15:00:00.000Z', SP)).toBeNull()
+    expect(instanteDoHorarioLocal('2026-11-01T24:00', SP)).toBeNull()
+    expect(instanteDoHorarioLocal('amanhã cedo', SP)).toBeNull()
   })
 })
 

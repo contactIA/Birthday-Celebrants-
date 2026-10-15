@@ -239,6 +239,16 @@ describe('um parabéns por paciente por ano', () => {
 })
 
 describe('data e hora manuais', () => {
+  it('o dia e o horário do campo da tela valem no fuso da clínica', async () => {
+    const d = deps()
+    await agendarMensagens(
+      { modeloConfigId: 'config-1', pacienteIds: ['p1'], quandoManual: '2026-11-01T09:00' },
+      CONTEXTO,
+      d
+    )
+    expect(d.agendar).toHaveBeenCalledWith(expect.objectContaining({ quando: '2026-11-01T12:00:00.000Z' }))
+  })
+
   it('sobrepõem o cálculo quando há um paciente', async () => {
     const d = deps()
     await agendarMensagens(

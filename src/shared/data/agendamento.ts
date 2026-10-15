@@ -101,6 +101,19 @@ export function instanteDoEnvio(mes: number, dia: number, p: ParametrosDeEnvio):
   return new Date(alvo)
 }
 
+/**
+ * O instante de um dia e horário escolhidos na tela ("AAAA-MM-DDTHH:MM"), no
+ * fuso da clínica, ou `null` se o texto não está nesse formato. Quem escolhe
+ * "1º/11 às 9h" quer 9h da clínica, mesmo olhando de um navegador em outro fuso.
+ */
+export function instanteDoHorarioLocal(texto: string, timezone: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(texto)
+  if (!m) return null
+  const [ano, mes, dia, hora, minuto] = m.slice(1).map(Number) as [number, number, number, number, number]
+  if (hora > 23 || minuto > 59) return null
+  return new Date(Date.UTC(ano, mes - 1, dia, hora - offsetDe(timezone), minuto))
+}
+
 /** Idade em anos completos a partir de "DD/MM/AAAA". */
 export function idadeAtual(datanascimento: string, timezone: string, agora: Date): number | null {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(datanascimento)

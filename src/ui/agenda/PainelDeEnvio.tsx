@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Aviso, Botao, Carregando } from '@/ui/primitivos'
+import { CampoDeDataHora } from '@/ui/campos-de-data'
 import { renderizar } from '@/shared/template/parametros'
 import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
 import { formatarTelefoneBR } from '@/shared/telefone/e164'
@@ -52,11 +53,14 @@ const QUANDO: Record<string, string> = {
 export function PainelDeEnvio({
   selecionados,
   semTelefone,
+  hoje,
   aoAgendar,
   aoConcluir,
 }: {
   selecionados: Aniversariante[]
   semTelefone: number
+  /** Hoje no fuso da clínica, 'AAAA-MM-DD': o primeiro dia da data manual. */
+  hoje?: string
   aoAgendar: () => void
   aoConcluir: () => void
 }) {
@@ -143,8 +147,9 @@ export function PainelDeEnvio({
           modeloConfigId: modelo.config.id,
           // Só IDS. Nome, telefone e nascimento vêm do prontuário, no servidor.
           pacienteIds: selecionados.map((p) => p.id),
-          quandoManual:
-            !emLote && quandoManual ? new Date(quandoManual).toISOString() : undefined,
+          // "AAAA-MM-DDTHH:MM" como a pessoa escolheu: o servidor lê no fuso da
+          // clínica, e não no do navegador de quem agenda.
+          quandoManual: !emLote && quandoManual ? quandoManual : undefined,
         }),
       })
       const corpo = await resposta.json()
@@ -255,15 +260,17 @@ export function PainelDeEnvio({
           </dl>
 
           {!emLote && primeiro && (
-            <label className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
               <span className="text-xs text-muted">Escolher outra data e hora (opcional)</span>
-              <input
-                type="datetime-local"
-                value={quandoManual}
-                onChange={(e) => setQuandoManual(e.target.value)}
-                className="h-9 rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
+              <CampoDeDataHora
+                valor={quandoManual}
+                aoMudar={setQuandoManual}
+                rotulo="Data e hora do envio"
+                min={hoje}
+                hoje={hoje}
+                limpavel
               />
-            </label>
+            </div>
           )}
 
           {semTelefone > 0 && (
