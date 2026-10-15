@@ -9,7 +9,7 @@ import { buscarEnvios, buscarModeloConfig, registrarEnvio } from '@/features/age
 
 // POST /api/agendamentos
 //
-// Corpo: { modeloConfigId, pacienteIds: string[], quandoManual?: ISO }
+// Corpo: { modeloConfigId, pacienteIds: string[], quandoManual?: "AAAA-MM-DDTHH:MM" no fuso da clínica, ou ISO }
 //
 // O corpo carrega IDS, não pacientes. O app anterior recebia o objeto de
 // paciente inteiro e usava o telefone do corpo como destinatário — quem tivesse

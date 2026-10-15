@@ -34,6 +34,8 @@
   --color-ink: #101828;
   --color-ink-2: #475467;
   --color-muted: #667085;
+  /* O texto de campo vazio e os dias de fora do mês, no calendário. */
+  --color-muted-2: #98a2b3;
 
   /* Acento em UM lugar. Trocar o white label é trocar estas linhas e as
      --marca-* lá embaixo. */
@@ -162,6 +164,22 @@ body {
 .escalonar > :nth-child(7) { animation-delay: 270ms; }
 .escalonar > :nth-child(8) { animation-delay: 315ms; }
 .escalonar > :nth-child(n + 9) { animation-delay: 360ms; }
+
+/* O quadro dos campos de data e horário: aparece rápido, saindo do campo. */
+@keyframes abrir-quadro {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.abrir-quadro {
+  transform-origin: var(--radix-popover-content-transform-origin);
+  animation: abrir-quadro 140ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

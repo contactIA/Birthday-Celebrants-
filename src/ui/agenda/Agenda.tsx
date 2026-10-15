@@ -8,6 +8,7 @@ import { EstadoComIcone, SituacaoDoEnvio } from '@/ui/SituacaoDoEnvio'
 import { aoClicarNaLinha, BotaoAtualizar, CampoDeBusca, Contato, ESTILO_CONTROLE, Marcador } from '@/ui/tabela'
 import { temMensagemValida } from '@/shared/envio/situacao'
 import { formatarTelefoneBR, paraE164BR } from '@/shared/telefone/e164'
+import { textoDaData } from '@/ui/datas'
 import {
   MESES_TITULO,
   aniversarioParaExibicao,
@@ -394,6 +395,7 @@ export function Agenda() {
             <PainelDeEnvio
               selecionados={pacientesSelecionados}
               semTelefone={grupos.corrigir.length}
+              hoje={hoje && textoDaData(hoje)}
               aoAgendar={() => {
                 // A seleção sai JUNTO com o agendamento, não só no "Concluir":
                 // com ela marcada, o botão seguia oferecendo "Agendar N

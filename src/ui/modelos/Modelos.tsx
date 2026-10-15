@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { Aviso, Botao, Carregando, Vazio } from '@/ui/primitivos'
+import { CampoDeHorario } from '@/ui/campos-de-data'
 import { CAMPOS_DISPONIVEIS, renderizar } from '@/shared/template/parametros'
 import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
 import {
@@ -261,15 +262,10 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
             </select>
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-ink-2">
+          <div className="flex items-center gap-2 text-sm text-ink-2">
             às
-            <input
-              type="time"
-              value={horario}
-              onChange={(e) => setHorario(e.target.value)}
-              className="tnum h-9 rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
-            />
-          </label>
+            <CampoDeHorario valor={horario} aoMudar={setHorario} rotulo="Horário do envio" compacto className="w-[108px]" />
+          </div>
 
           <label className="flex items-center gap-2 text-sm text-ink-2">
             <input

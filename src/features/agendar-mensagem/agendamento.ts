@@ -1,4 +1,4 @@
-import { anoDoAniversario, aniversarioJaPassou, instanteDoEnvio, type DiaEnvio } from '@/shared/data/agendamento'
+import { anoDoAniversario, aniversarioJaPassou, instanteDoEnvio, instanteDoHorarioLocal, type DiaEnvio } from '@/shared/data/agendamento'
 import { mesDiaDe, paraExibicao } from '@/shared/data/parse'
 import { temMensagemValida } from '@/shared/envio/situacao'
 import { digitosComPais, paraE164BR } from '@/shared/telefone/e164'
@@ -63,7 +63,10 @@ export interface EnvioExistente {
 export interface Pedido {
   modeloConfigId: string
   pacienteIds: string[]
-  /** ISO. Só aceito quando há UM paciente — em lote não faz sentido. */
+  /**
+   * "AAAA-MM-DDTHH:MM" no fuso da clínica (o campo da tela) ou ISO. Só aceito
+   * quando há UM paciente — em lote não faz sentido.
+   */
   quandoManual?: string
 }
 
@@ -168,8 +171,8 @@ export async function saidaDoLote(
     : {}
 }
 
-function quandoManualValido(iso: string, agora: Date): string {
-  const instante = new Date(iso)
+function quandoManualValido(texto: string, timezone: string, agora: Date): string {
+  const instante = instanteDoHorarioLocal(texto, timezone) ?? new Date(texto)
   if (Number.isNaN(instante.getTime())) {
     throw new PedidoInvalidoError('Data e hora do envio inválidas')
   }
@@ -201,7 +204,7 @@ export async function agendarMensagens(
   const saida = await saidaDoLote(modelo.modeloId, await deps.listarDaPlataforma(), contexto.unidade, deps.listarEquipes)
 
   const quandoManual = pedido.quandoManual
-    ? quandoManualValido(pedido.quandoManual, contexto.agora)
+    ? quandoManualValido(pedido.quandoManual, contexto.timezone, contexto.agora)
     : null
 
   // Uma consulta ao prontuário e uma ao banco para o lote inteiro. Ids
