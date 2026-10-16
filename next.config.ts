@@ -17,6 +17,13 @@ const nextConfig: NextConfig = {
   // Deploy por Docker na VPS: gera `.next/standalone` com um `server.js` e só as
   // dependências rastreadas, sem precisar de `node_modules` na imagem final.
   output: 'standalone',
+  experimental: {
+    // O proxy (src/proxy.ts) guarda o corpo da requisição em memória e, passado
+    // o limite, CORTA o resto sem erro — o padrão é 10 MB. A mídia de um modelo
+    // vai até 16 MB (vídeo, limite do WhatsApp), e um vídeo cortado subiria
+    // corrompido. O mesmo limite está no nginx (deploy/nginx).
+    proxyClientMaxBodySize: '20mb',
+  },
   // ATENÇÃO: `headers()` é avaliado no `next build`, não a cada request. Mudar
   // EMBED_HOSTS no ambiente do container altera o proxy, mas a CSP só muda com
   // um novo build (o Dockerfile aceita EMBED_HOSTS como build arg).

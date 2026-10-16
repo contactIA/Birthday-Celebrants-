@@ -5,6 +5,7 @@ import { Aviso, Botao, Carregando } from '@/ui/primitivos'
 import { CampoDeDataHora } from '@/ui/campos-de-data'
 import { renderizar } from '@/shared/template/parametros'
 import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
+import { fraseSemArquivo, type TipoDeMidia } from '@/shared/mensageria/midia'
 import { formatarTelefoneBR } from '@/shared/telefone/e164'
 import { NumeroDeEnvio, agruparPorNumero, rotuloDoNumero } from '@/ui/NumeroDeEnvio'
 import type { Aniversariante } from './Agenda'
@@ -26,6 +27,7 @@ interface ModeloNaTela {
   nome: string
   conteudo: string
   envio: EnvioDoModelo
+  midia: TipoDeMidia | null
   config: {
     id: string
     parametros: Record<string, string>
@@ -33,6 +35,7 @@ interface ModeloNaTela {
     horarioEnvio: string
     ehPadrao: boolean
     ativo: boolean
+    arquivo: { id: string; nome: string } | null
   } | null
 }
 
@@ -123,7 +126,10 @@ export function PainelDeEnvio({
   const grupos = useMemo(() => agruparPorNumero(modelos), [modelos])
   const modelo = modelos.find((m) => m.config?.id === escolhido)
   // A MESMA conferência que o servidor faz antes do lote: aqui só adianta a frase.
+  // O lote recusa o modelo de outro número e o modelo com mídia sem o arquivo: a
+  // tela diz antes, com a mesma frase.
   const foraDoNumero = modelo ? motivoDeNaoSair(modelo.envio) : null
+  const semArquivo = modelo?.midia && !modelo.config?.arquivo ? fraseSemArquivo(modelo.midia) : null
 
   const previa = useMemo(() => {
     if (!modelo?.config) return ''
@@ -282,8 +288,9 @@ export function PainelDeEnvio({
           )}
 
           {foraDoNumero && <Aviso tom="erro">{foraDoNumero}</Aviso>}
+          {semArquivo && <Aviso tom="erro">{semArquivo}</Aviso>}
 
-          <Botao onClick={confirmar} disabled={selecionados.length === 0 || !modelo || enviando || !!foraDoNumero}>
+          <Botao onClick={confirmar} disabled={selecionados.length === 0 || !modelo || enviando || !!foraDoNumero || !!semArquivo}>
             {enviando
               ? 'Agendando…'
               : selecionados.length === 0

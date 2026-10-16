@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  arquivoDoModelo,
   canaisDaEquipe,
   classificarErro,
+  midiaDoModelo,
   nomeAusente,
   oQueCompletar,
   paraCampoDeData,
@@ -145,21 +145,15 @@ describe('canaisDaEquipe', () => {
   it('resposta vazia = nenhum', () => expect(canaisDaEquipe(null)).toEqual([]))
 })
 
-describe('arquivoDoModelo: a mídia do cabeçalho', () => {
-  it('modelo com vídeo: o id e o endereço de download', () => {
-    const modelo = { id: 'm1', exampleFile: { id: 'f1', publicUrlDownload: 'https://cdn/f1?dl=1', publicUrl: 'https://cdn/f1' } }
-    expect(arquivoDoModelo(modelo)).toEqual({ id: 'f1', url: 'https://cdn/f1?dl=1' })
-  })
+describe('midiaDoModelo: o fileType da listagem', () => {
+  it.each([
+    ['VIDEO', 'video'],
+    ['IMAGE', 'imagem'],
+    ['DOCUMENT', 'documento'],
+    ['video', 'video'],
+  ] as const)('%s → %s', (fileType, midia) => expect(midiaDoModelo(fileType)).toBe(midia))
 
-  it('sem endereço de download, o público; só o id solto também serve', () => {
-    expect(arquivoDoModelo({ exampleFile: { id: 'f1', publicUrl: 'https://cdn/f1' } })).toEqual({ id: 'f1', url: 'https://cdn/f1' })
-    expect(arquivoDoModelo({ exampleFile: null, exampleFileId: 'f2' })).toEqual({ id: 'f2', url: null })
-  })
-
-  it('modelo só de texto, ou resposta vazia: sem arquivo', () => {
-    expect(arquivoDoModelo({ id: 'm1', exampleFile: null, exampleFileId: null })).toBeNull()
-    expect(arquivoDoModelo(null)).toBeNull()
-  })
+  it.each(['UNDEFINED', null, undefined, ''])('%s = só texto', (fileType) => expect(midiaDoModelo(fileType)).toBeNull())
 })
 
 describe('paramsDoAgendamento', () => {
@@ -167,17 +161,16 @@ describe('paramsDoAgendamento', () => {
     expect(paramsDoAgendamento({}, null)).toEqual({})
   })
 
-  it('a mídia vai em fileId e fileUrl, como a tela da plataforma manda', () => {
-    expect(paramsDoAgendamento({}, { id: 'f1', url: 'https://cdn/f1' })).toEqual({ fileId: 'f1', fileUrl: 'https://cdn/f1' })
-    expect(paramsDoAgendamento({}, { id: 'f1', url: null })).toEqual({ fileId: 'f1' })
+  it('a mídia vai em fileId, como a documentação pede', () => {
+    expect(paramsDoAgendamento({}, 'f1')).toEqual({ fileId: 'f1' })
   })
 
   it('as variáveis mapeadas vão dentro de parameters', () => {
-    expect(paramsDoAgendamento({ 1: 'Maria' }, { id: 'f1', url: null })).toEqual({ parameters: { 1: 'Maria' }, fileId: 'f1' })
+    expect(paramsDoAgendamento({ 1: 'Maria' }, 'f1')).toEqual({ parameters: { 1: 'Maria' }, fileId: 'f1' })
   })
 })
 
-describe('agendar: a mídia do modelo vai junto', () => {
+describe('com a rede: agendar e subir arquivo', () => {
   const fetchMock = vi.fn()
   const PEDIDO = { para: '+5538999990000', modeloId: 'modelo-video', quando: '2026-10-20T11:30:00.000Z', parametros: {} }
 
@@ -185,13 +178,12 @@ describe('agendar: a mídia do modelo vai junto', () => {
     return provedorHelena({ token: 't', from: '553821000921', channelId: 'c1', equipeId: 'e1', campoNascimento: null })
   }
 
-  function resposta(status: number, corpo: unknown) {
+  function resposta(status: number, corpo?: unknown) {
     return new Response(corpo === undefined ? '' : JSON.stringify(corpo), { status })
   }
 
-  function corpoDoAgendamento(chamada: number) {
-    const [, init] = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/chat/v1/scheduled-message'))[chamada]!
-    return JSON.parse((init as RequestInit).body as string)
+  function chamadas(trecho: string) {
+    return fetchMock.mock.calls.filter(([url]) => String(url).includes(trecho)) as [string, RequestInit][]
   }
 
   beforeEach(() => {
@@ -205,28 +197,49 @@ describe('agendar: a mídia do modelo vai junto', () => {
     fetchMock.mockReset()
   })
 
-  it('modelo com vídeo: agenda com o arquivo, e o modelo é lido uma vez por lote', async () => {
-    fetchMock.mockImplementation(async (url: string) =>
-      url.includes('/chat/v2/template/modelo-video')
-        ? resposta(200, { id: 'modelo-video', exampleFile: { id: 'f1', publicUrlDownload: 'https://cdn/f1' } })
-        : resposta(200, { id: 'agendada-1' })
-    )
-
-    const mensageria = provedor()
-    await mensageria.agendar(PEDIDO)
-    await mensageria.agendar({ ...PEDIDO, para: '+5538999991111' })
-
-    expect(corpoDoAgendamento(0).templateParams).toEqual({ fileId: 'f1', fileUrl: 'https://cdn/f1' })
-    expect(corpoDoAgendamento(1).templateParams).toEqual({ fileId: 'f1', fileUrl: 'https://cdn/f1' })
-    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/chat/v2/template/'))).toHaveLength(1)
+  it('agendamento com a mídia do modelo: o fileId vai em templateParams', async () => {
+    fetchMock.mockResolvedValue(resposta(200, { id: 'agendada-1' }))
+    await provedor().agendar({ ...PEDIDO, arquivoId: 'f1' })
+    const [, init] = chamadas('/chat/v1/scheduled-message')[0]!
+    expect(JSON.parse(init.body as string).templateParams).toEqual({ fileId: 'f1' })
   })
 
-  it('modelo que não pôde ser lido: agenda sem o arquivo, como antes', async () => {
-    fetchMock.mockImplementation(async (url: string) =>
-      url.includes('/chat/v2/template/') ? resposta(500, { key: 'ERROR', text: 'falhou' }) : resposta(200, { id: 'agendada-1' })
-    )
+  it('modelo só de texto: templateParams {} como sempre, sem nenhuma chamada a mais', async () => {
+    fetchMock.mockResolvedValue(resposta(200, { id: 'agendada-1' }))
+    await provedor().agendar(PEDIDO)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(chamadas('/chat/v1/scheduled-message')[0]![1].body as string).templateParams).toEqual({})
+  })
 
-    await expect(provedor().agendar(PEDIDO)).resolves.toEqual({ id: 'agendada-1' })
-    expect(corpoDoAgendamento(0).templateParams).toEqual({})
+  it('subir arquivo: pede a URL, faz o PUT nela e confirma, devolvendo o id', async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes('/core/v2/file?')) return resposta(200, { tempFileId: 'temp-1', urlUpload: 'https://armazenamento/x?assinado' })
+      if (url.startsWith('https://armazenamento/')) return resposta(200)
+      if (url.endsWith('/core/v2/file') && init?.method === 'POST') return resposta(200, { id: 'arquivo-1', type: 'VIDEO' })
+      return resposta(404)
+    })
+
+    const conteudo = new Uint8Array([1, 2, 3]).buffer
+    const id = await provedor().subirArquivo({ nome: 'parabens.mp4', tipo: 'video', mimeType: 'video/mp4', conteudo })
+
+    expect(id).toBe('arquivo-1')
+    const [urlDoPedido] = chamadas('/core/v2/file?')[0]!
+    expect(new URL(urlDoPedido).searchParams.get('Type')).toBe('VIDEO')
+    const [, put] = chamadas('https://armazenamento/')[0]!
+    expect(put.method).toBe('PUT')
+    // O token da conta não vai para o armazenamento.
+    expect(JSON.stringify(put.headers)).not.toContain('Bearer')
+    const confirmacao = chamadas('/core/v2/file').find(([u, i]) => !u.includes('?') && i.method === 'POST')!
+    expect(JSON.parse(confirmacao[1].body as string)).toEqual({ tempFileId: 'temp-1' })
+  })
+
+  it('armazenamento recusou: erro legível, sem confirmar', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.includes('/core/v2/file?') ? resposta(200, { tempFileId: 'temp-1', urlUpload: 'https://armazenamento/x' }) : resposta(403)
+    )
+    await expect(
+      provedor().subirArquivo({ nome: 'a.mp4', tipo: 'video', mimeType: 'video/mp4', conteudo: new ArrayBuffer(1) })
+    ).rejects.toThrow(/recusou o arquivo \(403\)/)
+    expect(chamadas('/core/v2/file').filter(([u, i]) => !u.includes('?') && i.method === 'POST')).toHaveLength(0)
   })
 })

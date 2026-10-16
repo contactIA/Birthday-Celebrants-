@@ -4,14 +4,22 @@ import type { ConfiguracaoSalva, ConfiguracaoParaSalvar } from './modelos'
 
 type LinhaDeConfig = Pick<
   TemplateRow,
-  'id' | 'helena_template_id' | 'param_mapping' | 'dia_envio' | 'horario_envio' | 'is_default' | 'ativo'
+  | 'id'
+  | 'helena_template_id'
+  | 'param_mapping'
+  | 'dia_envio'
+  | 'horario_envio'
+  | 'is_default'
+  | 'ativo'
+  | 'arquivo_id'
+  | 'arquivo_nome'
 >
 
 /** Configurações da clínica, indexadas pelo id do modelo na plataforma. */
 export async function buscarConfiguracoes(clinica: Clinica): Promise<Map<string, ConfiguracaoSalva>> {
   const { data, error } = await db()
     .from('aniversariantes_templates')
-    .select('id, helena_template_id, param_mapping, dia_envio, horario_envio, is_default, ativo')
+    .select('id, helena_template_id, param_mapping, dia_envio, horario_envio, is_default, ativo, arquivo_id, arquivo_nome')
     .eq('clinica_id', clinica.id)
     .eq('unidade_id', clinica.unidade.id)
     .returns<LinhaDeConfig[]>()
@@ -28,6 +36,7 @@ export async function buscarConfiguracoes(clinica: Clinica): Promise<Map<string,
         horarioEnvio: linha.horario_envio,
         ehPadrao: linha.is_default,
         ativo: linha.ativo,
+        arquivo: linha.arquivo_id ? { id: linha.arquivo_id, nome: linha.arquivo_nome ?? 'arquivo' } : null,
       },
     ])
   )
@@ -60,6 +69,8 @@ export async function gravarConfiguracao(
         horario_envio: config.horarioEnvio,
         is_default: config.ehPadrao,
         ativo: config.ativo,
+        arquivo_id: config.arquivo?.id ?? null,
+        arquivo_nome: config.arquivo?.nome ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'unidade_id,helena_template_id' }

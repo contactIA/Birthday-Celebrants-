@@ -9,6 +9,7 @@ import {
   TIMEOUT_MS,
   type AgendamentoCriado,
   type AgendamentoSolicitado,
+  type ArquivoParaSubir,
   type CampoDeData,
   type CanalDaConta,
   type ContatoDoPaciente,
@@ -18,6 +19,7 @@ import {
   type MensagemNaPlataforma,
   type ModeloDeMensagem,
   type ProvedorDeMensageria,
+  type TipoDeMidia,
 } from './porta'
 import type { StatusEnvio } from '@/shared/db'
 import { digitosComPais, formatarTelefoneBR } from '@/shared/telefone/e164'
@@ -61,11 +63,16 @@ import { digitosComPais, formatarTelefoneBR } from '@/shared/telefone/e164'
 //  · Modelo com mídia no cabeçalho (vídeo, imagem) agendado SEM o arquivo é
 //    aceito na criação e falha só no disparo, com o 132012 do WhatsApp
 //    ("parâmetros formatados incorretamente"). A plataforma NÃO junta sozinha o
-//    arquivo do modelo: quem agenda manda o id e o endereço dele em
-//    `templateParams`, no formato `{ parameters, fileId, fileUrl }` — o mesmo
-//    que a tela da própria plataforma usa. O arquivo do modelo vem em
-//    `exampleFile` ({ id, publicUrlDownload }) de `/chat/v2/template/{id}`.
-//    Conta real, 2026-10-14 e 15: todos os parabéns com vídeo falharam.
+//    arquivo do modelo: quem agenda manda o id dele em `templateParams`, no
+//    formato `{ parameters, fileId, fileUrl }` — o mesmo que a tela da própria
+//    plataforma usa. Conta real, 2026-10-14 e 15: todos os parabéns com vídeo
+//    falharam.
+//  · E a API pública NÃO entrega o arquivo do modelo: a listagem só diz o tipo
+//    (`fileType`: VIDEO, IMAGE, DOCUMENT), com qualquer `IncludeDetails`, e não
+//    há leitura de um modelo por id (`/chat/v2/template/{id}` é da API interna
+//    da tela; aqui responde 404). Por isso a clínica envia o arquivo no app, que
+//    o sobe pela `/core/v2/file` (GET dá a URL de upload, PUT nela, POST
+//    confirma e devolve o id) e guarda o id para os agendamentos.
 //
 // O nome do fornecedor não aparece em nenhuma string que possa chegar à tela.
 
@@ -86,7 +93,28 @@ interface ModeloBruto {
   name: string
   text: string | null
   channelId?: unknown
+  fileType?: unknown
 }
+
+/** O tipo de mídia do modelo, a partir do `fileType` da listagem. */
+export function midiaDoModelo(fileType: unknown): TipoDeMidia | null {
+  switch (typeof fileType === 'string' ? fileType.toUpperCase() : '') {
+    case 'VIDEO':
+      return 'video'
+    case 'IMAGE':
+      return 'imagem'
+    case 'DOCUMENT':
+      return 'documento'
+    default:
+      return null
+  }
+}
+
+/** O `Type` do upload, no vocabulário da plataforma. */
+const TIPO_DO_ARQUIVO: Record<TipoDeMidia, string> = { video: 'VIDEO', imagem: 'IMAGE', documento: 'DOCUMENT' }
+
+/** Vídeo de até 16 MB leva tempo para subir: o limite comum de 20 s não basta. */
+const TIMEOUT_DO_UPLOAD_MS = 120_000
 
 /**
  * Os status da plataforma são os MESMOS da nossa coluna — a coluna foi modelada
@@ -248,44 +276,21 @@ export function canaisDaEquipe(bruto: unknown): 'todos' | string[] {
   })
 }
 
-/** A mídia do cabeçalho de um modelo (vídeo, imagem, documento). */
-export interface ArquivoDoModelo {
-  id: string
-  /** O endereço público do arquivo, quando a plataforma informa. */
-  url: string | null
-}
-
-function textoNaoVazio(...valores: unknown[]): string | null {
-  return valores.find((v): v is string => typeof v === 'string' && v.trim() !== '') ?? null
-}
-
 /**
- * O arquivo do cabeçalho, a partir do modelo como `/chat/v2/template/{id}` o
- * devolve. `null` = modelo só de texto.
- */
-export function arquivoDoModelo(bruto: unknown): ArquivoDoModelo | null {
-  const { exampleFile, exampleFileId } = (bruto ?? {}) as { exampleFile?: unknown; exampleFileId?: unknown }
-  const arquivo = (exampleFile ?? {}) as { id?: unknown; publicUrlDownload?: unknown; publicUrl?: unknown }
-  const id = textoNaoVazio(arquivo.id, exampleFileId)
-  if (!id) return null
-  return { id, url: textoNaoVazio(arquivo.publicUrlDownload, arquivo.publicUrl) }
-}
-
-/**
- * O `templateParams` do agendamento, no formato que a tela da plataforma usa:
- * `{ parameters, fileId, fileUrl }`.
+ * O `templateParams` do agendamento, no formato da documentação e da tela da
+ * plataforma: `{ parameters, fileId, fileUrl }`.
  *
- * As variáveis mapeadas iam soltas (`{ "1": "Maria" }`); a tela as manda dentro
- * de `parameters`. Nenhuma clínica tinha variável mapeada quando isto mudou.
- * Modelo só de texto e sem variáveis continua `{}`, o que já funcionava.
+ * As variáveis mapeadas iam soltas (`{ "1": "Maria" }`); o formato as quer
+ * dentro de `parameters`. Nenhuma clínica tinha variável mapeada quando isto
+ * mudou. Modelo só de texto e sem variáveis continua `{}`, o que já funcionava.
  */
 export function paramsDoAgendamento(
   parametros: Record<string, string>,
-  arquivo: ArquivoDoModelo | null
+  arquivoId: string | null
 ): Record<string, unknown> {
   return {
     ...(Object.keys(parametros).length > 0 ? { parameters: parametros } : {}),
-    ...(arquivo ? { fileId: arquivo.id, ...(arquivo.url ? { fileUrl: arquivo.url } : {}) } : {}),
+    ...(arquivoId ? { fileId: arquivoId } : {}),
   }
 }
 
@@ -397,33 +402,8 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
       // `text`, não `content`.
       conteudo: m.text ?? '',
       canalId: typeof m.channelId === 'string' && m.channelId ? m.channelId : null,
+      midia: midiaDoModelo(m.fileType),
     }))
-  }
-
-  // Um modelo é consultado uma vez por instância (um lote), não por paciente.
-  const arquivos = new Map<string, Promise<ArquivoDoModelo | null>>()
-
-  /**
-   * A mídia do modelo, para ir junto no agendamento. Se o modelo não puder ser
-   * lido, agenda sem ela, como antes: modelo só de texto segue funcionando, e o
-   * erro fica no log.
-   */
-  function arquivoDe(modeloId: string): Promise<ArquivoDoModelo | null> {
-    let arquivo = arquivos.get(modeloId)
-    if (!arquivo) {
-      arquivo = chamar(
-        `/chat/v2/template/${encodeURIComponent(modeloId)}?includeDetails=ALL`,
-        { method: 'GET' },
-        'buscar-modelo'
-      )
-        .then(arquivoDoModelo)
-        .catch((err: Error) => {
-          console.error(`[mensageria/buscar-modelo] agendando sem a mídia do modelo: ${err.message}`)
-          return null
-        })
-      arquivos.set(modeloId, arquivo)
-    }
-    return arquivo
   }
 
   async function buscarCanais(): Promise<CanalDaConta[]> {
@@ -451,7 +431,6 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
       // Pelo número do modelo, quando não é o remetente da clínica, com a equipe
       // que a fatia escolheu para ele; senão o remetente e a equipe do setup.
       const equipe = pedido.remetente ? pedido.equipeId : equipeId
-      const arquivo = await arquivoDe(pedido.modeloId)
       const criado = (await chamar(
         '/chat/v1/scheduled-message',
         {
@@ -466,7 +445,7 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
             templateId: pedido.modeloId,
             scheduling: pedido.quando,
             // A mídia do modelo vai aqui: sem ela, modelo com vídeo falha no disparo.
-            templateParams: paramsDoAgendamento(pedido.parametros, arquivo),
+            templateParams: paramsDoAgendamento(pedido.parametros, pedido.arquivoId ?? null),
           }),
         },
         'agendar'
@@ -548,6 +527,47 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
       return (extrairLista(dados) as { key?: unknown; name?: unknown; type?: unknown; entityType?: unknown }[])
         .filter((c) => c?.type === 'DATE' && c?.entityType !== 'PANEL' && typeof c?.key === 'string')
         .map((c) => ({ chave: c.key as string, nome: typeof c.name === 'string' ? c.name.trim() : (c.key as string) }))
+    },
+
+    async subirArquivo(arquivo: ArquivoParaSubir): Promise<string> {
+      // 1. A URL de upload e o id provisório.
+      const params = new URLSearchParams({ Type: TIPO_DO_ARQUIVO[arquivo.tipo], Name: arquivo.nome, MimeType: arquivo.mimeType })
+      const pedido = (await chamar(`/core/v2/file?${params}`, { method: 'GET' }, 'url-de-upload')) as {
+        tempFileId?: unknown
+        urlUpload?: unknown
+      } | null
+      if (typeof pedido?.tempFileId !== 'string' || typeof pedido.urlUpload !== 'string') {
+        throw new MensageriaIndisponivelError('A plataforma de mensagens não devolveu onde enviar o arquivo')
+      }
+
+      // 2. O arquivo, direto no armazenamento: PUT, sem o token da conta.
+      let enviado: Response
+      try {
+        enviado = await fetch(pedido.urlUpload, {
+          method: 'PUT',
+          headers: { 'Content-Type': arquivo.mimeType },
+          body: arquivo.conteudo,
+          signal: AbortSignal.timeout(TIMEOUT_DO_UPLOAD_MS),
+        })
+      } catch (err) {
+        const causa = (err as Error).name === 'TimeoutError' ? 'demorou demais' : 'falhou'
+        throw new MensageriaIndisponivelError(`O envio do arquivo para a plataforma de mensagens ${causa}`)
+      }
+      if (!enviado.ok) {
+        console.error(`[mensageria/upload] HTTP ${enviado.status}: ${await enviado.text().catch(() => '')}`)
+        throw new MensageriaIndisponivelError(`A plataforma de mensagens recusou o arquivo (${enviado.status})`)
+      }
+
+      // 3. A confirmação, que transforma o id provisório no id do arquivo.
+      const salvo = (await chamar(
+        '/core/v2/file',
+        { method: 'POST', body: JSON.stringify({ tempFileId: pedido.tempFileId }) },
+        'salvar-arquivo'
+      )) as { id?: unknown } | null
+      if (typeof salvo?.id !== 'string' || !salvo.id) {
+        throw new MensageriaIndisponivelError('A plataforma de mensagens não confirmou o arquivo')
+      }
+      return salvo.id
     },
 
     listarCanais: buscarCanais,

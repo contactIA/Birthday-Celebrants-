@@ -1,4 +1,7 @@
 import type { StatusEnvio } from '@/shared/db'
+import type { TipoDeMidia } from '@/shared/mensageria/midia'
+
+export type { TipoDeMidia }
 
 // A porta de mensageria.
 //
@@ -24,6 +27,19 @@ export interface ModeloDeMensagem {
    * agendar por outro remetente é recusado. `null` = a listagem não disse.
    */
   canalId: string | null
+  /**
+   * A mídia do cabeçalho do modelo. Ausente ou `null` = só texto. Modelo com
+   * mídia só sai com o arquivo junto, e a plataforma não o junta sozinha.
+   */
+  midia?: TipoDeMidia | null
+}
+
+/** Um arquivo para subir na plataforma, como a mídia de um modelo. */
+export interface ArquivoParaSubir {
+  nome: string
+  tipo: TipoDeMidia
+  mimeType: string
+  conteudo: ArrayBuffer
 }
 
 export interface ListagemDeModelos {
@@ -52,6 +68,8 @@ export interface AgendamentoSolicitado {
   remetente?: string
   /** A equipe que agenda pelo `remetente` acima. Só vale junto com ele. */
   equipeId?: string
+  /** O id, na plataforma, da mídia do modelo. Ausente = modelo só de texto. */
+  arquivoId?: string
 }
 
 export interface AgendamentoCriado {
@@ -158,6 +176,12 @@ export interface ProvedorDeMensageria {
 
   /** Os campos personalizados de data do contato, para escolher o de nascimento. */
   listarCamposDeData(): Promise<CampoDeData[]>
+
+  /**
+   * Sobe um arquivo na plataforma e devolve o id dele, que vai junto em cada
+   * agendamento do modelo. O id é reaproveitável: um upload por arquivo.
+   */
+  subirArquivo(arquivo: ArquivoParaSubir): Promise<string>
 }
 
 /**

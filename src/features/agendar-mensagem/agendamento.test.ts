@@ -521,3 +521,36 @@ describe('o número do modelo', () => {
     expect(d.agendar).not.toHaveBeenCalled()
   })
 })
+
+describe('modelo com mídia', () => {
+  const comVideo = () => ({
+    modelos: [{ id: 'modelo-na-plataforma', nome: 'Parabéns', conteudo: '', canalId: null, midia: 'video' as const }],
+    canais: [],
+    filtradoPorTipo: true,
+  })
+
+  it('sem o vídeo enviado em Modelos: recusa o lote inteiro, sem agendar ninguém', async () => {
+    const d = deps({ listarDaPlataforma: vi.fn(async () => comVideo()) })
+    await expect(agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)).rejects.toThrow(
+      'Este modelo tem vídeo. Envie o vídeo em Modelos e salve: sem ele, a mensagem falha no envio.'
+    )
+    expect(d.agendar).not.toHaveBeenCalled()
+    expect(d.salvarContato).not.toHaveBeenCalled()
+  })
+
+  it('com o vídeo enviado: o id do arquivo vai em cada agendamento', async () => {
+    const d = deps({
+      listarDaPlataforma: vi.fn(async () => comVideo()),
+      buscarModelo: vi.fn(async () => ({ ...MODELO, arquivoId: 'arquivo-1' })),
+    })
+    const [r] = await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+    expect(r).toMatchObject({ ok: true })
+    expect(d.agendar).toHaveBeenCalledWith(expect.objectContaining({ arquivoId: 'arquivo-1' }))
+  })
+
+  it('modelo só de texto: o pedido não leva arquivo', async () => {
+    const d = deps()
+    await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+    expect(d.agendar).toHaveBeenCalledWith(expect.not.objectContaining({ arquivoId: expect.anything() }))
+  })
+})

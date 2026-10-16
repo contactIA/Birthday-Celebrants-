@@ -6,6 +6,7 @@ import { resolverParametros } from '@/shared/template/parametros'
 import type { StatusEnvio } from '@/shared/db'
 import type { Aniversariante } from '@/providers/prontuario'
 import { envioDoModelo, motivoDeNaoSair, type Equipe, type UnidadeQueEnvia } from '@/shared/mensageria/canal-do-modelo'
+import { fraseSemArquivo } from '@/shared/mensageria/midia'
 import {
   ModeloForaDoCanalError,
   type AgendamentoCriado,
@@ -38,6 +39,8 @@ export interface ConfiguracaoDeModelo {
   diaEnvio: DiaEnvio
   /** "HH:MM" no fuso da clínica. */
   horarioEnvio: string
+  /** O id, na plataforma, da mídia enviada para o modelo. Ausente ou nulo = nenhuma. */
+  arquivoId?: string | null
 }
 
 export interface EnvioParaGravar {
@@ -131,6 +134,20 @@ export class PedidoInvalidoError extends Error {
   }
 }
 
+/**
+ * O modelo tem mídia (vídeo, imagem, documento) e o arquivo não foi enviado em
+ * Modelos. Agendado assim, a plataforma aceita e o WhatsApp recusa no disparo
+ * (132012) — o lote inteiro falharia no dia seguinte, sem aviso.
+ */
+export class ModeloSemArquivoError extends Error {
+  readonly status = 409
+  readonly codigo = 'MODELO_SEM_ARQUIVO' as const
+  constructor(mensagem: string) {
+    super(mensagem)
+    this.name = 'ModeloSemArquivoError'
+  }
+}
+
 /** Limite de pacientes por pedido. Protege a function e a conta da clínica. */
 export const MAXIMO_POR_LOTE = 100
 
@@ -201,7 +218,12 @@ export async function agendarMensagens(
 
   const modelo = await deps.buscarModelo(pedido.modeloConfigId)
   if (!modelo) throw new ModeloNaoEncontradoError()
-  const saida = await saidaDoLote(modelo.modeloId, await deps.listarDaPlataforma(), contexto.unidade, deps.listarEquipes)
+  const plataforma = await deps.listarDaPlataforma()
+  // Recusa ANTES de começar, como o número: senão cada paciente "agenda" e todos
+  // falham no disparo.
+  const midia = plataforma.modelos.find((m) => m.id === modelo.modeloId)?.midia
+  if (midia && !modelo.arquivoId) throw new ModeloSemArquivoError(fraseSemArquivo(midia))
+  const saida = await saidaDoLote(modelo.modeloId, plataforma, contexto.unidade, deps.listarEquipes)
 
   const quandoManual = pedido.quandoManual
     ? quandoManualValido(pedido.quandoManual, contexto.timezone, contexto.agora)
@@ -318,6 +340,7 @@ async function agendarUm(
         aniversario: paciente.aniversario,
       }),
       ...saida,
+      ...(modelo.arquivoId ? { arquivoId: modelo.arquivoId } : {}),
     })
 
     await deps.registrarEnvio({

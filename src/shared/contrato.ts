@@ -79,6 +79,8 @@ export const CONTRATO = {
     'ativo',
     'created_at',
     'updated_at',
+    'arquivo_id',
+    'arquivo_nome',
   ],
   aniversariantes_envios: [
     'id',

@@ -7,7 +7,13 @@ import {
   type Equipe,
   type UnidadeQueEnvia,
 } from '@/shared/mensageria/canal-do-modelo'
-import type { ListagemDeModelos, ModeloDeMensagem } from '@/providers/mensageria'
+import {
+  fraseSemArquivo,
+  problemaNoArquivo,
+  type ArquivoDoModelo,
+  type TipoDeMidia,
+} from '@/shared/mensageria/midia'
+import type { ArquivoParaSubir, ListagemDeModelos, ModeloDeMensagem } from '@/providers/mensageria'
 
 // A tela de modelos: casa os modelos aprovados na plataforma com a configuração
 // que salvamos para cada um, e diz por qual número cada um sai e se esta
@@ -20,6 +26,8 @@ export interface ConfiguracaoSalva {
   horarioEnvio: string
   ehPadrao: boolean
   ativo: boolean
+  /** A mídia enviada para o modelo. `null` = nenhuma. */
+  arquivo: ArquivoDoModelo | null
 }
 
 export interface ModeloNaTela {
@@ -31,6 +39,8 @@ export interface ModeloNaTela {
   parametrosDoTexto: string[]
   /** Por qual número o modelo sai, com qual equipe, e se esta unidade pode usá-lo. */
   envio: EnvioDoModelo
+  /** A mídia do cabeçalho. `null` = só texto. Com mídia, o arquivo precisa ser enviado aqui. */
+  midia: TipoDeMidia | null
   config: ConfiguracaoSalva | null
 }
 
@@ -83,6 +93,7 @@ export async function listarModelos(deps: DependenciasDeLeitura): Promise<Listag
     conteudo: modelo.conteudo,
     parametrosDoTexto: parametrosDoTemplate(modelo.conteudo),
     envio: envios.get(modelo.id)!,
+    midia: modelo.midia ?? null,
     config: configs.get(modelo.id) ?? null,
   }))
   // Os que a unidade não pode usar por último: a conta pode ter o mesmo modelo,
@@ -113,6 +124,8 @@ export interface ConfiguracaoParaSalvar {
   horarioEnvio: string
   ehPadrao: boolean
   ativo: boolean
+  /** A mídia do modelo, já enviada à plataforma. */
+  arquivo: ArquivoDoModelo | null
 }
 
 const DIAS_VALIDOS: ReadonlySet<string> = new Set<DiaEnvio>([
@@ -135,14 +148,20 @@ const HORARIO = /^([01]\d|2[0-3]):([0-5]\d)$/
  *
  * E a unidade precisa poder usar o modelo (o número dele não é de outra
  * unidade, e uma equipe o atende): um modelo recusado salvo como ativo só
- * falharia no envio, paciente por paciente.
+ * falharia no envio, paciente por paciente. Pelo mesmo motivo, modelo com mídia
+ * só é salvo ativo com o arquivo enviado.
  */
-export function validarConfiguracao(config: ConfiguracaoParaSalvar, envio: EnvioDoModelo | null = null): void {
+export function validarConfiguracao(
+  config: ConfiguracaoParaSalvar,
+  envio: EnvioDoModelo | null = null,
+  midia: TipoDeMidia | null = null
+): void {
   if (!config.modeloId) {
     throw new ConfiguracaoInvalidaError('Modelo não informado')
   }
   const foraDoNumero = config.ativo && envio ? motivoDeNaoSair(envio) : null
   if (foraDoNumero) throw new ConfiguracaoInvalidaError(foraDoNumero)
+  if (config.ativo && midia && !config.arquivo) throw new ConfiguracaoInvalidaError(fraseSemArquivo(midia))
   if (!DIAS_VALIDOS.has(config.diaEnvio)) {
     throw new ConfiguracaoInvalidaError('Dia de envio inválido')
   }
@@ -179,7 +198,7 @@ export async function salvarConfiguracao(
   const plataforma = await deps.listarDaPlataforma()
   const modelo = plataforma.modelos.find((m) => m.id === config.modeloId)
   const envio = modelo ? (await enviosDosModelos([modelo], plataforma, deps.unidade, deps.listarEquipes)).get(modelo.id)! : null
-  validarConfiguracao(config, envio)
+  validarConfiguracao(config, envio, modelo?.midia ?? null)
 
   // Só um modelo padrão por clínica. São duas escritas, e o banco não nos dá
   // transação por aqui — então a ORDEM é a garantia: limpar antes de gravar faz
@@ -188,4 +207,51 @@ export async function salvarConfiguracao(
   if (config.ehPadrao) await deps.limparPadrao()
 
   await deps.gravar(config)
+}
+
+// ── A mídia do modelo ───────────────────────────────────────────────────────
+
+/** O arquivo como chegou da tela. */
+export interface ArquivoRecebido {
+  nome: string
+  mimeType: string
+  conteudo: ArrayBuffer
+}
+
+export interface DependenciasDoArquivo {
+  /** Os modelos da plataforma: é a listagem que diz se o modelo tem mídia, e qual. */
+  listarDaPlataforma: () => Promise<ListagemDeModelos>
+  subirArquivo: (arquivo: ArquivoParaSubir) => Promise<string>
+}
+
+/** O nome que a tela mostra: sem caminho, e curto. */
+function nomeDoArquivo(nome: string): string {
+  const limpo = nome.split(/[\\/]/).pop()?.trim() ?? ''
+  return (limpo || 'arquivo').slice(0, 120)
+}
+
+/**
+ * Sobe a mídia do modelo na plataforma e devolve o arquivo, que a tela manda
+ * junto no salvar. Não grava nada: o arquivo só vale para o modelo quando a
+ * configuração é salva — o mesmo botão de sempre.
+ *
+ * Confere ANTES de subir: o tipo e o tamanho que o WhatsApp aceita para a mídia
+ * DESTE modelo. Um vídeo grande demais subiria, seria guardado, e só falharia no
+ * dia do envio.
+ */
+export async function enviarArquivoDoModelo(
+  modeloId: string,
+  arquivo: ArquivoRecebido,
+  deps: DependenciasDoArquivo
+): Promise<ArquivoDoModelo> {
+  const modelo = (await deps.listarDaPlataforma()).modelos.find((m) => m.id === modeloId)
+  if (!modelo) throw new ConfiguracaoInvalidaError('Modelo não encontrado na plataforma de mensagens')
+  if (!modelo.midia) throw new ConfiguracaoInvalidaError('Este modelo é só de texto e não leva arquivo.')
+
+  const problema = problemaNoArquivo(modelo.midia, { mimeType: arquivo.mimeType, tamanho: arquivo.conteudo.byteLength })
+  if (problema) throw new ConfiguracaoInvalidaError(problema)
+
+  const nome = nomeDoArquivo(arquivo.nome)
+  const id = await deps.subirArquivo({ nome, tipo: modelo.midia, mimeType: arquivo.mimeType, conteudo: arquivo.conteudo })
+  return { id, nome }
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
+  enviarArquivoDoModelo,
   listarModelos,
   salvarConfiguracao,
   validarConfiguracao,
@@ -33,6 +34,7 @@ function config(over: Partial<ConfiguracaoParaSalvar> = {}): ConfiguracaoParaSal
     horarioEnvio: '09:00',
     ehPadrao: false,
     ativo: true,
+    arquivo: null,
     ...over,
   }
 }
@@ -45,6 +47,7 @@ describe('listagem', () => {
     horarioEnvio: '10:30',
     ehPadrao: true,
     ativo: true,
+    arquivo: null,
   }
 
   function deps(configs: [string, ConfiguracaoSalva][] = []) {
@@ -244,5 +247,65 @@ describe('salvar', () => {
     ).rejects.toThrow(ConfiguracaoInvalidaError)
     expect(d.limparPadrao).not.toHaveBeenCalled()
     expect(d.gravar).not.toHaveBeenCalled()
+  })
+})
+
+describe('modelo com mídia', () => {
+  const COM_VIDEO = { id: 'm3', nome: 'Parabéns com vídeo', conteudo: 'Oi!', canalId: null, midia: 'video' as const }
+  const plataforma = vi.fn(async () => ({ modelos: [COM_VIDEO], canais: CANAIS, filtradoPorTipo: true }))
+  const MB = 1024 * 1024
+
+  it('não salva ativo sem o vídeo enviado', async () => {
+    const gravar = vi.fn(async () => {})
+    const d = { listarDaPlataforma: plataforma, listarEquipes: semEquipes, unidade: UNIDADE, limparPadrao: vi.fn(async () => {}), gravar }
+    await expect(salvarConfiguracao(config({ modeloId: 'm3', parametros: {} }), d)).rejects.toThrow(
+      'Este modelo tem vídeo. Envie o vídeo em Modelos e salve: sem ele, a mensagem falha no envio.'
+    )
+    expect(gravar).not.toHaveBeenCalled()
+
+    await salvarConfiguracao(config({ modeloId: 'm3', parametros: {}, arquivo: { id: 'arq-1', nome: 'parabens.mp4' } }), d)
+    expect(gravar).toHaveBeenCalledWith(expect.objectContaining({ arquivo: { id: 'arq-1', nome: 'parabens.mp4' } }))
+  })
+
+  it('a listagem diz a mídia de cada modelo', async () => {
+    const r = await listarModelos({
+      listarDaPlataforma: plataforma,
+      listarEquipes: semEquipes,
+      buscarConfiguracoes: vi.fn(async () => new Map()),
+      unidade: UNIDADE,
+    })
+    expect(r.modelos[0]).toMatchObject({ modeloId: 'm3', midia: 'video' })
+  })
+
+  it('envia o vídeo: confere tipo e tamanho ANTES de subir, e devolve o id com o nome', async () => {
+    const subirArquivo = vi.fn(async () => 'arquivo-na-plataforma')
+    const d = { listarDaPlataforma: plataforma, subirArquivo }
+
+    await expect(
+      enviarArquivoDoModelo('m3', { nome: 'grande.mp4', mimeType: 'video/mp4', conteudo: new ArrayBuffer(17 * MB) }, d)
+    ).rejects.toThrow(/aceita até 16 MB/)
+    await expect(
+      enviarArquivoDoModelo('m3', { nome: 'filme.mov', mimeType: 'video/quicktime', conteudo: new ArrayBuffer(MB) }, d)
+    ).rejects.toThrow(/precisa ser MP4 ou 3GPP/)
+    expect(subirArquivo).not.toHaveBeenCalled()
+
+    const enviado = await enviarArquivoDoModelo(
+      'm3',
+      { nome: 'C:\\fakepath\\parabens.mp4', mimeType: 'video/mp4', conteudo: new ArrayBuffer(MB) },
+      d
+    )
+    expect(enviado).toEqual({ id: 'arquivo-na-plataforma', nome: 'parabens.mp4' })
+    expect(subirArquivo).toHaveBeenCalledWith(expect.objectContaining({ nome: 'parabens.mp4', tipo: 'video', mimeType: 'video/mp4' }))
+  })
+
+  it('modelo só de texto, ou fora da plataforma, não recebe arquivo', async () => {
+    const d = {
+      listarDaPlataforma: vi.fn(async () => ({ modelos: [{ ...COM_VIDEO, midia: null }], canais: [], filtradoPorTipo: true })),
+      subirArquivo: vi.fn(async () => 'x'),
+    }
+    const arquivo = { nome: 'a.mp4', mimeType: 'video/mp4', conteudo: new ArrayBuffer(MB) }
+    await expect(enviarArquivoDoModelo('m3', arquivo, d)).rejects.toThrow(/só de texto/)
+    await expect(enviarArquivoDoModelo('outro', arquivo, d)).rejects.toThrow(/não encontrado/)
+    expect(d.subirArquivo).not.toHaveBeenCalled()
   })
 })

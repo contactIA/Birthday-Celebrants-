@@ -1,11 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Aviso, Botao, Carregando, Vazio } from '@/ui/primitivos'
 import { CampoDeHorario } from '@/ui/campos-de-data'
 import { CAMPOS_DISPONIVEIS, renderizar } from '@/shared/template/parametros'
 import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
+import {
+  REGRAS_DA_MIDIA,
+  aceitoPara,
+  fraseSemArquivo,
+  problemaNoArquivo,
+  type ArquivoDoModelo,
+  type TipoDeMidia,
+} from '@/shared/mensageria/midia'
 import {
   NumeroDeEnvio,
   SituacaoDoNumero,
@@ -32,6 +40,8 @@ interface Modelo {
   conteudo: string
   parametrosDoTexto: string[]
   envio: EnvioDoModelo
+  /** A mídia do cabeçalho. `null` = só texto. */
+  midia: TipoDeMidia | null
   config: {
     id: string
     parametros: Record<string, string>
@@ -39,6 +49,7 @@ interface Modelo {
     horarioEnvio: string
     ehPadrao: boolean
     ativo: boolean
+    arquivo: ArquivoDoModelo | null
   } | null
 }
 
@@ -152,8 +163,12 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
   const [ehPadrao, setEhPadrao] = useState(modelo.config?.ehPadrao ?? false)
   const [salvando, setSalvando] = useState(false)
   const [resultado, setResultado] = useState<{ ok: boolean; mensagem: string } | null>(null)
+  const [arquivo, setArquivo] = useState<ArquivoDoModelo | null>(modelo.config?.arquivo ?? null)
   // A MESMA frase que o servidor usa para recusar o salvar e o agendamento.
   const foraDoNumero = motivoDeNaoSair(modelo.envio)
+  const semArquivo = modelo.midia && !arquivo ? fraseSemArquivo(modelo.midia) : null
+  // Enviado e ainda não salvo: o vídeo só vale para o modelo depois do salvar.
+  const arquivoNaoSalvo = !!arquivo && arquivo.id !== modelo.config?.arquivo?.id
 
   async function salvar() {
     setSalvando(true)
@@ -170,6 +185,7 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
           horarioEnvio: horario,
           ehPadrao,
           ativo: true,
+          arquivo,
         }),
       })
       const corpo = await resposta.json()
@@ -197,6 +213,11 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
     <section className="entrar overflow-hidden rounded-[14px] border border-line-soft bg-surface">
       <header className="flex items-center gap-2.5 border-b border-line-soft px-5 py-3">
         <h3 className="text-sm font-semibold text-ink">{modelo.nome}</h3>
+        {modelo.midia && (
+          <span className="rounded-full bg-sunk px-2 py-0.5 text-[11px] text-ink-2">
+            com {REGRAS_DA_MIDIA[modelo.midia].rotulo}
+          </span>
+        )}
         {modelo.config?.ehPadrao && (
           <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent-ink">
             padrão
@@ -211,6 +232,19 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
 
       <div className="flex flex-col gap-5 p-5">
         {foraDoNumero && <Aviso tom="erro">{foraDoNumero}</Aviso>}
+
+        {modelo.midia && (
+          <MidiaDoModelo
+            modeloId={modelo.modeloId}
+            midia={modelo.midia}
+            arquivo={arquivo}
+            naoSalvo={arquivoNaoSalvo}
+            aoEnviar={(a) => {
+              setArquivo(a)
+              setResultado(null)
+            }}
+          />
+        )}
 
         <div className="rounded-[10px] bg-sunk px-4 py-3">
           <p className="mb-1 text-xs text-muted">Prévia com um paciente de exemplo</p>
@@ -280,7 +314,7 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
           <Botao
             tamanho="sm"
             onClick={salvar}
-            disabled={salvando || faltando.length > 0 || !!foraDoNumero}
+            disabled={salvando || faltando.length > 0 || !!foraDoNumero || !!semArquivo}
             className="ml-auto"
           >
             {salvando ? 'Salvando…' : 'Salvar configuração'}
@@ -300,5 +334,86 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
         )}
       </div>
     </section>
+  )
+}
+
+/**
+ * O vídeo (ou imagem, ou documento) do modelo. A plataforma não junta sozinha o
+ * arquivo do modelo ao agendamento, e a API não o entrega: sem o arquivo
+ * enviado aqui, a mensagem falha no disparo.
+ *
+ * Confere tipo e tamanho ANTES de enviar, com a mesma regra do servidor: um
+ * vídeo de 40 MB não precisa viajar até lá para ser recusado.
+ */
+function MidiaDoModelo({
+  modeloId,
+  midia,
+  arquivo,
+  naoSalvo,
+  aoEnviar,
+}: {
+  modeloId: string
+  midia: TipoDeMidia
+  arquivo: ArquivoDoModelo | null
+  naoSalvo: boolean
+  aoEnviar: (arquivo: ArquivoDoModelo) => void
+}) {
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const seletor = useRef<HTMLInputElement>(null)
+  const { rotulo, comArtigo } = REGRAS_DA_MIDIA[midia]
+
+  async function enviar(escolhido: File) {
+    setErro(null)
+    const problema = problemaNoArquivo(midia, { mimeType: escolhido.type, tamanho: escolhido.size })
+    if (problema) {
+      setErro(problema)
+      return
+    }
+    setEnviando(true)
+    try {
+      const formulario = new FormData()
+      formulario.set('modeloId', modeloId)
+      formulario.set('arquivo', escolhido)
+      const resposta = await fetch('/api/modelos/arquivo', { method: 'POST', body: formulario })
+      const corpo = await resposta.json().catch(() => null)
+      if (!resposta.ok) throw new Error(corpo?.error ?? `Não foi possível enviar ${comArtigo}`)
+      aoEnviar(corpo as ArquivoDoModelo)
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally {
+      setEnviando(false)
+      if (seletor.current) seletor.current.value = ''
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2.5 rounded-[10px] border border-line-soft px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-muted">{rotulo[0]!.toUpperCase() + rotulo.slice(1)} do modelo</p>
+          <p className={clsx('truncate text-sm', arquivo ? 'text-ink' : 'text-atencao')}>
+            {arquivo ? arquivo.nome : `Nenhum ${rotulo === 'imagem' ? 'arquivo' : rotulo} enviado`}
+          </p>
+        </div>
+        <input
+          ref={seletor}
+          type="file"
+          accept={aceitoPara(midia)}
+          className="sr-only"
+          aria-label={`Escolher ${comArtigo} do modelo`}
+          onChange={(e) => {
+            const escolhido = e.target.files?.[0]
+            if (escolhido) void enviar(escolhido)
+          }}
+        />
+        <Botao variante="secundario" tamanho="sm" disabled={enviando} onClick={() => seletor.current?.click()}>
+          {enviando ? 'Enviando…' : arquivo ? `Trocar ${rotulo}` : `Enviar ${rotulo}`}
+        </Botao>
+      </div>
+      {!arquivo && !erro && <p className="text-sm text-atencao">{fraseSemArquivo(midia)}</p>}
+      {naoSalvo && <p className="text-sm text-ink-2">Enviado. Salve a configuração para usar este arquivo.</p>}
+      {erro && <p className="text-sm text-erro">{erro}</p>}
+    </div>
   )
 }

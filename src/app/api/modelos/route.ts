@@ -38,6 +38,17 @@ interface CorpoRecebido {
   horarioEnvio?: unknown
   ehPadrao?: unknown
   ativo?: unknown
+  arquivo?: unknown
+}
+
+/** O arquivo que a tela recebeu de `/api/modelos/arquivo`: o id na plataforma e o nome. */
+function lerArquivo(bruto: unknown) {
+  if (bruto === undefined || bruto === null) return null
+  const { id, nome } = bruto as { id?: unknown; nome?: unknown }
+  if (typeof id !== 'string' || !/^[\w-]{8,64}$/.test(id) || typeof nome !== 'string' || nome.length > 120) {
+    throw new ParametroInvalidoError('Arquivo do modelo inválido')
+  }
+  return { id, nome }
 }
 
 function lerCorpo(corpo: CorpoRecebido) {
@@ -67,6 +78,7 @@ function lerCorpo(corpo: CorpoRecebido) {
     horarioEnvio: String(corpo.horarioEnvio ?? '09:00'),
     ehPadrao: corpo.ehPadrao === true,
     ativo: corpo.ativo !== false,
+    arquivo: lerArquivo(corpo.arquivo),
   }
 }
 
