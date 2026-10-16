@@ -58,6 +58,14 @@ import { digitosComPais, formatarTelefoneBR } from '@/shared/telefone/e164'
 //  · Equipes ("department") ficam em `/core/v2/department`, mas os canais de
 //    cada uma só vêm certos em `/core/v1/department/{id}/channel`, que diz o
 //    escopo: ALL (todos os canais da conta), NONE ou SELECTED (os listados).
+//  · Modelo com mídia no cabeçalho (vídeo, imagem) agendado SEM o arquivo é
+//    aceito na criação e falha só no disparo, com o 132012 do WhatsApp
+//    ("parâmetros formatados incorretamente"). A plataforma NÃO junta sozinha o
+//    arquivo do modelo: quem agenda manda o id e o endereço dele em
+//    `templateParams`, no formato `{ parameters, fileId, fileUrl }` — o mesmo
+//    que a tela da própria plataforma usa. O arquivo do modelo vem em
+//    `exampleFile` ({ id, publicUrlDownload }) de `/chat/v2/template/{id}`.
+//    Conta real, 2026-10-14 e 15: todos os parabéns com vídeo falharam.
 //
 // O nome do fornecedor não aparece em nenhuma string que possa chegar à tela.
 
@@ -240,6 +248,47 @@ export function canaisDaEquipe(bruto: unknown): 'todos' | string[] {
   })
 }
 
+/** A mídia do cabeçalho de um modelo (vídeo, imagem, documento). */
+export interface ArquivoDoModelo {
+  id: string
+  /** O endereço público do arquivo, quando a plataforma informa. */
+  url: string | null
+}
+
+function textoNaoVazio(...valores: unknown[]): string | null {
+  return valores.find((v): v is string => typeof v === 'string' && v.trim() !== '') ?? null
+}
+
+/**
+ * O arquivo do cabeçalho, a partir do modelo como `/chat/v2/template/{id}` o
+ * devolve. `null` = modelo só de texto.
+ */
+export function arquivoDoModelo(bruto: unknown): ArquivoDoModelo | null {
+  const { exampleFile, exampleFileId } = (bruto ?? {}) as { exampleFile?: unknown; exampleFileId?: unknown }
+  const arquivo = (exampleFile ?? {}) as { id?: unknown; publicUrlDownload?: unknown; publicUrl?: unknown }
+  const id = textoNaoVazio(arquivo.id, exampleFileId)
+  if (!id) return null
+  return { id, url: textoNaoVazio(arquivo.publicUrlDownload, arquivo.publicUrl) }
+}
+
+/**
+ * O `templateParams` do agendamento, no formato que a tela da plataforma usa:
+ * `{ parameters, fileId, fileUrl }`.
+ *
+ * As variáveis mapeadas iam soltas (`{ "1": "Maria" }`); a tela as manda dentro
+ * de `parameters`. Nenhuma clínica tinha variável mapeada quando isto mudou.
+ * Modelo só de texto e sem variáveis continua `{}`, o que já funcionava.
+ */
+export function paramsDoAgendamento(
+  parametros: Record<string, string>,
+  arquivo: ArquivoDoModelo | null
+): Record<string, unknown> {
+  return {
+    ...(Object.keys(parametros).length > 0 ? { parameters: parametros } : {}),
+    ...(arquivo ? { fileId: arquivo.id, ...(arquivo.url ? { fileUrl: arquivo.url } : {}) } : {}),
+  }
+}
+
 /** A listagem já veio em três formatos diferentes; aceita os três. */
 function extrairLista(dados: unknown): { id?: unknown; status?: unknown }[] {
   if (!dados) return []
@@ -351,6 +400,32 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
     }))
   }
 
+  // Um modelo é consultado uma vez por instância (um lote), não por paciente.
+  const arquivos = new Map<string, Promise<ArquivoDoModelo | null>>()
+
+  /**
+   * A mídia do modelo, para ir junto no agendamento. Se o modelo não puder ser
+   * lido, agenda sem ela, como antes: modelo só de texto segue funcionando, e o
+   * erro fica no log.
+   */
+  function arquivoDe(modeloId: string): Promise<ArquivoDoModelo | null> {
+    let arquivo = arquivos.get(modeloId)
+    if (!arquivo) {
+      arquivo = chamar(
+        `/chat/v2/template/${encodeURIComponent(modeloId)}?includeDetails=ALL`,
+        { method: 'GET' },
+        'buscar-modelo'
+      )
+        .then(arquivoDoModelo)
+        .catch((err: Error) => {
+          console.error(`[mensageria/buscar-modelo] agendando sem a mídia do modelo: ${err.message}`)
+          return null
+        })
+      arquivos.set(modeloId, arquivo)
+    }
+    return arquivo
+  }
+
   async function buscarCanais(): Promise<CanalDaConta[]> {
     const dados = await chamar('/chat/v1/channel?PageSize=100', { method: 'GET' }, 'listar-canais')
     return paraCanais(extrairLista(dados) as CanalBruto[])
@@ -376,6 +451,7 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
       // Pelo número do modelo, quando não é o remetente da clínica, com a equipe
       // que a fatia escolheu para ele; senão o remetente e a equipe do setup.
       const equipe = pedido.remetente ? pedido.equipeId : equipeId
+      const arquivo = await arquivoDe(pedido.modeloId)
       const criado = (await chamar(
         '/chat/v1/scheduled-message',
         {
@@ -389,7 +465,8 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
             type: 'TEMPLATE',
             templateId: pedido.modeloId,
             scheduling: pedido.quando,
-            templateParams: pedido.parametros,
+            // A mídia do modelo vai aqui: sem ela, modelo com vídeo falha no disparo.
+            templateParams: paramsDoAgendamento(pedido.parametros, arquivo),
           }),
         },
         'agendar'
