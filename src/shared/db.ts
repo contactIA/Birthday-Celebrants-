@@ -101,6 +101,10 @@ export interface TemplateRow {
   ativo: boolean
   created_at: string
   updated_at: string
+  /** Id, na plataforma, da mídia do modelo (vídeo, imagem, documento). Nulo = sem mídia enviada. */
+  arquivo_id: string | null
+  /** O nome do arquivo enviado, para a tela dizer qual é. */
+  arquivo_nome: string | null
 }
 
 export interface EnvioRow {
@@ -156,6 +160,8 @@ export interface TemplateInsert {
   is_default?: boolean
   ativo?: boolean
   updated_at?: string
+  arquivo_id?: string | null
+  arquivo_nome?: string | null
 }
 
 export interface EnvioInsert {

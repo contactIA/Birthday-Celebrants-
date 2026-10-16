@@ -17,7 +17,7 @@ export async function buscarModeloConfig(
 ): Promise<ConfiguracaoDeModelo | null> {
   const { data, error } = await db()
     .from('aniversariantes_templates')
-    .select('id, helena_template_id, param_mapping, dia_envio, horario_envio')
+    .select('id, helena_template_id, param_mapping, dia_envio, horario_envio, arquivo_id')
     .eq('id', modeloConfigId)
     .eq('clinica_id', clinica.id)
     .eq('unidade_id', clinica.unidade.id)
@@ -27,6 +27,7 @@ export async function buscarModeloConfig(
       param_mapping: Record<string, string>
       dia_envio: ConfiguracaoDeModelo['diaEnvio']
       horario_envio: string
+      arquivo_id: string | null
     }>()
 
   if (error) throw new Error(`Erro ao buscar o modelo: ${error.message}`)
@@ -38,6 +39,7 @@ export async function buscarModeloConfig(
     parametros: data.param_mapping ?? {},
     diaEnvio: data.dia_envio,
     horarioEnvio: data.horario_envio,
+    arquivoId: data.arquivo_id,
   }
 }
 
