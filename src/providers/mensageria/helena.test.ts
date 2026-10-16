@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest'
-import { canaisDaEquipe, classificarErro, nomeAusente, oQueCompletar, paraCampoDeData, paraCanais } from './helena'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  arquivoDoModelo,
+  canaisDaEquipe,
+  classificarErro,
+  nomeAusente,
+  oQueCompletar,
+  paraCampoDeData,
+  paraCanais,
+  paramsDoAgendamento,
+  provedorHelena,
+} from './helena'
 
 describe('nomeAusente: o nome que a plataforma mostra quando não há contato', () => {
   it.each(['', '   ', '+55 62 98187-8291', '5562981878291', '(62) 98187-8291', '+55|62981878291'])(
@@ -133,4 +143,90 @@ describe('canaisDaEquipe', () => {
     expect(canaisDaEquipe({ scope: 'SELECTED', channels: ['c1', { id: 'c2' }, 3] })).toEqual(['c1', 'c2'])
   })
   it('resposta vazia = nenhum', () => expect(canaisDaEquipe(null)).toEqual([]))
+})
+
+describe('arquivoDoModelo: a mídia do cabeçalho', () => {
+  it('modelo com vídeo: o id e o endereço de download', () => {
+    const modelo = { id: 'm1', exampleFile: { id: 'f1', publicUrlDownload: 'https://cdn/f1?dl=1', publicUrl: 'https://cdn/f1' } }
+    expect(arquivoDoModelo(modelo)).toEqual({ id: 'f1', url: 'https://cdn/f1?dl=1' })
+  })
+
+  it('sem endereço de download, o público; só o id solto também serve', () => {
+    expect(arquivoDoModelo({ exampleFile: { id: 'f1', publicUrl: 'https://cdn/f1' } })).toEqual({ id: 'f1', url: 'https://cdn/f1' })
+    expect(arquivoDoModelo({ exampleFile: null, exampleFileId: 'f2' })).toEqual({ id: 'f2', url: null })
+  })
+
+  it('modelo só de texto, ou resposta vazia: sem arquivo', () => {
+    expect(arquivoDoModelo({ id: 'm1', exampleFile: null, exampleFileId: null })).toBeNull()
+    expect(arquivoDoModelo(null)).toBeNull()
+  })
+})
+
+describe('paramsDoAgendamento', () => {
+  it('modelo só de texto e sem variáveis: {} como sempre', () => {
+    expect(paramsDoAgendamento({}, null)).toEqual({})
+  })
+
+  it('a mídia vai em fileId e fileUrl, como a tela da plataforma manda', () => {
+    expect(paramsDoAgendamento({}, { id: 'f1', url: 'https://cdn/f1' })).toEqual({ fileId: 'f1', fileUrl: 'https://cdn/f1' })
+    expect(paramsDoAgendamento({}, { id: 'f1', url: null })).toEqual({ fileId: 'f1' })
+  })
+
+  it('as variáveis mapeadas vão dentro de parameters', () => {
+    expect(paramsDoAgendamento({ 1: 'Maria' }, { id: 'f1', url: null })).toEqual({ parameters: { 1: 'Maria' }, fileId: 'f1' })
+  })
+})
+
+describe('agendar: a mídia do modelo vai junto', () => {
+  const fetchMock = vi.fn()
+  const PEDIDO = { para: '+5538999990000', modeloId: 'modelo-video', quando: '2026-10-20T11:30:00.000Z', parametros: {} }
+
+  function provedor() {
+    return provedorHelena({ token: 't', from: '553821000921', channelId: 'c1', equipeId: 'e1', campoNascimento: null })
+  }
+
+  function resposta(status: number, corpo: unknown) {
+    return new Response(corpo === undefined ? '' : JSON.stringify(corpo), { status })
+  }
+
+  function corpoDoAgendamento(chamada: number) {
+    const [, init] = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/chat/v1/scheduled-message'))[chamada]!
+    return JSON.parse((init as RequestInit).body as string)
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    fetchMock.mockReset()
+  })
+
+  it('modelo com vídeo: agenda com o arquivo, e o modelo é lido uma vez por lote', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.includes('/chat/v2/template/modelo-video')
+        ? resposta(200, { id: 'modelo-video', exampleFile: { id: 'f1', publicUrlDownload: 'https://cdn/f1' } })
+        : resposta(200, { id: 'agendada-1' })
+    )
+
+    const mensageria = provedor()
+    await mensageria.agendar(PEDIDO)
+    await mensageria.agendar({ ...PEDIDO, para: '+5538999991111' })
+
+    expect(corpoDoAgendamento(0).templateParams).toEqual({ fileId: 'f1', fileUrl: 'https://cdn/f1' })
+    expect(corpoDoAgendamento(1).templateParams).toEqual({ fileId: 'f1', fileUrl: 'https://cdn/f1' })
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/chat/v2/template/'))).toHaveLength(1)
+  })
+
+  it('modelo que não pôde ser lido: agenda sem o arquivo, como antes', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.includes('/chat/v2/template/') ? resposta(500, { key: 'ERROR', text: 'falhou' }) : resposta(200, { id: 'agendada-1' })
+    )
+
+    await expect(provedor().agendar(PEDIDO)).resolves.toEqual({ id: 'agendada-1' })
+    expect(corpoDoAgendamento(0).templateParams).toEqual({})
+  })
 })
