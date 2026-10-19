@@ -141,12 +141,45 @@ export function completarMapeamento(conteudo: string, salvo: MapeamentoDeParamet
   return completo
 }
 
-/** O texto final. A prévia da tela chama exatamente isto, com os mesmos dados. */
+/** Um pedaço do texto final: fixo do modelo, ou o valor de uma variável. */
+export interface Trecho {
+  texto: string
+  /** O nome da variável de onde o texto veio. Ausente = texto fixo do modelo. */
+  variavel?: string
+  /** `false` = variável sem campo: o texto é a própria marcação ("[NOME]"). */
+  ligada?: boolean
+}
+
+/**
+ * O texto final em pedaços, para a prévia mostrar o que veio de cada variável.
+ * `renderizar` é a junção destes pedaços: a prévia não tem como divergir do envio.
+ */
+export function trechosDoTexto(
+  conteudo: string,
+  mapeamento: MapeamentoDeParametros,
+  paciente: DadosDoPaciente
+): Trecho[] {
+  const valores = resolverParametros(mapeamento, paciente)
+  const trechos: Trecho[] = []
+  let depoisDaUltima = 0
+  for (const m of conteudo.matchAll(VARIAVEL)) {
+    if (m.index > depoisDaUltima) trechos.push({ texto: conteudo.slice(depoisDaUltima, m.index) })
+    const variavel = (m[1] ?? m[2])!
+    const valor = valores[variavel]
+    trechos.push(valor === undefined ? { texto: m[0], variavel, ligada: false } : { texto: valor, variavel, ligada: true })
+    depoisDaUltima = m.index + m[0].length
+  }
+  if (depoisDaUltima < conteudo.length) trechos.push({ texto: conteudo.slice(depoisDaUltima) })
+  return trechos
+}
+
+/** O texto final. A prévia da tela monta exatamente isto, com os mesmos dados. */
 export function renderizar(
   conteudo: string,
   mapeamento: MapeamentoDeParametros,
   paciente: DadosDoPaciente
 ): string {
-  const valores = resolverParametros(mapeamento, paciente)
-  return conteudo.replace(VARIAVEL, (literal, chaves?: string, colchetes?: string) => valores[(chaves ?? colchetes)!] ?? literal)
+  return trechosDoTexto(conteudo, mapeamento, paciente)
+    .map((t) => t.texto)
+    .join('')
 }
