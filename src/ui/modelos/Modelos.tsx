@@ -1,14 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { Aviso, Botao, Carregando, Vazio } from '@/ui/primitivos'
+import { Aviso, Botao, Carregando, Estado, Vazio } from '@/ui/primitivos'
 import { CampoDeHorario } from '@/ui/campos-de-data'
 import {
   CAMPOS_DISPONIVEIS,
   campoPeloNome,
   completarMapeamento,
-  renderizar,
+  resolverParametros,
+  trechosDoTexto,
+  type Trecho,
   type Variavel,
 } from '@/shared/template/parametros'
 import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
@@ -27,11 +29,15 @@ import {
   rotuloDoNumero,
   type GrupoDeNumero,
 } from '@/ui/NumeroDeEnvio'
+import { pedacosDaPrevia } from './previa'
 
-// Onde a clínica liga as variáveis de um modelo aprovado aos dados do paciente.
+// A tela responde, nesta ordem: qual modelo o painel de envio já traz
+// escolhido, quando ele sai e como o paciente vai ler. O padrão vem aberto no
+// topo; os outros, recolhidos, com a situação de cada um numa linha.
 //
-// A prévia usa `renderizar` com um paciente de exemplo — a MESMA função do
-// envio. Ver o texto montado é o que torna o mapeamento verificável: "{{1}}"
+// A prévia é uma conversa de WhatsApp montada com `trechosDoTexto` — a MESMA
+// conta do envio — num paciente de exemplo, com os valores que o app preenche
+// marcados. Ver o texto montado é o que torna o mapeamento verificável: "{{1}}"
 // não diz nada, "Olá, Marina" diz tudo.
 //
 // As variáveis cujo nome já diz o campo (`[NOME]`, `[ANIVERSÁRIO]`) vêm
@@ -42,6 +48,44 @@ const EXEMPLO = {
   nome: 'Marina Duarte Alves',
   datanascimento: '14/03/1988',
   aniversario: '03/14',
+}
+
+/** O que cada campo vira no paciente de exemplo: "Primeiro nome · Marina". */
+const VALORES_DO_EXEMPLO = resolverParametros(
+  Object.fromEntries(CAMPOS_DISPONIVEIS.map((c) => [c.valor, c.valor])),
+  EXEMPLO
+)
+
+const ROTULO_DO_CAMPO = new Map<string, string>(CAMPOS_DISPONIVEIS.map((c) => [c.valor, c.rotulo]))
+
+const DIAS_DE_ENVIO = [
+  { valor: 'aniversario', rotulo: 'no dia do aniversário', frase: 'no dia do aniversário', antes: 0 },
+  { valor: '1_dia_antes', rotulo: 'um dia antes', frase: 'um dia antes do aniversário', antes: 1 },
+  { valor: '3_dias_antes', rotulo: 'três dias antes', frase: 'três dias antes do aniversário', antes: 3 },
+]
+
+const SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+
+/** "09:00" → "9h"; "14:30" → "14h30". */
+function horaCurta(horario: string): string {
+  const [hh, mm] = horario.split(':')
+  return mm === '00' ? `${Number(hh)}h` : `${Number(hh)}h${mm}`
+}
+
+/** "um dia antes do aniversário, às 9h" */
+function quandoSai(diaEnvio: string, horario: string): string {
+  const dia = DIAS_DE_ENVIO.find((d) => d.valor === diaEnvio) ?? DIAS_DE_ENVIO[0]!
+  return `${dia.frase}, às ${horaCurta(horario)}`
+}
+
+/** O dia em que a mensagem chega ao paciente de exemplo: "sexta, 13/03". */
+function diaDaChegada(diaEnvio: string): string {
+  const antes = DIAS_DE_ENVIO.find((d) => d.valor === diaEnvio)?.antes ?? 0
+  const [mes, dia] = EXEMPLO.aniversario.split('/').map(Number)
+  const chega = new Date(Date.UTC(2026, mes! - 1, dia! - antes))
+  const dd = String(chega.getUTCDate()).padStart(2, '0')
+  const mm = String(chega.getUTCMonth() + 1).padStart(2, '0')
+  return `${SEMANA[chega.getUTCDay()]}, ${dd}/${mm}`
 }
 
 interface Modelo {
@@ -71,6 +115,16 @@ export function Modelos() {
   const [tentativa, setTentativa] = useState(0)
 
   const recarregar = useCallback(() => setTentativa((n) => n + 1), [])
+  // "Tornar padrão" lá embaixo: quando a lista volta, a página sobe até ele.
+  const rolarParaPadrao = useRef(false)
+  const secaoPadrao = useRef<HTMLElement>(null)
+  const aoSalvar = useCallback(
+    (virouPadrao: boolean) => {
+      if (virouPadrao) rolarParaPadrao.current = true
+      recarregar()
+    },
+    [recarregar]
+  )
 
   useEffect(() => {
     const abortar = new AbortController()
@@ -93,14 +147,24 @@ export function Modelos() {
     return () => abortar.abort()
   }, [tentativa])
 
+  const padrao = modelos.find((m) => m.config?.ehPadrao) ?? null
+  const outros = modelos.filter((m) => m !== padrao)
+  const algumNoPainel = modelos.some((m) => m.config)
+
+  const idDoPadrao = padrao?.modeloId
+  useEffect(() => {
+    if (!rolarParaPadrao.current || !idDoPadrao) return
+    rolarParaPadrao.current = false
+    const reduzido = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    secaoPadrao.current?.scrollIntoView({ block: 'start', behavior: reduzido ? 'auto' : 'smooth' })
+  }, [idDoPadrao])
+
   return (
-    // Tela cheia, como as outras. Os cartões vão em duas colunas em tela larga:
-    // esticado na largura toda, o texto da prévia ficaria longo demais para ler.
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-7">
       <div>
         <h1 className="text-lg font-semibold tracking-[-0.01em] text-ink">Modelos de mensagem</h1>
         <p className="mt-0.5 text-sm text-muted">
-          Ligue as variáveis de cada modelo aprovado aos dados do paciente e escolha quando enviar.
+          O modelo padrão já vem escolhido no painel de envio. Veja como o paciente vai ler e quando a mensagem sai.
         </p>
       </div>
 
@@ -117,7 +181,8 @@ export function Modelos() {
         </Aviso>
       )}
 
-      {carregando && <Carregando>Carregando modelos…</Carregando>}
+      {/* Só na primeira carga: depois de salvar, a lista fica na tela enquanto atualiza. */}
+      {carregando && modelos.length === 0 && <Carregando>Carregando modelos…</Carregando>}
 
       {!carregando && !erro && modelos.length === 0 && (
         <Vazio titulo="Nenhum modelo aprovado nesta conta">
@@ -125,34 +190,62 @@ export function Modelos() {
         </Vazio>
       )}
 
-      {/* Um bloco por número: a conta pode ter o mesmo modelo, com o mesmo nome,
-          em vários números, e o número é o que separa um do outro. */}
-      {!carregando && modelos.length > 0 && (
-        <div className="flex flex-col gap-9">
-          {agruparPorNumero(modelos).map((grupo) => (
-            <section key={grupo.chave ?? 'sem-numero'} aria-label={rotuloDoGrupo(grupo)} className="flex flex-col gap-3">
-              <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line pb-2.5 text-[15px]">
-                {grupo.numero ? (
-                  <NumeroDeEnvio numero={grupo.numero} recusado={grupo.envio.permitido === false} />
-                ) : (
-                  <span className="font-semibold text-ink-2">Número não identificado</span>
-                )}
-                <SituacaoDoNumero envio={grupo.envio} />
-                <span className="tnum ml-auto text-xs text-muted">
-                  {grupo.itens.length} {grupo.itens.length === 1 ? 'modelo' : 'modelos'}
-                </span>
-              </header>
-              <div className="grid items-start gap-5 xl:grid-cols-2">
-                {grupo.itens.map((modelo) => (
-                  <Cartao key={modelo.modeloId} modelo={modelo} aoSalvar={recarregar} />
-                ))}
-              </div>
+      {modelos.length > 0 && (
+        <>
+          {padrao ? (
+            <section ref={secaoPadrao} aria-labelledby="titulo-padrao" className="flex scroll-mt-2 flex-col gap-2">
+              <h2 id="titulo-padrao" className="text-[11px] font-semibold tracking-[0.06em] text-accent-ink uppercase">
+                Padrão
+              </h2>
+              <CartaoPadrao key={padrao.modeloId} modelo={padrao} aoSalvar={aoSalvar} />
             </section>
-          ))}
-        </div>
+          ) : algumNoPainel ? (
+            <Aviso tom="neutro" titulo="Nenhum modelo padrão">
+              O painel de envio começa pelo primeiro modelo salvo. Para escolher qual, use “Tornar padrão”.
+            </Aviso>
+          ) : (
+            <Aviso titulo="Nenhum modelo no painel de envio">
+              Escolha abaixo qual modelo pode ser usado, em “Mostrar no painel”.
+            </Aviso>
+          )}
+
+          {/* Um bloco por número: a conta pode ter o mesmo modelo, com o mesmo nome,
+              em vários números, e o número é o que separa um do outro. */}
+          {outros.length > 0 && (
+            <section aria-labelledby="titulo-outros" className="flex flex-col gap-4">
+              <h2 id="titulo-outros" className="text-[15px] font-semibold text-ink">
+                {padrao ? 'Outros modelos' : 'Modelos aprovados'}
+              </h2>
+              {agruparPorNumero(outros).map((grupo) => (
+                <div key={grupo.chave ?? 'sem-numero'} role="group" aria-label={rotuloDoGrupo(grupo)} className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-sm">
+                    {grupo.numero ? (
+                      <NumeroDeEnvio numero={grupo.numero} recusado={grupo.envio.permitido === false} />
+                    ) : (
+                      <span className="font-semibold text-ink-2">Número não identificado</span>
+                    )}
+                    <SituacaoDoNumero envio={grupo.envio} />
+                    <span className="tnum ml-auto text-xs text-muted">
+                      {grupo.itens.length} {grupo.itens.length === 1 ? 'modelo' : 'modelos'}
+                    </span>
+                  </div>
+                  <ul className="divide-y divide-line-soft overflow-hidden rounded-[14px] border border-line-soft bg-surface">
+                    {grupo.itens.map((modelo) => (
+                      <LinhaDoModelo key={modelo.modeloId} modelo={modelo} aoSalvar={aoSalvar} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </section>
+          )}
+        </>
       )}
     </div>
   )
+}
+
+function rotuloDoGrupo(grupo: GrupoDeNumero<Modelo>): string {
+  return grupo.numero ? `Modelos do número ${rotuloDoNumero(grupo.numero)}` : 'Modelos de número não identificado'
 }
 
 /** "[NOME], [DATA] e [HORÁRIO]" */
@@ -161,43 +254,89 @@ function lista(variaveis: Variavel[]): string {
   return marcacoes.length > 1 ? `${marcacoes.slice(0, -1).join(', ')} e ${marcacoes.at(-1)}` : (marcacoes[0] ?? '')
 }
 
-function rotuloDoGrupo(grupo: GrupoDeNumero<Modelo>): string {
-  return grupo.numero ? `Modelos do número ${rotuloDoNumero(grupo.numero)}` : 'Modelos de número não identificado'
+function mesmoMapeamento(a: Record<string, string>, b: Record<string, string>): boolean {
+  const chaves = Object.keys(a)
+  return chaves.length === Object.keys(b).length && chaves.every((k) => a[k] === b[k])
 }
 
-function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) {
-  // Cada variável começa com o que vale no envio: o campo salvo, ou o que o
-  // nome diz. A que o nome não explica começa SEM campo: antes, todas vinham
-  // como "Primeiro nome", num modelo "completa {{2}} anos" a prévia saía
-  // "completa Marina anos", e um clique em Salvar sem reparar mandava isso a
-  // todos os pacientes.
-  const [parametros, setParametros] = useState<Record<string, string>>(() => ({
-    ...Object.fromEntries(modelo.variaveis.map((v) => [v.nome, ''])),
-    ...completarMapeamento(modelo.conteudo, modelo.config?.parametros ?? {}),
-  }))
-  // Só as ligadas vão para o servidor e para a prévia: "sem campo" não é campo.
-  const ligados = Object.fromEntries(Object.entries(parametros).filter(([, campo]) => campo))
+/** Só as variáveis ligadas: "sem campo" não é campo, nem para o servidor nem para a prévia. */
+function soLigados(parametros: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(parametros).filter(([, campo]) => campo))
+}
+
+interface Situacao {
+  tom: 'ok' | 'atencao' | 'erro' | 'parado'
+  texto: string
+}
+
+// ── A configuração de um modelo ─────────────────────────────────────────────
+
+/**
+ * O estado de um modelo na tela: o que está escolhido, se mudou desde o que vale
+ * hoje, o que impede de usar, e as ações. O cartão padrão e cada linha recolhida
+ * têm um; a linha mantém o que foi mexido mesmo fechada.
+ */
+function useConfiguracao(modelo: Modelo, aoSalvar: (virouPadrao: boolean) => void) {
+  // O que vale hoje — o salvo, completado pelos nomes. É o ponto de partida e o
+  // "Desfazer". Recalculado a cada carga: depois de salvar, o salvo é o novo início.
+  const inicial = {
+    parametros: {
+      ...Object.fromEntries(modelo.variaveis.map((v) => [v.nome, ''])),
+      ...completarMapeamento(modelo.conteudo, modelo.config?.parametros ?? {}),
+    },
+    diaEnvio: modelo.config?.diaEnvio ?? 'aniversario',
+    horario: modelo.config?.horarioEnvio ?? '09:00',
+    arquivo: modelo.config?.arquivo ?? null,
+  }
+  const [parametros, setParametros] = useState<Record<string, string>>(inicial.parametros)
+  const [diaEnvio, setDiaEnvio] = useState(inicial.diaEnvio)
+  const [horario, setHorario] = useState(inicial.horario)
+  const [arquivo, setArquivo] = useState<ArquivoDoModelo | null>(inicial.arquivo)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const ligados = soLigados(parametros)
   const faltando = modelo.variaveis.filter((v) => v.obrigatoria && !parametros[v.nome])
   const semCampo = modelo.variaveis.filter((v) => !v.obrigatoria && !parametros[v.nome])
   // Ligadas pelo nome e ainda não salvas: a tela diz que foi o app que escolheu.
   const pelosNomes = modelo.variaveis.filter(
     (v) => !modelo.config?.parametros[v.nome] && !!parametros[v.nome] && parametros[v.nome] === campoPeloNome(v.nome)
   )
-  const [diaEnvio, setDiaEnvio] = useState(modelo.config?.diaEnvio ?? 'aniversario')
-  const [horario, setHorario] = useState(modelo.config?.horarioEnvio ?? '09:00')
-  const [ehPadrao, setEhPadrao] = useState(modelo.config?.ehPadrao ?? false)
-  const [salvando, setSalvando] = useState(false)
-  const [resultado, setResultado] = useState<{ ok: boolean; mensagem: string } | null>(null)
-  const [arquivo, setArquivo] = useState<ArquivoDoModelo | null>(modelo.config?.arquivo ?? null)
   // A MESMA frase que o servidor usa para recusar o salvar e o agendamento.
   const foraDoNumero = motivoDeNaoSair(modelo.envio)
   const semArquivo = modelo.midia && !arquivo ? fraseSemArquivo(modelo.midia) : null
-  // Enviado e ainda não salvo: o vídeo só vale para o modelo depois do salvar.
-  const arquivoNaoSalvo = !!arquivo && arquivo.id !== modelo.config?.arquivo?.id
+  const alterado =
+    !mesmoMapeamento(ligados, soLigados(inicial.parametros)) ||
+    diaEnvio !== inicial.diaEnvio ||
+    horario !== inicial.horario ||
+    arquivo?.id !== inicial.arquivo?.id
+  const impedido = !!foraDoNumero || !!semArquivo || faltando.length > 0
 
-  async function salvar() {
+  // No painel de envio só aparece modelo salvo: é o que separa "No painel" de "Fora do painel".
+  const situacao: Situacao = foraDoNumero
+    ? { tom: 'erro', texto: 'Não sai por esta unidade' }
+    : modelo.midia && semArquivo
+      ? { tom: 'atencao', texto: `Falta enviar ${REGRAS_DA_MIDIA[modelo.midia].comArtigo}` }
+      : faltando.length > 0
+        ? { tom: 'atencao', texto: `Falta escolher o campo de ${lista(faltando)}` }
+        : modelo.config?.ehPadrao
+          ? { tom: 'ok', texto: 'Pronto' }
+          : modelo.config
+            ? { tom: 'ok', texto: 'No painel' }
+            : { tom: 'parado', texto: 'Fora do painel' }
+
+  function desfazer() {
+    setParametros(inicial.parametros)
+    setDiaEnvio(inicial.diaEnvio)
+    setHorario(inicial.horario)
+    setArquivo(inicial.arquivo)
+    setErro(null)
+  }
+
+  /** Salva o que está na tela — e o modelo aparece no painel. `padrao`: ele já vem escolhido lá. */
+  async function salvar(padrao: boolean) {
     setSalvando(true)
-    setResultado(null)
+    setErro(null)
     try {
       const resposta = await fetch('/api/modelos', {
         method: 'POST',
@@ -208,7 +347,7 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
           parametros: ligados,
           diaEnvio,
           horarioEnvio: horario,
-          ehPadrao,
+          ehPadrao: padrao,
           ativo: true,
           arquivo,
         }),
@@ -217,162 +356,405 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
       // O app anterior ignorava a resposta e mostrava "Salvo ✓" mesmo em erro —
       // a configuração sumia no reload seguinte e ninguém entendia por quê.
       if (!resposta.ok) throw new Error(corpo?.error ?? 'Não foi possível salvar')
-      setResultado({ ok: true, mensagem: 'Configuração salva' })
-      aoSalvar()
+      aoSalvar(padrao && !modelo.config?.ehPadrao)
     } catch (e) {
-      setResultado({ ok: false, mensagem: (e as Error).message })
+      setErro((e as Error).message)
     } finally {
       setSalvando(false)
     }
   }
 
-  // As que faltam ficam como `{{n}}` ou `[NOME]` no texto, que é exatamente o
-  // que ainda precisa de escolha.
-  const previa = renderizar(modelo.conteudo, ligados, EXEMPLO)
+  return {
+    parametros,
+    ligar: (variavel: string, campo: string) => setParametros((m) => ({ ...m, [variavel]: campo })),
+    diaEnvio,
+    setDiaEnvio,
+    horario,
+    setHorario,
+    arquivo,
+    setArquivo,
+    ligados,
+    faltando,
+    semCampo,
+    pelosNomes,
+    foraDoNumero,
+    semArquivo,
+    alterado,
+    impedido,
+    situacao,
+    salvando,
+    erro,
+    desfazer,
+    salvar,
+  }
+}
+
+type Configuracao = ReturnType<typeof useConfiguracao>
+
+// ── O modelo padrão e as linhas dos outros ──────────────────────────────────
+
+function CartaoPadrao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: (virouPadrao: boolean) => void }) {
+  const c = useConfiguracao(modelo, aoSalvar)
 
   return (
-    <section className="entrar overflow-hidden rounded-[14px] border border-line-soft bg-surface">
-      <header className="flex items-center gap-2.5 border-b border-line-soft px-5 py-3">
-        <h3 className="text-sm font-semibold text-ink">{modelo.nome}</h3>
-        {modelo.midia && (
-          <span className="rounded-full bg-sunk px-2 py-0.5 text-[11px] text-ink-2">
-            com {REGRAS_DA_MIDIA[modelo.midia].rotulo}
-          </span>
-        )}
-        {modelo.config?.ehPadrao && (
-          <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent-ink">
-            padrão
-          </span>
-        )}
-        {!modelo.config && (
-          <span className="rounded-full bg-sunk px-2 py-0.5 text-[11px] text-muted">
-            não configurado
-          </span>
-        )}
-      </header>
-
-      <div className="flex flex-col gap-5 p-5">
-        {foraDoNumero && <Aviso tom="erro">{foraDoNumero}</Aviso>}
-
-        {modelo.midia && (
-          <MidiaDoModelo
-            modeloId={modelo.modeloId}
-            midia={modelo.midia}
-            arquivo={arquivo}
-            naoSalvo={arquivoNaoSalvo}
-            aoEnviar={(a) => {
-              setArquivo(a)
-              setResultado(null)
-            }}
+    <article className="entrar overflow-hidden rounded-[14px] border border-accent-line bg-surface">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line-soft px-4 py-3 sm:px-5">
+        <h3 className="text-[15px] font-semibold text-ink">{modelo.nome}</h3>
+        {modelo.midia && <EtiquetaDaMidia midia={modelo.midia} />}
+        <SituacaoDoModelo situacao={c.situacao} />
+        {modelo.envio.numero && (
+          <NumeroDeEnvio
+            numero={modelo.envio.numero}
+            recusado={modelo.envio.permitido === false}
+            className="text-sm sm:ml-auto"
           />
         )}
+      </header>
+      <Editor modelo={modelo} c={c} padrao />
+    </article>
+  )
+}
 
-        <div className="rounded-[10px] bg-sunk px-4 py-3">
-          <p className="mb-1 text-xs text-muted">Prévia com um paciente de exemplo</p>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap text-ink">
-            {previa || 'Este modelo não tem texto para pré-visualizar.'}
+function LinhaDoModelo({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: (virouPadrao: boolean) => void }) {
+  const c = useConfiguracao(modelo, aoSalvar)
+  const [aberto, setAberto] = useState(false)
+  const idDoEditor = useId()
+
+  return (
+    <li>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
+        <button
+          type="button"
+          aria-expanded={aberto}
+          aria-controls={idDoEditor}
+          onClick={() => setAberto((a) => !a)}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md text-left"
+        >
+          <svg
+            aria-hidden
+            viewBox="0 0 16 16"
+            className={clsx('h-4 w-4 shrink-0 text-muted transition-transform', aberto && 'rotate-90')}
+          >
+            <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="truncate text-sm font-semibold text-ink">{modelo.nome}</span>
+          {modelo.midia && <EtiquetaDaMidia midia={modelo.midia} />}
+        </button>
+        <SituacaoDoModelo situacao={c.situacao} />
+        {modelo.config && !c.impedido && <span className="text-xs text-muted">{quandoSai(c.diaEnvio, c.horario)}</span>}
+        {!c.impedido && (
+          <Botao
+            variante="secundario"
+            tamanho="sm"
+            disabled={c.salvando}
+            onClick={() => void c.salvar(!!modelo.config)}
+          >
+            {c.salvando ? 'Salvando…' : modelo.config ? 'Tornar padrão' : 'Mostrar no painel'}
+          </Botao>
+        )}
+      </div>
+      {!aberto && c.erro && <p className="px-4 pb-3 text-sm text-erro sm:px-5">{c.erro}</p>}
+      {aberto && (
+        <div id={idDoEditor} className="border-t border-line-soft">
+          <Editor modelo={modelo} c={c} padrao={false} />
+        </div>
+      )}
+    </li>
+  )
+}
+
+function EtiquetaDaMidia({ midia }: { midia: TipoDeMidia }) {
+  return (
+    <span className="shrink-0 rounded-full bg-sunk px-2 py-0.5 text-[11px] text-ink-2">
+      com {REGRAS_DA_MIDIA[midia].rotulo}
+    </span>
+  )
+}
+
+/** A situação tem forma além de cor: ponto cheio, vazado ou quadrado. */
+function SituacaoDoModelo({ situacao }: { situacao: Situacao }) {
+  return (
+    <Estado tom={situacao.tom}>
+      <span
+        aria-hidden
+        className={clsx(
+          'h-1.5 w-1.5',
+          situacao.tom === 'ok' && 'rounded-full bg-current',
+          (situacao.tom === 'atencao' || situacao.tom === 'parado') && 'rounded-full border border-current',
+          situacao.tom === 'erro' && 'rounded-[1px] bg-current'
+        )}
+      />
+      {situacao.texto}
+    </Estado>
+  )
+}
+
+// ── O editor ────────────────────────────────────────────────────────────────
+
+function Editor({ modelo, c, padrao }: { modelo: Modelo; c: Configuracao; padrao: boolean }) {
+  return (
+    <div className="flex flex-col gap-5 px-4 py-4 sm:px-5">
+      {c.foraDoNumero && <Aviso tom="erro">{c.foraDoNumero}</Aviso>}
+
+      <QuandoSai c={c} />
+
+      {modelo.midia && (
+        <MidiaDoModelo
+          modeloId={modelo.modeloId}
+          midia={modelo.midia}
+          arquivo={c.arquivo}
+          aoEnviar={(a) => c.setArquivo(a)}
+        />
+      )}
+
+      {/* A conversa tem a largura de uma tela de celular: é assim que o paciente lê. */}
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
+        <Conversa
+          trechos={trechosDoTexto(modelo.conteudo, c.ligados, EXEMPLO)}
+          dia={diaDaChegada(c.diaEnvio)}
+          horario={c.horario}
+          midia={modelo.midia}
+          arquivo={c.arquivo}
+        />
+        <Variaveis modelo={modelo} c={c} />
+      </div>
+
+      {(c.alterado || c.erro) && (
+        <div className="-mx-4 -mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line-soft bg-sunk/70 px-4 py-3 sm:-mx-5 sm:px-5">
+          <p className={clsx('text-sm', c.erro ? 'text-erro' : 'text-ink-2')}>{c.erro ?? 'Alterações não salvas'}</p>
+          {c.alterado && (
+            <div className="ml-auto flex gap-2">
+              <Botao variante="secundario" tamanho="sm" disabled={c.salvando} onClick={c.desfazer}>
+                Desfazer
+              </Botao>
+              <Botao tamanho="sm" disabled={c.salvando || c.impedido} onClick={() => void c.salvar(padrao)}>
+                {c.salvando ? 'Salvando…' : 'Salvar alterações'}
+              </Botao>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** "Envia um dia antes do aniversário, às 9h" — e os campos só quando a pessoa quer mudar. */
+function QuandoSai({ c }: { c: Configuracao }) {
+  const [mudando, setMudando] = useState(false)
+
+  if (!mudando) {
+    return (
+      <p className="text-sm text-ink-2">
+        Envia <span className="font-medium text-ink">{quandoSai(c.diaEnvio, c.horario)}</span>
+        <button
+          type="button"
+          onClick={() => setMudando(true)}
+          className="ml-2 cursor-pointer rounded text-[13px] font-medium text-accent-ink hover:underline"
+        >
+          alterar
+        </button>
+      </p>
+    )
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm text-ink-2">
+      Envia
+      <select
+        aria-label="Quando a mensagem sai"
+        value={c.diaEnvio}
+        onChange={(e) => c.setDiaEnvio(e.target.value)}
+        className="h-9 rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
+      >
+        {DIAS_DE_ENVIO.map((d) => (
+          <option key={d.valor} value={d.valor}>
+            {d.rotulo}
+          </option>
+        ))}
+      </select>
+      às
+      <CampoDeHorario valor={c.horario} aoMudar={c.setHorario} rotulo="Horário do envio" compacto className="w-[108px]" />
+      <button
+        type="button"
+        onClick={() => setMudando(false)}
+        className="ml-1 cursor-pointer rounded text-[13px] font-medium text-accent-ink hover:underline"
+      >
+        pronto
+      </button>
+    </div>
+  )
+}
+
+/**
+ * A mensagem como chega no WhatsApp do paciente: o dia em que chega, o horário
+ * do envio no canto do balão, o negrito aplicado e os valores do app marcados.
+ */
+function Conversa({
+  trechos,
+  dia,
+  horario,
+  midia,
+  arquivo,
+}: {
+  trechos: Trecho[]
+  dia: string
+  horario: string
+  midia: TipoDeMidia | null
+  arquivo: ArquivoDoModelo | null
+}) {
+  const pedacos = pedacosDaPrevia(trechos)
+
+  return (
+    <figure className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2.5 rounded-[12px] bg-[#efeae2] px-3 py-4 sm:px-4">
+        <span className="mx-auto rounded-md bg-white/85 px-2 py-0.5 text-[10.5px] font-medium tracking-wide text-ink-2 uppercase">
+          {dia}
+        </span>
+        <div className="max-w-[94%] self-start rounded-[10px] rounded-tl-[3px] bg-white px-2.5 pt-1.5 pb-1 text-[13.5px] leading-[1.45] text-[#111b21] shadow-[0_1px_0.5px_rgb(11_20_26/0.13)]">
+          {midia && <MidiaNaConversa midia={midia} arquivo={arquivo} />}
+          <p className="break-words whitespace-pre-wrap">
+            {pedacos.length === 0 && <span className="text-muted">Este modelo não tem texto.</span>}
+            {pedacos.map((p, i) => (
+              <span
+                key={i}
+                className={clsx(
+                  p.negrito && 'font-semibold',
+                  p.italico && 'italic',
+                  p.riscado && 'line-through',
+                  p.variavel && 'rounded-[3px] px-[1px] [box-decoration-break:clone]',
+                  p.variavel === 'ligada' && 'bg-accent-soft text-accent-ink',
+                  p.variavel === 'solta' && 'bg-atencao-soft text-atencao'
+                )}
+              >
+                {p.texto}
+              </span>
+            ))}
+            <span className="tnum float-right mt-1.5 ml-3 text-[10.5px] leading-none text-[#667781]">{horario}</span>
           </p>
         </div>
+      </div>
+      <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-muted">
+        <span>Paciente de exemplo: Marina, aniversário em 14/03</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span aria-hidden className="h-2.5 w-2.5 rounded-[3px] bg-accent-soft ring-1 ring-accent-line" />
+          preenchido pelo app
+        </span>
+      </figcaption>
+    </figure>
+  )
+}
 
-        {modelo.variaveis.length === 0 ? (
-          <p className="text-sm text-muted">Este modelo não tem variáveis para ligar.</p>
-        ) : (
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            {modelo.variaveis.map((v) => (
-              <label key={v.nome} className="flex items-center gap-2.5">
-                <span title={v.marcacao} className="min-w-12 max-w-[9rem] shrink-0 truncate font-mono text-xs text-muted">
-                  {v.marcacao}
-                </span>
+function MidiaNaConversa({ midia, arquivo }: { midia: TipoDeMidia; arquivo: ArquivoDoModelo | null }) {
+  const { rotulo, comArtigo } = REGRAS_DA_MIDIA[midia]
+  return (
+    <div
+      className={clsx(
+        'mb-1.5 -mx-1 flex items-center justify-center gap-2 rounded-[7px] px-3 text-xs',
+        midia === 'documento' ? 'h-12' : 'aspect-[16/9]',
+        arquivo ? 'bg-sunk-2 text-ink-2' : 'bg-atencao-soft text-atencao'
+      )}
+    >
+      {arquivo ? (
+        <>
+          {midia === 'video' && (
+            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-black/45 text-[11px] text-white">
+              ▶
+            </span>
+          )}
+          <span className="truncate">
+            {rotulo[0]!.toUpperCase() + rotulo.slice(1)} · {arquivo.nome}
+          </span>
+        </>
+      ) : (
+        <span>Falta enviar {comArtigo}</span>
+      )}
+    </div>
+  )
+}
+
+/** Cada variável numa frase: "[NOME] Primeiro nome · Marina — trocar". O seletor só quando precisa. */
+function Variaveis({ modelo, c }: { modelo: Modelo; c: Configuracao }) {
+  const [trocando, setTrocando] = useState<string | null>(null)
+
+  if (modelo.variaveis.length === 0) {
+    return <p className="text-sm text-muted">Este modelo não tem variáveis: sai igual para todos.</p>
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="px-1 text-xs font-medium text-muted">Variáveis</p>
+      <ul className="divide-y divide-line-soft rounded-[12px] border border-line-soft">
+        {modelo.variaveis.map((v) => {
+          const campo = c.parametros[v.nome] ?? ''
+          const escolhendo = trocando === v.nome || (v.obrigatoria && !campo)
+          return (
+            <li key={v.nome} className="flex min-h-11 items-center gap-3 px-3 py-1.5">
+              <code title={v.marcacao} className="max-w-[8.5rem] min-w-[4.5rem] shrink-0 truncate font-mono text-xs text-ink-2">
+                {v.marcacao}
+              </code>
+              {escolhendo ? (
                 <select
-                  value={parametros[v.nome] ?? ''}
-                  onChange={(e) => setParametros((m) => ({ ...m, [v.nome]: e.target.value }))}
+                  aria-label={`Campo de ${v.marcacao}`}
+                  autoFocus={trocando === v.nome}
+                  value={campo}
+                  onChange={(e) => {
+                    c.ligar(v.nome, e.target.value)
+                    setTrocando(null)
+                  }}
+                  onBlur={() => setTrocando(null)}
                   className={clsx(
                     'h-9 min-w-0 flex-1 rounded-[10px] border bg-field px-2.5 text-sm focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none',
-                    parametros[v.nome]
-                      ? 'border-line text-ink'
-                      : v.obrigatoria
-                        ? 'border-atencao/50 text-muted'
-                        : 'border-line text-muted'
+                    campo ? 'border-line text-ink' : 'border-atencao/50 text-muted'
                   )}
                 >
                   {/* Com o nome que diz o campo, "sem campo" não existe: o lote liga pelo nome. */}
                   <option value="" disabled={v.obrigatoria || !!campoPeloNome(v.nome)}>
                     {v.obrigatoria ? 'Escolha o campo…' : 'Sem campo'}
                   </option>
-                  {CAMPOS_DISPONIVEIS.map((campo) => (
-                    <option key={campo.valor} value={campo.valor}>
-                      {campo.rotulo}
+                  {CAMPOS_DISPONIVEIS.map((opcao) => (
+                    <option key={opcao.valor} value={opcao.valor}>
+                      {opcao.rotulo} · {VALORES_DO_EXEMPLO[opcao.valor]}
                     </option>
                   ))}
                 </select>
-              </label>
-            ))}
-          </div>
-        )}
+              ) : (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {campo ? (
+                      <>
+                        <span className="text-ink">{ROTULO_DO_CAMPO.get(campo)}</span>
+                        <span className="text-muted"> · {VALORES_DO_EXEMPLO[campo]}</span>
+                      </>
+                    ) : (
+                      <span className="text-muted">Sem campo</span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTrocando(v.nome)}
+                    aria-label={`${campo ? 'Trocar' : 'Escolher'} o campo de ${v.marcacao}`}
+                    className="shrink-0 cursor-pointer rounded text-[13px] font-medium text-accent-ink hover:underline"
+                  >
+                    {campo ? 'trocar' : 'escolher'}
+                  </button>
+                </>
+              )}
+            </li>
+          )
+        })}
+      </ul>
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-          <label className="flex items-center gap-2 text-sm text-ink-2">
-            Enviar
-            <select
-              value={diaEnvio}
-              onChange={(e) => setDiaEnvio(e.target.value)}
-              className="h-9 rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
-            >
-              <option value="aniversario">no dia do aniversário</option>
-              <option value="1_dia_antes">um dia antes</option>
-              <option value="3_dias_antes">três dias antes</option>
-            </select>
-          </label>
-
-          <div className="flex items-center gap-2 text-sm text-ink-2">
-            às
-            <CampoDeHorario valor={horario} aoMudar={setHorario} rotulo="Horário do envio" compacto className="w-[108px]" />
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-ink-2">
-            <input
-              type="checkbox"
-              checked={ehPadrao}
-              onChange={(e) => setEhPadrao(e.target.checked)}
-              className="h-4 w-4 accent-[var(--color-accent)]"
-            />
-            Usar como modelo padrão
-          </label>
-
-          <Botao
-            tamanho="sm"
-            onClick={salvar}
-            disabled={salvando || faltando.length > 0 || !!foraDoNumero || !!semArquivo}
-            className="ml-auto"
-          >
-            {salvando ? 'Salvando…' : 'Salvar configuração'}
-          </Botao>
-        </div>
-
-        {pelosNomes.length > 0 && (
-          <p className="text-sm text-ink-2">
-            O app ligou {lista(pelosNomes)} pelo nome da variável. Confira na prévia.
-          </p>
-        )}
-
-        {semCampo.length > 0 && (
-          <p className="text-sm text-muted">
-            O app não reconhece {lista(semCampo)}: sem campo, não manda valor para{' '}
-            {semCampo.length === 1 ? 'ela' : 'elas'}.
-          </p>
-        )}
-
-        {faltando.length > 0 && (
-          <p className="text-sm text-atencao">Escolha o campo de {lista(faltando)} para poder salvar.</p>
-        )}
-
-        {resultado && (
-          <p className={resultado.ok ? 'text-sm text-ok' : 'text-sm text-erro'}>
-            {resultado.mensagem}
-          </p>
-        )}
-      </div>
-    </section>
+      {c.pelosNomes.length > 0 && (
+        <p className="px-1 text-xs text-muted">O app ligou {lista(c.pelosNomes)} pelo nome da variável.</p>
+      )}
+      {c.semCampo.length > 0 && (
+        <p className="px-1 text-xs text-muted">
+          O app não reconhece {lista(c.semCampo)}: sem campo, não manda valor para{' '}
+          {c.semCampo.length === 1 ? 'ela' : 'elas'}.
+        </p>
+      )}
+      {c.faltando.length > 0 && (
+        <p className="px-1 text-xs text-atencao">Escolha o campo de {lista(c.faltando)} para poder salvar.</p>
+      )}
+    </div>
   )
 }
 
@@ -388,13 +770,11 @@ function MidiaDoModelo({
   modeloId,
   midia,
   arquivo,
-  naoSalvo,
   aoEnviar,
 }: {
   modeloId: string
   midia: TipoDeMidia
   arquivo: ArquivoDoModelo | null
-  naoSalvo: boolean
   aoEnviar: (arquivo: ArquivoDoModelo) => void
 }) {
   const [enviando, setEnviando] = useState(false)
@@ -451,7 +831,6 @@ function MidiaDoModelo({
         </Botao>
       </div>
       {!arquivo && !erro && <p className="text-sm text-atencao">{fraseSemArquivo(midia)}</p>}
-      {naoSalvo && <p className="text-sm text-ink-2">Enviado. Salve a configuração para usar este arquivo.</p>}
       {erro && <p className="text-sm text-erro">{erro}</p>}
     </div>
   )

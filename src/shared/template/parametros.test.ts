@@ -4,6 +4,7 @@ import {
   completarMapeamento,
   resolverParametros,
   renderizar,
+  trechosDoTexto,
   variaveisDoTemplate,
 } from './parametros'
 
@@ -106,5 +107,22 @@ describe('ligação pelo nome da variável', () => {
       Nome: 'nome',
       ANIVERSÁRIO: 'aniversario',
     })
+  })
+})
+
+describe('trechosDoTexto', () => {
+  it('o texto em pedaços, dizendo de qual variável veio cada valor', () => {
+    expect(trechosDoTexto('Oi, [Nome]! [IDADE]', { Nome: 'primeiro_nome' }, PACIENTE)).toEqual([
+      { texto: 'Oi, ' },
+      { texto: 'Maria', variavel: 'Nome', ligada: true },
+      { texto: '! ' },
+      { texto: '[IDADE]', variavel: 'IDADE', ligada: false },
+    ])
+  })
+
+  it('juntos, são o texto do envio', () => {
+    const texto = 'Oi, *[Nome]*! {{1}} [ANIVERSÁRIO]'
+    const mapa = completarMapeamento(texto, { 1: 'nome' })
+    expect(trechosDoTexto(texto, mapa, PACIENTE).map((t) => t.texto).join('')).toBe(renderizar(texto, mapa, PACIENTE))
   })
 })
