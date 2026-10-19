@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Aviso, Botao, Carregando, Estado, Vazio } from '@/ui/primitivos'
-import { CampoDeHorario } from '@/ui/campos-de-data'
+import { CampoDeHorario, PRONTO } from '@/ui/campos-de-data'
+import { Seletor } from '@/ui/Seletor'
 import {
   CAMPOS_DISPONIVEIS,
   campoPeloNome,
@@ -55,8 +56,6 @@ const VALORES_DO_EXEMPLO = resolverParametros(
   Object.fromEntries(CAMPOS_DISPONIVEIS.map((c) => [c.valor, c.valor])),
   EXEMPLO
 )
-
-const ROTULO_DO_CAMPO = new Map<string, string>(CAMPOS_DISPONIVEIS.map((c) => [c.valor, c.rotulo]))
 
 const DIAS_DE_ENVIO = [
   { valor: 'aniversario', rotulo: 'no dia do aniversário', frase: 'no dia do aniversário', antes: 0 },
@@ -294,6 +293,13 @@ function useConfiguracao(modelo: Modelo, aoSalvar: (virouPadrao: boolean) => voi
   const [arquivo, setArquivo] = useState<ArquivoDoModelo | null>(inicial.arquivo)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  // "Alterações salvas" por alguns segundos: sem isso, o rodapé sumia calado.
+  const [salvoAgora, setSalvoAgora] = useState(false)
+  useEffect(() => {
+    if (!salvoAgora) return
+    const t = setTimeout(() => setSalvoAgora(false), 3500)
+    return () => clearTimeout(t)
+  }, [salvoAgora])
 
   const ligados = soLigados(parametros)
   const faltando = modelo.variaveis.filter((v) => v.obrigatoria && !parametros[v.nome])
@@ -356,6 +362,7 @@ function useConfiguracao(modelo: Modelo, aoSalvar: (virouPadrao: boolean) => voi
       // O app anterior ignorava a resposta e mostrava "Salvo ✓" mesmo em erro —
       // a configuração sumia no reload seguinte e ninguém entendia por quê.
       if (!resposta.ok) throw new Error(corpo?.error ?? 'Não foi possível salvar')
+      setSalvoAgora(true)
       aoSalvar(padrao && !modelo.config?.ehPadrao)
     } catch (e) {
       setErro((e as Error).message)
@@ -384,6 +391,7 @@ function useConfiguracao(modelo: Modelo, aoSalvar: (virouPadrao: boolean) => voi
     situacao,
     salvando,
     erro,
+    salvoAgora: salvoAgora && !alterado,
     desfazer,
     salvar,
   }
@@ -418,6 +426,8 @@ function CartaoPadrao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: (virouPa
 function LinhaDoModelo({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: (virouPadrao: boolean) => void }) {
   const c = useConfiguracao(modelo, aoSalvar)
   const [aberto, setAberto] = useState(false)
+  // O editor só nasce na primeira abertura, e fica: assim a gaveta também fecha animada.
+  const [jaAbriu, setJaAbriu] = useState(false)
   const idDoEditor = useId()
 
   return (
@@ -427,7 +437,10 @@ function LinhaDoModelo({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: (virouP
           type="button"
           aria-expanded={aberto}
           aria-controls={idDoEditor}
-          onClick={() => setAberto((a) => !a)}
+          onClick={() => {
+            setJaAbriu(true)
+            setAberto((a) => !a)
+          }}
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md text-left"
         >
           <svg
@@ -454,11 +467,26 @@ function LinhaDoModelo({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: (virouP
         )}
       </div>
       {!aberto && c.erro && <p className="px-4 pb-3 text-sm text-erro sm:px-5">{c.erro}</p>}
-      {aberto && (
-        <div id={idDoEditor} className="border-t border-line-soft">
-          <Editor modelo={modelo} c={c} padrao={false} />
+      {/* A gaveta: a altura vai de 0 ao conteúdo (grid de 0fr a 1fr), e o conteúdo surge junto. */}
+      <div
+        id={idDoEditor}
+        inert={!aberto}
+        className={clsx(
+          'grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)]',
+          aberto ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={clsx(
+              'border-t border-line-soft transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)]',
+              aberto ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'
+            )}
+          >
+            {jaAbriu && <Editor modelo={modelo} c={c} padrao={false} />}
+          </div>
         </div>
-      )}
+      </div>
     </li>
   )
 }
@@ -519,9 +547,11 @@ function Editor({ modelo, c, padrao }: { modelo: Modelo; c: Configuracao; padrao
         <Variaveis modelo={modelo} c={c} />
       </div>
 
-      {(c.alterado || c.erro) && (
-        <div className="-mx-4 -mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line-soft bg-sunk/70 px-4 py-3 sm:-mx-5 sm:px-5">
-          <p className={clsx('text-sm', c.erro ? 'text-erro' : 'text-ink-2')}>{c.erro ?? 'Alterações não salvas'}</p>
+      {(c.alterado || c.erro || c.salvoAgora) && (
+        <div className="entrar -mx-4 -mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line-soft bg-sunk/70 px-4 py-3 sm:-mx-5 sm:px-5">
+          <p role="status" className={clsx('text-sm', c.erro ? 'text-erro' : c.alterado ? 'text-ink-2' : 'text-ok')}>
+            {c.erro ?? (c.alterado ? 'Alterações não salvas' : 'Alterações salvas')}
+          </p>
           {c.alterado && (
             <div className="ml-auto flex gap-2">
               <Botao variante="secundario" tamanho="sm" disabled={c.salvando} onClick={c.desfazer}>
@@ -559,26 +589,18 @@ function QuandoSai({ c }: { c: Configuracao }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm text-ink-2">
       Envia
-      <select
-        aria-label="Quando a mensagem sai"
-        value={c.diaEnvio}
-        onChange={(e) => c.setDiaEnvio(e.target.value)}
-        className="h-9 rounded-[10px] border border-line bg-field px-2.5 text-sm text-ink focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none"
-      >
-        {DIAS_DE_ENVIO.map((d) => (
-          <option key={d.valor} value={d.valor}>
-            {d.rotulo}
-          </option>
-        ))}
-      </select>
+      <Seletor
+        rotulo="Quando a mensagem sai"
+        valor={c.diaEnvio}
+        opcoes={DIAS_DE_ENVIO.map((d) => ({ valor: d.valor, rotulo: d.rotulo }))}
+        aoMudar={c.setDiaEnvio}
+        className="w-[200px]"
+      />
       às
       <CampoDeHorario valor={c.horario} aoMudar={c.setHorario} rotulo="Horário do envio" compacto className="w-[108px]" />
-      <button
-        type="button"
-        onClick={() => setMudando(false)}
-        className="ml-1 cursor-pointer rounded text-[13px] font-medium text-accent-ink hover:underline"
-      >
-        pronto
+      {/* O mesmo "Pronto" do quadro de horário: evidente, sem disputar com o Salvar. */}
+      <button type="button" onClick={() => setMudando(false)} className={clsx(PRONTO, 'ml-1')}>
+        Pronto
       </button>
     </div>
   )
@@ -673,7 +695,7 @@ function MidiaNaConversa({ midia, arquivo }: { midia: TipoDeMidia; arquivo: Arqu
 
 /** Cada variável numa frase: "[NOME] Primeiro nome · Marina — trocar". O seletor só quando precisa. */
 function Variaveis({ modelo, c }: { modelo: Modelo; c: Configuracao }) {
-  const [trocando, setTrocando] = useState<string | null>(null)
+  const opcoes = CAMPOS_DISPONIVEIS.map((o) => ({ valor: o.valor, rotulo: o.rotulo, detalhe: VALORES_DO_EXEMPLO[o.valor] }))
 
   if (modelo.variaveis.length === 0) {
     return <p className="text-sm text-muted">Este modelo não tem variáveis: sai igual para todos.</p>
@@ -684,59 +706,24 @@ function Variaveis({ modelo, c }: { modelo: Modelo; c: Configuracao }) {
       <ul className="divide-y divide-line-soft rounded-[12px] border border-line-soft">
         {modelo.variaveis.map((v) => {
           const campo = c.parametros[v.nome] ?? ''
-          const escolhendo = trocando === v.nome || (v.obrigatoria && !campo)
+          // "Sem campo" só para a variável da plataforma que o nome não explica:
+          // com o nome que diz o campo, o lote liga pelo nome de qualquer jeito.
+          const podeFicarSem = !v.obrigatoria && !campoPeloNome(v.nome)
           return (
-            <li key={v.nome} className="flex min-h-11 items-center gap-3 px-3 py-1.5">
-              <code title={v.marcacao} className="max-w-[8.5rem] min-w-[4.5rem] shrink-0 truncate font-mono text-xs text-ink-2">
+            <li key={v.nome} className="flex min-h-11 items-center gap-2 px-2 py-1">
+              <code title={v.marcacao} className="max-w-[8.5rem] min-w-[4.5rem] shrink-0 truncate pl-1 font-mono text-xs text-ink-2">
                 {v.marcacao}
               </code>
-              {escolhendo ? (
-                <select
-                  aria-label={`Campo de ${v.marcacao}`}
-                  autoFocus={trocando === v.nome}
-                  value={campo}
-                  onChange={(e) => {
-                    c.ligar(v.nome, e.target.value)
-                    setTrocando(null)
-                  }}
-                  onBlur={() => setTrocando(null)}
-                  className={clsx(
-                    'h-9 min-w-0 flex-1 rounded-[10px] border bg-field px-2.5 text-sm focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none',
-                    campo ? 'border-line text-ink' : 'border-atencao/50 text-muted'
-                  )}
-                >
-                  {/* Com o nome que diz o campo, "sem campo" não existe: o lote liga pelo nome. */}
-                  <option value="" disabled={v.obrigatoria || !!campoPeloNome(v.nome)}>
-                    {v.obrigatoria ? 'Escolha o campo…' : 'Sem campo'}
-                  </option>
-                  {CAMPOS_DISPONIVEIS.map((opcao) => (
-                    <option key={opcao.valor} value={opcao.valor}>
-                      {opcao.rotulo} · {VALORES_DO_EXEMPLO[opcao.valor]}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <>
-                  <span className="min-w-0 flex-1 truncate text-sm">
-                    {campo ? (
-                      <>
-                        <span className="text-ink">{ROTULO_DO_CAMPO.get(campo)}</span>
-                        <span className="text-muted"> · {VALORES_DO_EXEMPLO[campo]}</span>
-                      </>
-                    ) : (
-                      <span className="text-muted">Sem campo</span>
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setTrocando(v.nome)}
-                    aria-label={`${campo ? 'Trocar' : 'Escolher'} o campo de ${v.marcacao}`}
-                    className="shrink-0 cursor-pointer rounded text-[13px] font-medium text-accent-ink hover:underline"
-                  >
-                    {campo ? 'trocar' : 'escolher'}
-                  </button>
-                </>
-              )}
+              <Seletor
+                discreto
+                rotulo={`Campo de ${v.marcacao}`}
+                valor={campo}
+                vazio={v.obrigatoria ? 'Escolha o campo' : 'Sem campo'}
+                atencao={v.obrigatoria}
+                opcoes={podeFicarSem ? [{ valor: '', rotulo: 'Sem campo' }, ...opcoes] : opcoes}
+                aoMudar={(novo) => c.ligar(v.nome, novo)}
+                className="flex-1"
+              />
             </li>
           )
         })}
@@ -830,7 +817,12 @@ function MidiaDoModelo({
           {enviando ? 'Enviando…' : arquivo ? `Trocar ${rotulo}` : `Enviar ${rotulo}`}
         </Botao>
       </div>
-      {!arquivo && !erro && <p className="text-sm text-atencao">{fraseSemArquivo(midia)}</p>}
+      {/* Aqui a pessoa já está em Modelos: a frase do servidor ("envie em Modelos") não serve. */}
+      {!arquivo && !erro && (
+        <p className="text-sm text-atencao">
+          Envie {comArtigo} aqui: {REGRAS_DA_MIDIA[midia].semEle}, a mensagem falha no envio.
+        </p>
+      )}
       {erro && <p className="text-sm text-erro">{erro}</p>}
     </div>
   )
