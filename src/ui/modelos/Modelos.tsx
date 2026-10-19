@@ -4,7 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Aviso, Botao, Carregando, Vazio } from '@/ui/primitivos'
 import { CampoDeHorario } from '@/ui/campos-de-data'
-import { CAMPOS_DISPONIVEIS, renderizar } from '@/shared/template/parametros'
+import {
+  CAMPOS_DISPONIVEIS,
+  campoPeloNome,
+  completarMapeamento,
+  renderizar,
+  type Variavel,
+} from '@/shared/template/parametros'
 import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
 import {
   REGRAS_DA_MIDIA,
@@ -27,6 +33,10 @@ import {
 // A prévia usa `renderizar` com um paciente de exemplo — a MESMA função do
 // envio. Ver o texto montado é o que torna o mapeamento verificável: "{{1}}"
 // não diz nada, "Olá, Marina" diz tudo.
+//
+// As variáveis cujo nome já diz o campo (`[NOME]`, `[ANIVERSÁRIO]`) vêm
+// ligadas, e assim saem no envio mesmo antes de a clínica salvar:
+// `completarMapeamento` é a mesma conta aqui e no lote.
 
 const EXEMPLO = {
   nome: 'Marina Duarte Alves',
@@ -38,7 +48,7 @@ interface Modelo {
   modeloId: string
   nome: string
   conteudo: string
-  parametrosDoTexto: string[]
+  variaveis: Variavel[]
   envio: EnvioDoModelo
   /** A mídia do cabeçalho. `null` = só texto. */
   midia: TipoDeMidia | null
@@ -145,19 +155,34 @@ export function Modelos() {
   )
 }
 
+/** "[NOME], [DATA] e [HORÁRIO]" */
+function lista(variaveis: Variavel[]): string {
+  const marcacoes = variaveis.map((v) => v.marcacao)
+  return marcacoes.length > 1 ? `${marcacoes.slice(0, -1).join(', ')} e ${marcacoes.at(-1)}` : (marcacoes[0] ?? '')
+}
+
 function rotuloDoGrupo(grupo: GrupoDeNumero<Modelo>): string {
   return grupo.numero ? `Modelos do número ${rotuloDoNumero(grupo.numero)}` : 'Modelos de número não identificado'
 }
 
 function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) {
-  // Modelo ainda não configurado começa SEM campo em cada variável. Antes, todas
-  // vinham como "Primeiro nome": num modelo "completa {{2}} anos" a prévia saía
+  // Cada variável começa com o que vale no envio: o campo salvo, ou o que o
+  // nome diz. A que o nome não explica começa SEM campo: antes, todas vinham
+  // como "Primeiro nome", num modelo "completa {{2}} anos" a prévia saía
   // "completa Marina anos", e um clique em Salvar sem reparar mandava isso a
   // todos os pacientes.
-  const [parametros, setParametros] = useState<Record<string, string>>(
-    modelo.config?.parametros ?? Object.fromEntries(modelo.parametrosDoTexto.map((p) => [p, '']))
+  const [parametros, setParametros] = useState<Record<string, string>>(() => ({
+    ...Object.fromEntries(modelo.variaveis.map((v) => [v.nome, ''])),
+    ...completarMapeamento(modelo.conteudo, modelo.config?.parametros ?? {}),
+  }))
+  // Só as ligadas vão para o servidor e para a prévia: "sem campo" não é campo.
+  const ligados = Object.fromEntries(Object.entries(parametros).filter(([, campo]) => campo))
+  const faltando = modelo.variaveis.filter((v) => v.obrigatoria && !parametros[v.nome])
+  const semCampo = modelo.variaveis.filter((v) => !v.obrigatoria && !parametros[v.nome])
+  // Ligadas pelo nome e ainda não salvas: a tela diz que foi o app que escolheu.
+  const pelosNomes = modelo.variaveis.filter(
+    (v) => !modelo.config?.parametros[v.nome] && !!parametros[v.nome] && parametros[v.nome] === campoPeloNome(v.nome)
   )
-  const faltando = modelo.parametrosDoTexto.filter((p) => !parametros[p])
   const [diaEnvio, setDiaEnvio] = useState(modelo.config?.diaEnvio ?? 'aniversario')
   const [horario, setHorario] = useState(modelo.config?.horarioEnvio ?? '09:00')
   const [ehPadrao, setEhPadrao] = useState(modelo.config?.ehPadrao ?? false)
@@ -180,7 +205,7 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
         body: JSON.stringify({
           modeloId: modelo.modeloId,
           nome: modelo.nome,
-          parametros,
+          parametros: ligados,
           diaEnvio,
           horarioEnvio: horario,
           ehPadrao,
@@ -201,13 +226,9 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
     }
   }
 
-  // Só as variáveis já ligadas entram na prévia: as que faltam ficam como
-  // `{{n}}` no texto, que é exatamente o que ainda precisa de escolha.
-  const previa = renderizar(
-    modelo.conteudo,
-    Object.fromEntries(Object.entries(parametros).filter(([, campo]) => campo)),
-    EXEMPLO
-  )
+  // As que faltam ficam como `{{n}}` ou `[NOME]` no texto, que é exatamente o
+  // que ainda precisa de escolha.
+  const previa = renderizar(modelo.conteudo, ligados, EXEMPLO)
 
   return (
     <section className="entrar overflow-hidden rounded-[14px] border border-line-soft bg-surface">
@@ -253,23 +274,30 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
           </p>
         </div>
 
-        {modelo.parametrosDoTexto.length === 0 ? (
+        {modelo.variaveis.length === 0 ? (
           <p className="text-sm text-muted">Este modelo não tem variáveis para ligar.</p>
         ) : (
           <div className="grid gap-2.5 sm:grid-cols-2">
-            {modelo.parametrosDoTexto.map((p) => (
-              <label key={p} className="flex items-center gap-2.5">
-                <span className="w-12 shrink-0 font-mono text-xs text-muted">{`{{${p}}}`}</span>
+            {modelo.variaveis.map((v) => (
+              <label key={v.nome} className="flex items-center gap-2.5">
+                <span title={v.marcacao} className="min-w-12 max-w-[9rem] shrink-0 truncate font-mono text-xs text-muted">
+                  {v.marcacao}
+                </span>
                 <select
-                  value={parametros[p] ?? ''}
-                  onChange={(e) => setParametros((m) => ({ ...m, [p]: e.target.value }))}
+                  value={parametros[v.nome] ?? ''}
+                  onChange={(e) => setParametros((m) => ({ ...m, [v.nome]: e.target.value }))}
                   className={clsx(
                     'h-9 min-w-0 flex-1 rounded-[10px] border bg-field px-2.5 text-sm focus:border-accent-line focus:ring-[3px] focus:ring-accent/15 focus:outline-none',
-                    parametros[p] ? 'border-line text-ink' : 'border-atencao/50 text-muted'
+                    parametros[v.nome]
+                      ? 'border-line text-ink'
+                      : v.obrigatoria
+                        ? 'border-atencao/50 text-muted'
+                        : 'border-line text-muted'
                   )}
                 >
-                  <option value="" disabled>
-                    Escolha o campo…
+                  {/* Com o nome que diz o campo, "sem campo" não existe: o lote liga pelo nome. */}
+                  <option value="" disabled={v.obrigatoria || !!campoPeloNome(v.nome)}>
+                    {v.obrigatoria ? 'Escolha o campo…' : 'Sem campo'}
                   </option>
                   {CAMPOS_DISPONIVEIS.map((campo) => (
                     <option key={campo.valor} value={campo.valor}>
@@ -321,10 +349,21 @@ function Cartao({ modelo, aoSalvar }: { modelo: Modelo; aoSalvar: () => void }) 
           </Botao>
         </div>
 
-        {faltando.length > 0 && (
-          <p className="text-sm text-atencao">
-            Escolha o campo de {faltando.map((p) => `{{${p}}}`).join(', ')} para poder salvar.
+        {pelosNomes.length > 0 && (
+          <p className="text-sm text-ink-2">
+            O app ligou {lista(pelosNomes)} pelo nome da variável. Confira na prévia.
           </p>
+        )}
+
+        {semCampo.length > 0 && (
+          <p className="text-sm text-muted">
+            O app não reconhece {lista(semCampo)}: sem campo, não manda valor para{' '}
+            {semCampo.length === 1 ? 'ela' : 'elas'}.
+          </p>
+        )}
+
+        {faltando.length > 0 && (
+          <p className="text-sm text-atencao">Escolha o campo de {lista(faltando)} para poder salvar.</p>
         )}
 
         {resultado && (

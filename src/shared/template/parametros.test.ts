@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { resolverParametros, renderizar, parametrosDoTemplate } from './parametros'
+import {
+  campoPeloNome,
+  completarMapeamento,
+  resolverParametros,
+  renderizar,
+  variaveisDoTemplate,
+} from './parametros'
 
 const PACIENTE = {
   nome: 'Maria Clara Souza',
@@ -57,12 +63,48 @@ describe('renderizar', () => {
   })
 })
 
-describe('parametrosDoTemplate', () => {
+describe('variaveisDoTemplate', () => {
   it('extrai sem repetir e tolera espaços', () => {
-    expect(parametrosDoTemplate('Oi {{1}}, tudo bem {{1}}? {{ 2 }}')).toEqual(['1', '2'])
+    expect(variaveisDoTemplate('Oi {{1}}, tudo bem {{1}}? {{ 2 }}').map((v) => v.nome)).toEqual(['1', '2'])
   })
 
   it('template sem variáveis', () => {
-    expect(parametrosDoTemplate('Feliz aniversário!')).toEqual([])
+    expect(variaveisDoTemplate('Feliz aniversário!')).toEqual([])
+  })
+
+  it('lê o formato da plataforma, com acento; colchete que não é nome não vira variável', () => {
+    expect(variaveisDoTemplate('Oi, *[Nome]*! {{1}} [ANIVERSÁRIO] [] [!]')).toEqual([
+      { nome: 'Nome', marcacao: '[Nome]', obrigatoria: false },
+      { nome: '1', marcacao: '{{1}}', obrigatoria: true },
+      { nome: 'ANIVERSÁRIO', marcacao: '[ANIVERSÁRIO]', obrigatoria: false },
+    ])
+  })
+})
+
+describe('ligação pelo nome da variável', () => {
+  it.each([
+    ['Nome', 'primeiro_nome'],
+    ['NOME DO PACIENTE', 'primeiro_nome'],
+    ['nome_completo', 'nome'],
+    ['Data de nascimento', 'data_nascimento'],
+    ['ANIVERSÁRIO', 'aniversario'],
+  ])('%s → %s', (nome, campo) => expect(campoPeloNome(nome)).toBe(campo))
+
+  it.each(['1', 'DATA', 'IDADE'])('%s: o nome não diz, a clínica escolhe', (nome) => {
+    expect(campoPeloNome(nome)).toBeNull()
+  })
+
+  it('modelo salvo sem nada ligado sai com o primeiro nome', () => {
+    const texto = 'Oi, *[Nome]*! Feliz aniversário 🎉'
+    const mapa = completarMapeamento(texto, {})
+    expect(mapa).toEqual({ Nome: 'primeiro_nome' })
+    expect(renderizar(texto, mapa, PACIENTE)).toBe('Oi, *Maria*! Feliz aniversário 🎉')
+  })
+
+  it('o que a clínica salvou vale mais que o nome; campo salvo inválido é ignorado', () => {
+    expect(completarMapeamento('[Nome] [ANIVERSÁRIO]', { Nome: 'nome', ANIVERSÁRIO: 'notes' })).toEqual({
+      Nome: 'nome',
+      ANIVERSÁRIO: 'aniversario',
+    })
   })
 })

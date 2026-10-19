@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Aviso, Botao, Carregando } from '@/ui/primitivos'
 import { CampoDeDataHora } from '@/ui/campos-de-data'
-import { renderizar } from '@/shared/template/parametros'
+import { completarMapeamento, renderizar } from '@/shared/template/parametros'
 import { motivoDeNaoSair, type EnvioDoModelo } from '@/shared/mensageria/canal-do-modelo'
 import { fraseSemArquivo, type TipoDeMidia } from '@/shared/mensageria/midia'
 import { formatarTelefoneBR } from '@/shared/telefone/e164'
@@ -134,7 +134,7 @@ export function PainelDeEnvio({
   const previa = useMemo(() => {
     if (!modelo?.config) return ''
     if (!primeiro) return modelo.conteudo
-    return renderizar(modelo.conteudo, modelo.config.parametros, {
+    return renderizar(modelo.conteudo, completarMapeamento(modelo.conteudo, modelo.config.parametros), {
       nome: primeiro.nome,
       datanascimento: primeiro.datanascimento,
       aniversario: primeiro.aniversario,

@@ -56,6 +56,7 @@ describe('listagem', () => {
         modelos: [
           { id: 'm1', nome: 'Parabéns', conteudo: 'Oi {{1}}, parabéns! {{2}}', canalId: null },
           { id: 'm2', nome: 'Outro', conteudo: 'Sem variáveis', canalId: null },
+          { id: 'm3', nome: 'Da plataforma', conteudo: 'Oi, [Nome]!', canalId: null },
         ],
         canais: [],
         filtradoPorTipo: true,
@@ -66,10 +67,11 @@ describe('listagem', () => {
     }
   }
 
-  it('extrai os parâmetros do texto do modelo', async () => {
+  it('extrai as variáveis do texto do modelo, nos dois formatos', async () => {
     const r = await listarModelos(deps())
-    expect(r.modelos[0]!.parametrosDoTexto).toEqual(['1', '2'])
-    expect(r.modelos[1]!.parametrosDoTexto).toEqual([])
+    expect(r.modelos[0]!.variaveis.map((v) => v.marcacao)).toEqual(['{{1}}', '{{2}}'])
+    expect(r.modelos[1]!.variaveis).toEqual([])
+    expect(r.modelos[2]!.variaveis).toEqual([{ nome: 'Nome', marcacao: '[Nome]', obrigatoria: false }])
   })
 
   it('anexa a configuração salva ao modelo certo', async () => {
@@ -89,7 +91,7 @@ describe('listagem', () => {
     // Modelo removido da plataforma mas com config salva aqui: some da lista,
     // não vira item fantasma.
     const r = await listarModelos(deps([['modelo-que-nao-existe-mais', salva]]))
-    expect(r.modelos.map((m) => m.modeloId)).toEqual(['m1', 'm2'])
+    expect(r.modelos.map((m) => m.modeloId)).toEqual(['m1', 'm2', 'm3'])
   })
 
   const listagem = async () => ({

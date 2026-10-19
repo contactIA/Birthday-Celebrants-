@@ -73,6 +73,19 @@ describe('o paciente vem do prontuário, nunca do pedido', () => {
     expect(d.agendar).not.toHaveBeenCalled()
   })
 
+  it('modelo salvo sem nada ligado: a variável da plataforma sai com o campo que o nome diz', async () => {
+    const d = deps({
+      buscarModelo: vi.fn(async () => ({ ...MODELO, parametros: {} })),
+      listarDaPlataforma: vi.fn(async () => ({
+        modelos: [{ id: 'modelo-na-plataforma', nome: 'Parabéns', conteudo: 'Oi, *[Nome]*! [ANIVERSÁRIO]', canalId: null }],
+        canais: [],
+        filtradoPorTipo: true,
+      })),
+    })
+    await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+    expect(d.agendar).toHaveBeenCalledWith(expect.objectContaining({ parametros: { Nome: 'Maria', ANIVERSÁRIO: '20/10' } }))
+  })
+
   it('o nome enviado nos parâmetros vem do prontuário', async () => {
     const d = deps({ buscarPacientes: vi.fn(async () => [paciente({ nome: 'Ana Lima' })]) })
     await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)

@@ -1,4 +1,4 @@
-import { CAMPOS_DISPONIVEIS, parametrosDoTemplate } from '@/shared/template/parametros'
+import { CAMPOS_VALIDOS, variaveisDoTemplate, type Variavel } from '@/shared/template/parametros'
 import type { DiaEnvio } from '@/shared/data/agendamento'
 import {
   envioDoModelo,
@@ -35,8 +35,8 @@ export interface ModeloNaTela {
   modeloId: string
   nome: string
   conteudo: string
-  /** `{{1}}`, `{{2}}`... encontrados no texto, para a tela montar o formulário. */
-  parametrosDoTexto: string[]
+  /** `{{1}}`, `[NOME]`... encontrados no texto, para a tela montar o formulário. */
+  variaveis: Variavel[]
   /** Por qual número o modelo sai, com qual equipe, e se esta unidade pode usá-lo. */
   envio: EnvioDoModelo
   /** A mídia do cabeçalho. `null` = só texto. Com mídia, o arquivo precisa ser enviado aqui. */
@@ -91,7 +91,7 @@ export async function listarModelos(deps: DependenciasDeLeitura): Promise<Listag
     modeloId: modelo.id,
     nome: modelo.nome,
     conteudo: modelo.conteudo,
-    parametrosDoTexto: parametrosDoTemplate(modelo.conteudo),
+    variaveis: variaveisDoTemplate(modelo.conteudo),
     envio: envios.get(modelo.id)!,
     midia: modelo.midia ?? null,
     config: configs.get(modelo.id) ?? null,
@@ -133,8 +133,6 @@ const DIAS_VALIDOS: ReadonlySet<string> = new Set<DiaEnvio>([
   '1_dia_antes',
   '3_dias_antes',
 ])
-
-const CAMPOS_VALIDOS: ReadonlySet<string> = new Set(CAMPOS_DISPONIVEIS.map((c) => c.valor))
 
 const HORARIO = /^([01]\d|2[0-3]):([0-5]\d)$/
 
