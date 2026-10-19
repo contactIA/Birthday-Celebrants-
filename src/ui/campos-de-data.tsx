@@ -27,7 +27,7 @@ import {
 const GATILHO =
   'flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-[10px] border border-line bg-field px-3 text-left text-sm text-ink transition-[border-color,box-shadow] outline-none hover:border-line-strong focus-visible:border-accent-line focus-visible:ring-[3px] focus-visible:ring-accent/15 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60 data-[state=open]:border-accent-line data-[state=open]:ring-[3px] data-[state=open]:ring-accent/15'
 
-const PRONTO =
+export const PRONTO =
   'h-8 cursor-pointer rounded-lg bg-accent-ink px-3.5 text-[13px] font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40'
 
 function Icone({ children, className = 'h-4 w-4' }: { children: ReactNode; className?: string }) {
@@ -112,7 +112,7 @@ function Gatilho({
 }
 
 /** O quadro flutuante dos campos. Sem espaço embaixo (o app roda num iframe), encolhe e rola por dentro. */
-function Quadro({ className, ...props }: ComponentProps<typeof Popover.Content>) {
+export function Quadro({ className, ...props }: ComponentProps<typeof Popover.Content>) {
   return (
     <Popover.Portal>
       <Popover.Content
