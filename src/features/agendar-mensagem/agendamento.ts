@@ -2,7 +2,7 @@ import { anoDoAniversario, aniversarioJaPassou, instanteDoEnvio, instanteDoHorar
 import { mesDiaDe, paraExibicao } from '@/shared/data/parse'
 import { temMensagemValida } from '@/shared/envio/situacao'
 import { digitosComPais, paraE164BR } from '@/shared/telefone/e164'
-import { resolverParametros } from '@/shared/template/parametros'
+import { completarMapeamento, resolverParametros } from '@/shared/template/parametros'
 import type { StatusEnvio } from '@/shared/db'
 import type { Aniversariante } from '@/providers/prontuario'
 import { envioDoModelo, motivoDeNaoSair, type Equipe, type UnidadeQueEnvia } from '@/shared/mensageria/canal-do-modelo'
@@ -216,12 +216,17 @@ export async function agendarMensagens(
     throw new PedidoInvalidoError('Data e hora manuais só valem para um paciente por vez')
   }
 
-  const modelo = await deps.buscarModelo(pedido.modeloConfigId)
-  if (!modelo) throw new ModeloNaoEncontradoError()
+  const salvo = await deps.buscarModelo(pedido.modeloConfigId)
+  if (!salvo) throw new ModeloNaoEncontradoError()
   const plataforma = await deps.listarDaPlataforma()
+  const daPlataforma = plataforma.modelos.find((m) => m.id === salvo.modeloId)
+  // As variáveis que a clínica não ligou saem com o campo que o nome diz
+  // (`[NOME]` → o primeiro nome): o mesmo mapeamento que a tela de Modelos
+  // mostra na prévia. Modelo fora da listagem: vale só o que foi salvo.
+  const modelo = { ...salvo, parametros: completarMapeamento(daPlataforma?.conteudo ?? '', salvo.parametros) }
   // Recusa ANTES de começar, como o número: senão cada paciente "agenda" e todos
   // falham no disparo.
-  const midia = plataforma.modelos.find((m) => m.id === modelo.modeloId)?.midia
+  const midia = daPlataforma?.midia
   if (midia && !modelo.arquivoId) throw new ModeloSemArquivoError(fraseSemArquivo(midia))
   const saida = await saidaDoLote(modelo.modeloId, plataforma, contexto.unidade, deps.listarEquipes)
 
