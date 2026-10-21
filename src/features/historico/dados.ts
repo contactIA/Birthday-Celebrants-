@@ -19,6 +19,8 @@ export interface ItemDoHistorico {
   podeCancelar: boolean
   /** O número por onde a mensagem foi agendada. `null` nos envios gravados antes de 2026-10-10. */
   remetente: string | null
+  /** Por que a plataforma diz que falhou. Só em falha; `null` nas falhas de antes de 2026-10-21. */
+  motivoDaFalha: string | null
 }
 
 export interface PaginaDoHistorico {
@@ -45,6 +47,7 @@ type Linha = Pick<
   | 'created_at'
   | 'scheduled_message_id'
   | 'remetente'
+  | 'motivo_da_falha'
 > & { aniversariantes_templates: { nome: string } | null }
 
 export async function buscarHistorico(
@@ -59,7 +62,7 @@ export async function buscarHistorico(
   let consulta = db()
     .from('aniversariantes_envios')
     .select(
-      'id, paciente_nome, paciente_telefone, status, scheduled_for, created_at, scheduled_message_id, remetente, aniversariantes_templates(nome)',
+      'id, paciente_nome, paciente_telefone, status, scheduled_for, created_at, scheduled_message_id, remetente, motivo_da_falha, aniversariantes_templates(nome)',
       { count: 'exact' }
     )
     .eq('clinica_id', clinica.id)
@@ -96,6 +99,7 @@ export async function buscarHistorico(
       modeloNome: linha.aniversariantes_templates?.nome ?? null,
       podeCancelar: CANCELAVEIS.has(linha.status) && linha.scheduled_message_id !== null,
       remetente: linha.remetente,
+      motivoDaFalha: linha.status === 'failed' ? linha.motivo_da_falha : null,
     })),
     total: count ?? 0,
     pagina,

@@ -93,6 +93,9 @@ export async function registrarEnvio(clinica: Clinica, envio: EnvioParaGravar): 
         scheduled_message_id: envio.mensagemId,
         status: 'scheduled' as const,
         scheduled_for: envio.agendadoPara,
+        // Reagendar por cima de uma falha apaga o motivo dela: o motivo é da
+        // mensagem anterior, não desta.
+        motivo_da_falha: null,
         remetente: envio.remetente,
       },
       { onConflict: 'unidade_id,paciente_id_eclinica,ano' }

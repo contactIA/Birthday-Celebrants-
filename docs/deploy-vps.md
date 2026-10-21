@@ -119,8 +119,10 @@ Horários em UTC, e a VPS já está em UTC. 06:00 UTC é 03:00 em Brasília.
 - **Sincronização da Clinicorp:** 1x/dia, de madrugada. Faz ~61 chamadas por
   clínica, contra uma cota de 500/hora por usuário de API.
 - **Reconciliação de status:** a cada 15 min. Traz "enviada/entregue/lida"
-  de volta da plataforma. Só consulta a plataforma quando há envio com
-  horário vencido e sem status final, então as execuções sem nada pendente
+  de volta da plataforma e, na falha, o motivo que ela dá (coluna
+  `motivo_da_falha`, que o Histórico mostra). Enviada e entregue seguem sendo
+  consultadas por 3 dias depois do envio. Só consulta a plataforma quando há
+  envio com horário vencido e sem status final, então as execuções sem nada pendente
   não custam chamada nenhuma. Uma vez por dia (o horário original, herdado da
   Vercel) deixava mensagem entregue aparecendo como "Agendado" até a
   madrugada seguinte.

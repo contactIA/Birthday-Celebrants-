@@ -81,13 +81,6 @@ export interface AgendamentoCriado {
 }
 
 /**
- * Uma mensagem agendada, como a plataforma a reporta.
- *
- * O `status` usa o MESMO conjunto de valores da nossa coluna — `SCHEDULED`,
- * `PROCESSED`, `SENT`, `DELIVERED`, `READ`, `CANCELED`, `FAILED` — porque a
- * coluna foi modelada a partir do enum deles. O adapter só normaliza a caixa.
- */
-/**
  * O paciente como contato na plataforma, gravado ANTES de agendar.
  *
  * Por quê: variáveis do modelo que a própria plataforma preenche (o nome do
@@ -112,9 +105,22 @@ export interface CampoDeData {
   nome: string
 }
 
+/**
+ * Uma mensagem agendada, como a plataforma a reporta.
+ *
+ * O `status` usa o MESMO conjunto de valores da nossa coluna — `SCHEDULED`,
+ * `PROCESSED`, `SENT`, `DELIVERED`, `READ`, `CANCELED`, `FAILED` — porque a
+ * coluna foi modelada a partir do enum deles. O adapter só normaliza a caixa.
+ */
 export interface MensagemNaPlataforma {
   id: string
   status: StatusEnvio
+  /**
+   * Por que falhou, na frase da plataforma ("132012 - Os valores de parâmetros
+   * variáveis foram formatados incorretamente..."). Só em `failed`; `null`
+   * quando a plataforma não disse. Sem o nome do fornecedor (white label).
+   */
+  motivoDaFalha: string | null
 }
 
 /** Um canal de WhatsApp da conta. */
