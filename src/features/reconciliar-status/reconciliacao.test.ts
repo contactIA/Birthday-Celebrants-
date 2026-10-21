@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
+  inicioDoAcompanhamentoDaEntrega,
   reconciliarStatus,
   type DependenciasDaReconciliacao,
   type EnvioPendente,
 } from './reconciliacao'
 import type { MensagemNaPlataforma } from '@/providers/mensageria'
+import type { StatusEnvio } from '@/shared/db'
 
 const AGORA = new Date('2026-09-15T17:00:00Z')
 const CLINICA = 'c1'
@@ -17,6 +19,10 @@ function pendente(over: Partial<EnvioPendente> = {}): EnvioPendente {
     statusAtual: 'scheduled',
     ...over,
   }
+}
+
+function mensagem(id: string, status: StatusEnvio, motivoDaFalha: string | null = null): MensagemNaPlataforma {
+  return { id, status, motivoDaFalha }
 }
 
 function deps(over: Partial<DependenciasDaReconciliacao> = {}) {
@@ -45,22 +51,17 @@ describe('sem pendentes', () => {
 })
 
 describe('atualização', () => {
-  it.each(['sent', 'delivered', 'read', 'failed', 'canceled'] as const)(
-    'traz %s da plataforma para o banco',
-    async (status) => {
-      const d = deps({ listarNaPlataforma: vi.fn(async () => [{ id: 'msg-1', status }]) })
-      const r = await reconciliarStatus(CLINICA, AGORA, d)
-      expect(d.atualizarStatus).toHaveBeenCalledWith('e1', status)
-      expect(r.atualizados).toBe(1)
-    }
-  )
+  it.each(['sent', 'delivered', 'read', 'canceled'] as const)('traz %s da plataforma para o banco', async (status) => {
+    const d = deps({ listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', status)]) })
+    const r = await reconciliarStatus(CLINICA, AGORA, d)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', status, null)
+    expect(r.atualizados).toBe(1)
+  })
 
   it('não escreve quando o status não mudou', async () => {
     // Um update por envio a cada execução diária encheria o banco de escrita
     // sem informação nova.
-    const d = deps({
-      listarNaPlataforma: vi.fn(async () => [{ id: 'msg-1', status: 'scheduled' as const }]),
-    })
+    const d = deps({ listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'scheduled')]) })
     const r = await reconciliarStatus(CLINICA, AGORA, d)
     expect(d.atualizarStatus).not.toHaveBeenCalled()
     expect(r.atualizados).toBe(0)
@@ -72,28 +73,71 @@ describe('atualização', () => {
         pendente({ id: 'e1', mensagemId: 'msg-1' }),
         pendente({ id: 'e2', mensagemId: 'msg-2' }),
       ]),
-      listarNaPlataforma: vi.fn(async () => [
-        { id: 'msg-2', status: 'failed' as const },
-        { id: 'msg-1', status: 'delivered' as const },
-      ]),
+      listarNaPlataforma: vi.fn(async () => [mensagem('msg-2', 'failed'), mensagem('msg-1', 'delivered')]),
     })
     await reconciliarStatus(CLINICA, AGORA, d)
-    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'delivered')
-    expect(d.atualizarStatus).toHaveBeenCalledWith('e2', 'failed')
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'delivered', null)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e2', 'failed', null)
   })
 
   it('ignora mensagens da conta que não são nossas', async () => {
     // A listagem devolve tudo da conta no intervalo, inclusive agendamentos
     // criados fora deste painel.
     const d = deps({
-      listarNaPlataforma: vi.fn(async () => [
-        { id: 'msg-de-outro-fluxo', status: 'sent' as const },
-        { id: 'msg-1', status: 'sent' as const },
-      ]),
+      listarNaPlataforma: vi.fn(async () => [mensagem('msg-de-outro-fluxo', 'sent'), mensagem('msg-1', 'sent')]),
     })
     const r = await reconciliarStatus(CLINICA, AGORA, d)
     expect(d.atualizarStatus).toHaveBeenCalledTimes(1)
     expect(r.atualizados).toBe(1)
+  })
+})
+
+describe('até o status final', () => {
+  it('uma enviada que falhou depois vira falha', async () => {
+    // Até 2026-10-21 a `sent` saía da consulta e ficava assim para sempre.
+    const d = deps({
+      buscarPendentes: vi.fn(async () => [pendente({ statusAtual: 'sent' })]),
+      listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'failed', 'Número sem WhatsApp')]),
+    })
+    await reconciliarStatus(CLINICA, AGORA, d)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'failed', 'Número sem WhatsApp')
+  })
+
+  it('uma enviada que foi entregue vira entregue', async () => {
+    const d = deps({
+      buscarPendentes: vi.fn(async () => [pendente({ statusAtual: 'sent' })]),
+      listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'delivered')]),
+    })
+    await reconciliarStatus(CLINICA, AGORA, d)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'delivered', null)
+  })
+
+  it('uma entregue que foi lida vira lida', async () => {
+    const d = deps({
+      buscarPendentes: vi.fn(async () => [pendente({ statusAtual: 'delivered' })]),
+      listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'read')]),
+    })
+    await reconciliarStatus(CLINICA, AGORA, d)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'read', null)
+  })
+
+  it('as enviadas e entregues são acompanhadas por três dias depois do envio', () => {
+    expect(inicioDoAcompanhamentoDaEntrega(AGORA)).toBe('2026-09-12T17:00:00.000Z')
+  })
+})
+
+describe('motivo da falha', () => {
+  it('a falha grava a frase da plataforma junto com o status', async () => {
+    const motivo = '132012 - Os valores de parâmetros variáveis foram formatados incorretamente.'
+    const d = deps({ listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'failed', motivo)]) })
+    await reconciliarStatus(CLINICA, AGORA, d)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'failed', motivo)
+  })
+
+  it('fora da falha o motivo não é gravado, mesmo que venha', async () => {
+    const d = deps({ listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'delivered', 'resto de outra tentativa')]) })
+    await reconciliarStatus(CLINICA, AGORA, d)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'delivered', null)
   })
 })
 
@@ -153,10 +197,7 @@ describe('falhas', () => {
         pendente({ id: 'e1', mensagemId: 'msg-1' }),
         pendente({ id: 'e2', mensagemId: 'msg-2' }),
       ]),
-      listarNaPlataforma: vi.fn(async () => [
-        { id: 'msg-1', status: 'sent' as const },
-        { id: 'msg-2', status: 'sent' as const },
-      ]),
+      listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'sent'), mensagem('msg-2', 'sent')]),
       atualizarStatus: vi.fn(async () => {
         if (chamada++ === 0) throw new Error('conflito')
       }),

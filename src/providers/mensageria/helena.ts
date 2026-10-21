@@ -198,6 +198,26 @@ function normalizarStatus(bruto: unknown): StatusEnvio | null {
   return STATUS_CONHECIDOS.has(minusculo) ? (minusculo as StatusEnvio) : null
 }
 
+/** Teto do motivo guardado: a frase da plataforma tem uma linha, e isto vai para a tela. */
+const TAMANHO_MAXIMO_DO_MOTIVO = 500
+
+/**
+ * O `failureReason` da listagem, pronto para guardar e mostrar.
+ *
+ * É a única pista do porquê de uma falha: a mensagem foi aceita no agendamento
+ * e falhou na hora de sair (modelo com mídia sem o arquivo, modelo apagado,
+ * número sem WhatsApp). A frase vem da plataforma e vai para a tela da clínica,
+ * então o nome do fornecedor sai (white label, ver porta.ts).
+ */
+export function motivoDaFalha(bruto: unknown): string | null {
+  if (typeof bruto !== 'string') return null
+  const motivo = bruto
+    .replace(/\s+/g, ' ')
+    .replace(/\b(helena|wts(\.chat)?)\b/gi, 'plataforma de mensagens')
+    .trim()
+  return motivo ? motivo.slice(0, TAMANHO_MAXIMO_DO_MOTIVO) : null
+}
+
 /** O que fazer com uma resposta de erro, decidido pelo corpo. */
 export type ErroDaPlataforma =
   | 'contato-nao-encontrado'
@@ -476,9 +496,14 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
         const lote = extrairLista(dados)
         if (lote.length === 0) break
 
-        for (const bruta of lote) {
+        for (const bruta of lote as { id?: unknown; status?: unknown; failureReason?: unknown }[]) {
           const status = normalizarStatus(bruta?.status)
-          if (bruta?.id && status) encontradas.push({ id: String(bruta.id), status })
+          if (!bruta?.id || !status) continue
+          encontradas.push({
+            id: String(bruta.id),
+            status,
+            motivoDaFalha: status === 'failed' ? motivoDaFalha(bruta.failureReason) : null,
+          })
         }
 
         if (lote.length < TAMANHO_DA_PAGINA) break

@@ -97,6 +97,7 @@ export const CONTRATO = {
     'scheduled_for',
     'created_at',
     'remetente',
+    'motivo_da_falha',
   ],
   aniversariantes_pacientes_cache: [
     'id',

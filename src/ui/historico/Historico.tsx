@@ -28,6 +28,7 @@ interface Item {
   modeloNome: string | null
   podeCancelar: boolean
   remetente: string | null
+  motivoDaFalha: string | null
 }
 
 interface Pagina {
@@ -324,6 +325,7 @@ export function Historico() {
                   <SituacaoDoEnvio status={item.status} />
                 </div>
                 <div className="mt-2 flex flex-col gap-0.5 pl-12 text-xs text-ink-2">
+                  <MotivoDaFalha motivo={item.motivoDaFalha} />
                   <span className="truncate">{item.modeloNome ?? 'Modelo removido'}</span>
                   <Datas envio={item.agendadoPara} criacao={item.criadoEm} />
                 </div>
@@ -383,6 +385,7 @@ export function Historico() {
                     </td>
                     <td className="px-3 py-3">
                       <SituacaoDoEnvio status={item.status} />
+                      <MotivoDaFalha motivo={item.motivoDaFalha} />
                     </td>
                     <td className="px-3 py-3">
                       {/* O número de cada envio; os antigos, gravados sem ele, saíram pelo remetente. */}
@@ -427,6 +430,20 @@ export function Historico() {
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * O porquê da falha, na frase da plataforma (gravada pela reconciliação). Até
+ * três linhas; a frase inteira fica no título. As falhas de antes de
+ * 2026-10-21 não têm o motivo guardado e mostram só a situação.
+ */
+function MotivoDaFalha({ motivo }: { motivo: string | null }) {
+  if (!motivo) return null
+  return (
+    <p title={motivo} className="mt-1 line-clamp-3 text-[12px] leading-snug text-muted">
+      {motivo}
+    </p>
   )
 }
 

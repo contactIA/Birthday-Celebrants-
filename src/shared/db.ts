@@ -124,6 +124,8 @@ export interface EnvioRow {
   created_at: string
   /** O número (dígitos com país) por onde a mensagem foi agendada. Nulo nos envios de antes de 2026-10-10. */
   remetente: string | null
+  /** Por que a plataforma diz que a mensagem falhou. Só em `failed`; nulo nas falhas de antes de 2026-10-21. */
+  motivo_da_falha: string | null
 }
 
 export interface PacienteCacheRow {
@@ -177,6 +179,7 @@ export interface EnvioInsert {
   status?: StatusEnvio
   scheduled_for: string | null
   remetente?: string | null
+  motivo_da_falha?: string | null
 }
 
 /** Pedido de vaga no beta, feito na página de quem ainda não tem o app. */

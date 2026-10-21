@@ -12,6 +12,31 @@ import type { MensagemNaPlataforma } from '@/providers/mensageria'
 // EM LOTE, NÃO UMA POR UMA. A listagem da plataforma aceita filtro por data de
 // agendamento, então reconciliar cem envios custa uma ou duas chamadas. Uma
 // consulta por mensagem multiplicaria isso por cem, todo dia.
+//
+// ATÉ O STATUS FINAL. `sent` ainda vira `delivered`, `read` ou `failed`, e
+// `delivered` ainda vira `read`: até 2026-10-21 a linha que chegava a `sent`
+// saía da consulta e ficava assim para sempre, mesmo quando a mensagem falhava
+// depois. As duas seguem sendo consultadas por alguns dias (ver
+// DIAS_ACOMPANHANDO_A_ENTREGA), a mesma regra do app de lembretes.
+//
+// COM O MOTIVO. A falha vem com a frase da plataforma, e ela é guardada junto
+// com o status: sem ela, 161 falhas da Oral Foz não diziam nada aqui.
+
+/**
+ * Por quantos dias, depois do horário de envio, uma mensagem `sent` ou
+ * `delivered` continua sendo consultada.
+ *
+ * A entrega ou a falha costuma chegar em minutos. O prazo é o freio: sem ele,
+ * uma `sent` que a plataforma nunca resolve manteria a janela de consulta aberta
+ * desde aquele dia, e a cada 15 minutos a listagem cresceria. Três dias, como
+ * no app de lembretes.
+ */
+export const DIAS_ACOMPANHANDO_A_ENTREGA = 3
+
+/** Desde quando (ISO) as `sent` e `delivered` ainda são consultadas. */
+export function inicioDoAcompanhamentoDaEntrega(agora: Date): string {
+  return new Date(agora.getTime() - DIAS_ACOMPANHANDO_A_ENTREGA * 24 * 60 * 60 * 1000).toISOString()
+}
 
 export interface EnvioPendente {
   id: string
@@ -42,7 +67,8 @@ export interface RelatorioDeReconciliacao {
 export interface DependenciasDaReconciliacao {
   buscarPendentes: () => Promise<EnvioPendente[]>
   listarNaPlataforma: (janela: { de: string; ate: string }) => Promise<MensagemNaPlataforma[]>
-  atualizarStatus: (envioId: string, status: StatusEnvio) => Promise<void>
+  /** `motivoDaFalha` só vem em `failed`; nos outros status é `null`. */
+  atualizarStatus: (envioId: string, status: StatusEnvio, motivoDaFalha: string | null) => Promise<void>
 }
 
 /**
@@ -89,24 +115,25 @@ export async function reconciliarStatus(
     return { ...vazio, pendentes: pendentes.length, erro: `listar: ${(err as Error).message}` }
   }
 
-  const statusPorId = new Map(naPlataforma.map((m) => [m.id, m.status]))
+  const porId = new Map(naPlataforma.map((m) => [m.id, m]))
 
   let atualizados = 0
   let naoEncontrados = 0
   const falhas: string[] = []
 
   for (const envio of pendentes) {
-    const status = statusPorId.get(envio.mensagemId)
-    if (!status) {
+    const mensagem = porId.get(envio.mensagemId)
+    if (!mensagem) {
       naoEncontrados++
       continue
     }
+    const { status } = mensagem
     // Só escreve o que mudou: um `update` por envio a cada execução diária
     // encheria o banco de escrita sem informação nova.
     if (status === envio.statusAtual) continue
 
     try {
-      await deps.atualizarStatus(envio.id, status)
+      await deps.atualizarStatus(envio.id, status, status === 'failed' ? mensagem.motivoDaFalha : null)
       atualizados++
     } catch (err) {
       falhas.push(`${envio.id}: ${(err as Error).message}`)

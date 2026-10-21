@@ -3,6 +3,7 @@ import {
   canaisDaEquipe,
   classificarErro,
   midiaDoModelo,
+  motivoDaFalha,
   nomeAusente,
   oQueCompletar,
   paraCampoDeData,
@@ -170,6 +171,20 @@ describe('paramsDoAgendamento', () => {
   })
 })
 
+describe('motivoDaFalha: o failureReason pronto para a tela', () => {
+  it('a frase da plataforma fica como veio, sem espaço sobrando', () => {
+    expect(motivoDaFalha('  132012 - Os valores de parâmetros\n variáveis foram formatados incorretamente. ')).toBe(
+      '132012 - Os valores de parâmetros variáveis foram formatados incorretamente.'
+    )
+  })
+  it('o nome do fornecedor não chega à clínica (white label)', () => {
+    expect(motivoDaFalha('Erro interno da Helena')).toBe('Erro interno da plataforma de mensagens')
+    expect(motivoDaFalha('wts.chat indisponível')).toBe('plataforma de mensagens indisponível')
+  })
+  it.each([null, undefined, '', '   ', 42])('%s não é motivo', (v) => expect(motivoDaFalha(v)).toBeNull())
+  it('frase longa demais é cortada', () => expect(motivoDaFalha('x'.repeat(900))).toHaveLength(500))
+})
+
 describe('com a rede: agendar e subir arquivo', () => {
   const fetchMock = vi.fn()
   const PEDIDO = { para: '+5538999990000', modeloId: 'modelo-video', quando: '2026-10-20T11:30:00.000Z', parametros: {} }
@@ -241,5 +256,25 @@ describe('com a rede: agendar e subir arquivo', () => {
       provedor().subirArquivo({ nome: 'a.mp4', tipo: 'video', mimeType: 'video/mp4', conteudo: new ArrayBuffer(1) })
     ).rejects.toThrow(/recusou o arquivo \(403\)/)
     expect(chamadas('/core/v2/file').filter(([u, i]) => !u.includes('?') && i.method === 'POST')).toHaveLength(0)
+  })
+
+  it('listar agendadas: a falha traz o failureReason, e só ela', async () => {
+    // A forma real de um item (conta da Oral Foz, 2026-10-21): o motivo vem em
+    // `failureReason`, ao lado do status.
+    fetchMock.mockResolvedValue(
+      resposta(200, {
+        items: [
+          { id: 'm1', status: 'FAILED', failureReason: 'Modelo de mensagem não encontrado.' },
+          { id: 'm2', status: 'DELIVERED', failureReason: 'resto' },
+          { id: 'm3', status: 'FAILED' },
+        ],
+      })
+    )
+    const lista = await provedor().listarAgendadas({ de: '2026-10-08T00:00:00Z', ate: '2026-10-20T00:00:00Z' })
+    expect(lista).toEqual([
+      { id: 'm1', status: 'failed', motivoDaFalha: 'Modelo de mensagem não encontrado.' },
+      { id: 'm2', status: 'delivered', motivoDaFalha: null },
+      { id: 'm3', status: 'failed', motivoDaFalha: null },
+    ])
   })
 })
