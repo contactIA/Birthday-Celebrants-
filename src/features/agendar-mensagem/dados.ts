@@ -97,6 +97,15 @@ export async function registrarEnvio(clinica: Clinica, envio: EnvioParaGravar): 
         // mensagem anterior, não desta.
         motivo_da_falha: null,
         remetente: envio.remetente,
+        // A linha passa a descrever a mensagem nova: texto dela, sem a conversa
+        // e os horários da anterior.
+        texto: envio.texto,
+        conversa_id: null,
+        enviado_em: null,
+        entregue_em: null,
+        lido_em: null,
+        falhou_em: null,
+        cancelado_em: null,
       },
       { onConflict: 'unidade_id,paciente_id_eclinica,ano' }
     )

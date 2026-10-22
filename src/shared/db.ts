@@ -126,6 +126,20 @@ export interface EnvioRow {
   remetente: string | null
   /** Por que a plataforma diz que a mensagem falhou. Só em `failed`; nulo nas falhas de antes de 2026-10-21. */
   motivo_da_falha: string | null
+  /** A mensagem como saiu, montada no agendamento. Nula nos envios de antes de 2026-10-21. */
+  texto: string | null
+  /** A conversa na plataforma onde a mensagem foi enviada. Vem da reconciliação. */
+  conversa_id: string | null
+  /**
+   * O horário de cada passo, como a plataforma o reporta na reconciliação. Passo
+   * pulado entre duas leituras fica nulo. Ver a migração 20261021_texto_e_tempos_do_envio.
+   */
+  enviado_em: string | null
+  entregue_em: string | null
+  lido_em: string | null
+  falhou_em: string | null
+  /** Quando o app cancelou, no Histórico. */
+  cancelado_em: string | null
 }
 
 export interface PacienteCacheRow {
@@ -180,6 +194,13 @@ export interface EnvioInsert {
   scheduled_for: string | null
   remetente?: string | null
   motivo_da_falha?: string | null
+  texto?: string | null
+  conversa_id?: string | null
+  enviado_em?: string | null
+  entregue_em?: string | null
+  lido_em?: string | null
+  falhou_em?: string | null
+  cancelado_em?: string | null
 }
 
 /** Pedido de vaga no beta, feito na página de quem ainda não tem o app. */

@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       return reconciliarStatus(rotuloDaClinica(clinica), agora, {
         buscarPendentes: () => buscarPendentes(clinica, agora),
         listarNaPlataforma: (janela) => mensageria.listarAgendadas(janela),
-        atualizarStatus: (envioId, status, motivo) => atualizarStatus(clinica, envioId, status, motivo),
+        atualizarStatus: (envioId, mudanca) => atualizarStatus(clinica, envioId, mudanca),
       })
     })
   )

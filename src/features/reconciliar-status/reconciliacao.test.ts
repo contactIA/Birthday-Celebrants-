@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   inicioDoAcompanhamentoDaEntrega,
+  mudancaDoStatus,
   reconciliarStatus,
   type DependenciasDaReconciliacao,
   type EnvioPendente,
@@ -22,8 +23,11 @@ function pendente(over: Partial<EnvioPendente> = {}): EnvioPendente {
 }
 
 function mensagem(id: string, status: StatusEnvio, motivoDaFalha: string | null = null): MensagemNaPlataforma {
-  return { id, status, motivoDaFalha }
+  return { id, status, motivoDaFalha, conversaId: `conversa-${id}`, atualizadaEm: '2026-09-15T16:52:10.000Z' }
 }
+
+/** O que a reconciliação manda gravar, sem repetir o horário e a conversa em todo teste. */
+const mudou = (status: StatusEnvio, motivoDaFalha: string | null) => expect.objectContaining({ status, motivoDaFalha })
 
 function deps(over: Partial<DependenciasDaReconciliacao> = {}) {
   const d = {
@@ -54,7 +58,7 @@ describe('atualização', () => {
   it.each(['sent', 'delivered', 'read', 'canceled'] as const)('traz %s da plataforma para o banco', async (status) => {
     const d = deps({ listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', status)]) })
     const r = await reconciliarStatus(CLINICA, AGORA, d)
-    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', status, null)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', mudou(status, null))
     expect(r.atualizados).toBe(1)
   })
 
@@ -76,8 +80,8 @@ describe('atualização', () => {
       listarNaPlataforma: vi.fn(async () => [mensagem('msg-2', 'failed'), mensagem('msg-1', 'delivered')]),
     })
     await reconciliarStatus(CLINICA, AGORA, d)
-    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'delivered', null)
-    expect(d.atualizarStatus).toHaveBeenCalledWith('e2', 'failed', null)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', mudou('delivered', null))
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e2', mudou('failed', null))
   })
 
   it('ignora mensagens da conta que não são nossas', async () => {
@@ -100,7 +104,7 @@ describe('até o status final', () => {
       listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'failed', 'Número sem WhatsApp')]),
     })
     await reconciliarStatus(CLINICA, AGORA, d)
-    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'failed', 'Número sem WhatsApp')
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', mudou('failed', 'Número sem WhatsApp'))
   })
 
   it('uma enviada que foi entregue vira entregue', async () => {
@@ -109,7 +113,7 @@ describe('até o status final', () => {
       listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'delivered')]),
     })
     await reconciliarStatus(CLINICA, AGORA, d)
-    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'delivered', null)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', mudou('delivered', null))
   })
 
   it('uma entregue que foi lida vira lida', async () => {
@@ -118,7 +122,7 @@ describe('até o status final', () => {
       listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'read')]),
     })
     await reconciliarStatus(CLINICA, AGORA, d)
-    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'read', null)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', mudou('read', null))
   })
 
   it('as enviadas e entregues são acompanhadas por três dias depois do envio', () => {
@@ -131,13 +135,41 @@ describe('motivo da falha', () => {
     const motivo = '132012 - Os valores de parâmetros variáveis foram formatados incorretamente.'
     const d = deps({ listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'failed', motivo)]) })
     await reconciliarStatus(CLINICA, AGORA, d)
-    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'failed', motivo)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', mudou('failed', motivo))
   })
 
   it('fora da falha o motivo não é gravado, mesmo que venha', async () => {
     const d = deps({ listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'delivered', 'resto de outra tentativa')]) })
     await reconciliarStatus(CLINICA, AGORA, d)
-    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', 'delivered', null)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', mudou('delivered', null))
+  })
+})
+
+describe('horário e conversa', () => {
+  it('grava o horário da plataforma na coluna do passo, e a conversa', async () => {
+    const d = deps({ listarNaPlataforma: vi.fn(async () => [mensagem('msg-1', 'read')]) })
+    await reconciliarStatus(CLINICA, AGORA, d)
+    expect(d.atualizarStatus).toHaveBeenCalledWith('e1', {
+      status: 'read',
+      motivoDaFalha: null,
+      conversaId: 'conversa-msg-1',
+      passo: { coluna: 'lido_em', quando: '2026-09-15T16:52:10.000Z' },
+    })
+  })
+
+  it('sem horário da plataforma, usa o da execução', async () => {
+    const d = deps({
+      listarNaPlataforma: vi.fn(async () => [{ ...mensagem('msg-1', 'failed', 'x'), atualizadaEm: null }]),
+    })
+    await reconciliarStatus(CLINICA, AGORA, d)
+    expect(d.atualizarStatus).toHaveBeenCalledWith(
+      'e1',
+      expect.objectContaining({ passo: { coluna: 'falhou_em', quando: AGORA.toISOString() } })
+    )
+  })
+
+  it('status sem passo na linha do tempo não grava horário', () => {
+    expect(mudancaDoStatus(mensagem('msg-1', 'processed'), AGORA).passo).toBeNull()
   })
 })
 

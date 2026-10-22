@@ -30,7 +30,8 @@ export async function buscarEnvio(
 export async function marcarComoCancelado(clinica: Clinica, envioId: string): Promise<void> {
   const { error } = await db()
     .from('aniversariantes_envios')
-    .update({ status: 'canceled' })
+    // A hora vai para a linha do tempo da ficha do envio.
+    .update({ status: 'canceled', cancelado_em: new Date().toISOString() })
     .eq('id', envioId)
     // Redundante com a busca, e mantido de propósito: uma escrita que depende
     // de uma leitura anterior para estar escopada é frágil a refatoração.

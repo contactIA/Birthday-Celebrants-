@@ -14,6 +14,7 @@ import {
   type CanalDaConta,
   type ContatoDoPaciente,
   type ContatoSalvo,
+  type ConversaDoContato,
   type EquipeDaConta,
   type ListagemDeModelos,
   type MensagemNaPlataforma,
@@ -216,6 +217,30 @@ export function motivoDaFalha(bruto: unknown): string | null {
     .replace(/\b(helena|wts(\.chat)?)\b/gi, 'plataforma de mensagens')
     .trim()
   return motivo ? motivo.slice(0, TAMANHO_MAXIMO_DO_MOTIVO) : null
+}
+
+/**
+ * Uma mensagem da listagem de agendadas, com os campos que lemos. A listagem
+ * não traz o horário de cada passo: `updatedAt` é o da última mudança (sondado
+ * na conta real em 2026-10-21).
+ */
+interface MensagemAgendadaBruta {
+  id?: unknown
+  status?: unknown
+  failureReason?: unknown
+  sessionId?: unknown
+  updatedAt?: unknown
+}
+
+function textoOuNulo(bruto: unknown): string | null {
+  return typeof bruto === 'string' && bruto.trim() ? bruto.trim() : null
+}
+
+/** ISO válido ou `null`: data que não se lê não vira "Invalid Date" na tela. */
+export function instanteOuNulo(bruto: unknown): string | null {
+  if (typeof bruto !== 'string') return null
+  const instante = new Date(bruto)
+  return Number.isNaN(instante.getTime()) ? null : instante.toISOString()
 }
 
 /** O que fazer com uma resposta de erro, decidido pelo corpo. */
@@ -496,13 +521,15 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
         const lote = extrairLista(dados)
         if (lote.length === 0) break
 
-        for (const bruta of lote as { id?: unknown; status?: unknown; failureReason?: unknown }[]) {
+        for (const bruta of lote as MensagemAgendadaBruta[]) {
           const status = normalizarStatus(bruta?.status)
           if (!bruta?.id || !status) continue
           encontradas.push({
             id: String(bruta.id),
             status,
             motivoDaFalha: status === 'failed' ? motivoDaFalha(bruta.failureReason) : null,
+            conversaId: textoOuNulo(bruta.sessionId),
+            atualizadaEm: instanteOuNulo(bruta.updatedAt),
           })
         }
 
@@ -510,6 +537,33 @@ export function provedorHelena(credenciais: CredenciaisDeMensageria): ProvedorDe
       }
 
       return encontradas
+    },
+
+    async conversaMaisRecente(telefone: string): Promise<ConversaDoContato | null> {
+      // O contato pelo telefone e, dele, a conversa com a interação mais
+      // recente, aberta ou não: o mesmo caminho do "Abrir conversa" do CRM.
+      let contato: { id?: unknown } | null
+      try {
+        contato = (await chamar(
+          `/core/v1/contact/phonenumber/${encodeURIComponent(telefone)}`,
+          { method: 'GET' },
+          'buscar-contato'
+        )) as { id?: unknown } | null
+      } catch (err) {
+        if (err instanceof ContatoNaoEncontradoError) return null
+        throw err
+      }
+      const contatoId = textoOuNulo(contato?.id)
+      if (!contatoId) return null
+      const params = new URLSearchParams({
+        ContactId: contatoId,
+        OrderBy: 'LastInteractionAt',
+        OrderDirection: 'DESCENDING',
+        PageSize: '1',
+      })
+      const [conversa] = extrairLista(await chamar(`/chat/v2/session?${params}`, { method: 'GET' }, 'conversas-do-contato'))
+      const id = textoOuNulo(conversa?.id)
+      return id ? { id } : null
     },
 
     async salvarContato(contato: ContatoDoPaciente): Promise<ContatoSalvo> {

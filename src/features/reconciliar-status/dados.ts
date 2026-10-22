@@ -1,6 +1,6 @@
 import { db, type EnvioRow, type StatusEnvio } from '@/shared/db'
 import type { Clinica } from '@/shared/clinica/repositorio'
-import { inicioDoAcompanhamentoDaEntrega, type EnvioPendente } from './reconciliacao'
+import { inicioDoAcompanhamentoDaEntrega, type EnvioPendente, type MudancaDeStatus } from './reconciliacao'
 
 /** Estados que ainda podem mudar na plataforma, sem prazo. */
 const AGUARDANDO: StatusEnvio[] = ['scheduled', 'processed']
@@ -45,15 +45,16 @@ export async function buscarPendentes(clinica: Clinica, agora: Date): Promise<En
     }))
 }
 
-export async function atualizarStatus(
-  clinica: Clinica,
-  envioId: string,
-  status: StatusEnvio,
-  motivoDaFalha: string | null
-): Promise<void> {
+export async function atualizarStatus(clinica: Clinica, envioId: string, mudanca: MudancaDeStatus): Promise<void> {
   const { error } = await db()
     .from('aniversariantes_envios')
-    .update({ status, motivo_da_falha: motivoDaFalha })
+    .update({
+      status: mudanca.status,
+      motivo_da_falha: mudanca.motivoDaFalha,
+      // Sem conversa na resposta, a já gravada fica.
+      ...(mudanca.conversaId ? { conversa_id: mudanca.conversaId } : {}),
+      ...(mudanca.passo ? { [mudanca.passo.coluna]: mudanca.passo.quando } : {}),
+    })
     .eq('id', envioId)
     .eq('clinica_id', clinica.id)
     .eq('unidade_id', clinica.unidade.id)

@@ -2,7 +2,7 @@ import { anoDoAniversario, aniversarioJaPassou, instanteDoEnvio, instanteDoHorar
 import { mesDiaDe, paraExibicao } from '@/shared/data/parse'
 import { temMensagemValida } from '@/shared/envio/situacao'
 import { digitosComPais, paraE164BR } from '@/shared/telefone/e164'
-import { completarMapeamento, resolverParametros } from '@/shared/template/parametros'
+import { completarMapeamento, renderizar, resolverParametros } from '@/shared/template/parametros'
 import type { StatusEnvio } from '@/shared/db'
 import type { Aniversariante } from '@/providers/prontuario'
 import { envioDoModelo, motivoDeNaoSair, type Equipe, type UnidadeQueEnvia } from '@/shared/mensageria/canal-do-modelo'
@@ -54,6 +54,12 @@ export interface EnvioParaGravar {
   agendadoPara: string
   /** O número que envia (dígitos com país). `null` = o remetente não é conhecido. */
   remetente: string | null
+  /**
+   * A mensagem como sai, montada por `renderizar` (a função da prévia), para a
+   * ficha do envio mostrar o que foi enviado mesmo se o modelo mudar depois.
+   * `null` = o modelo ficou fora da listagem, e o texto não é conhecido.
+   */
+  texto: string | null
 }
 
 /** Um envio que o paciente já tem gravado, de qualquer ano. */
@@ -223,7 +229,11 @@ export async function agendarMensagens(
   // As variáveis que a clínica não ligou saem com o campo que o nome diz
   // (`[NOME]` → o primeiro nome): o mesmo mapeamento que a tela de Modelos
   // mostra na prévia. Modelo fora da listagem: vale só o que foi salvo.
-  const modelo = { ...salvo, parametros: completarMapeamento(daPlataforma?.conteudo ?? '', salvo.parametros) }
+  const modelo = {
+    ...salvo,
+    parametros: completarMapeamento(daPlataforma?.conteudo ?? '', salvo.parametros),
+    textoDoModelo: daPlataforma?.conteudo ?? null,
+  }
   // Recusa ANTES de começar, como o número: senão cada paciente "agenda" e todos
   // falham no disparo.
   const midia = daPlataforma?.midia
@@ -267,7 +277,7 @@ export async function agendarMensagens(
 async function agendarUm(
   paciente: Aniversariante,
   envios: EnvioExistente[],
-  modelo: ConfiguracaoDeModelo,
+  modelo: ConfiguracaoDeModelo & { textoDoModelo: string | null },
   saida: SaidaDoLote,
   quandoManual: string | null,
   contexto: Contexto,
@@ -335,15 +345,12 @@ async function agendarUm(
   }
 
   try {
+    const dados = { nome: paciente.nome, datanascimento: paciente.datanascimento, aniversario: paciente.aniversario }
     const criado = await deps.agendar({
       para: telefone,
       modeloId: modelo.modeloId,
       quando,
-      parametros: resolverParametros(modelo.parametros, {
-        nome: paciente.nome,
-        datanascimento: paciente.datanascimento,
-        aniversario: paciente.aniversario,
-      }),
+      parametros: resolverParametros(modelo.parametros, dados),
       ...saida,
       ...(modelo.arquivoId ? { arquivoId: modelo.arquivoId } : {}),
     })
@@ -358,6 +365,7 @@ async function agendarUm(
       mensagemId: criado.id,
       agendadoPara: quando,
       remetente: saida.remetente ?? (contexto.unidade.from ? digitosComPais(contexto.unidade.from) : null),
+      texto: modelo.textoDoModelo ? renderizar(modelo.textoDoModelo, modelo.parametros, dados) : null,
     })
 
     return aviso ? { ...base, ok: true, aviso } : { ...base, ok: true }
