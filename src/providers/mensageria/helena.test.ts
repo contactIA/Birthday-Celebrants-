@@ -272,9 +272,43 @@ describe('com a rede: agendar e subir arquivo', () => {
     )
     const lista = await provedor().listarAgendadas({ de: '2026-10-08T00:00:00Z', ate: '2026-10-20T00:00:00Z' })
     expect(lista).toEqual([
-      { id: 'm1', status: 'failed', motivoDaFalha: 'Modelo de mensagem não encontrado.' },
-      { id: 'm2', status: 'delivered', motivoDaFalha: null },
-      { id: 'm3', status: 'failed', motivoDaFalha: null },
+      { id: 'm1', status: 'failed', motivoDaFalha: 'Modelo de mensagem não encontrado.', conversaId: null, atualizadaEm: null },
+      { id: 'm2', status: 'delivered', motivoDaFalha: null, conversaId: null, atualizadaEm: null },
+      { id: 'm3', status: 'failed', motivoDaFalha: null, conversaId: null, atualizadaEm: null },
     ])
+  })
+
+  it('listar agendadas: traz a conversa e o horário da última mudança', async () => {
+    // A forma real (sondada em 2026-10-21): sem horário por passo, só `updatedAt`.
+    fetchMock.mockResolvedValue(
+      resposta(200, {
+        items: [
+          { id: 'm1', status: 'READ', sessionId: 'sessao-1', updatedAt: '2026-10-21T13:25:52.139164Z' },
+          { id: 'm2', status: 'SENT', sessionId: '  ', updatedAt: 'ontem' },
+        ],
+      })
+    )
+    const lista = await provedor().listarAgendadas({ de: '2026-10-20T00:00:00Z', ate: '2026-10-22T00:00:00Z' })
+    expect(lista).toEqual([
+      { id: 'm1', status: 'read', motivoDaFalha: null, conversaId: 'sessao-1', atualizadaEm: '2026-10-21T13:25:52.139Z' },
+      { id: 'm2', status: 'sent', motivoDaFalha: null, conversaId: null, atualizadaEm: null },
+    ])
+  })
+
+  it('conversa mais recente: o contato pelo telefone e a conversa dele', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.includes('/core/v1/contact/phonenumber/')
+        ? resposta(200, { id: 'contato-1' })
+        : resposta(200, { items: [{ id: 'sessao-9' }] })
+    )
+    expect(await provedor().conversaMaisRecente('+5562999990000')).toEqual({ id: 'sessao-9' })
+    const [url] = chamadas('/chat/v2/session')[0]!
+    expect(url).toContain('ContactId=contato-1')
+    expect(url).toContain('OrderBy=LastInteractionAt')
+  })
+
+  it('conversa mais recente: sem contato, null', async () => {
+    fetchMock.mockResolvedValue(resposta(404, { text: 'Contato não encontrado' }))
+    expect(await provedor().conversaMaisRecente('+5562999990000')).toBeNull()
   })
 })

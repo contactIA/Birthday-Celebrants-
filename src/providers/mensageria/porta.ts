@@ -121,6 +121,18 @@ export interface MensagemNaPlataforma {
    * quando a plataforma não disse. Sem o nome do fornecedor (white label).
    */
   motivoDaFalha: string | null
+  /** A conversa onde a mensagem foi (ou vai ser) enviada. `null` = a plataforma não disse. */
+  conversaId: string | null
+  /**
+   * ISO. Quando o status mudou pela última vez: a plataforma não guarda o
+   * horário de cada passo, só este. `null` = a plataforma não disse.
+   */
+  atualizadaEm: string | null
+}
+
+/** A conversa mais recente de um contato, para o "Abrir conversa" do envio que não tem a sua. */
+export interface ConversaDoContato {
+  id: string
 }
 
 /** Um canal de WhatsApp da conta. */
@@ -188,6 +200,13 @@ export interface ProvedorDeMensageria {
    * agendamento do modelo. O id é reaproveitável: um upload por arquivo.
    */
   subirArquivo(arquivo: ArquivoParaSubir): Promise<string>
+
+  /**
+   * A conversa do contato deste telefone (E.164) com a interação mais recente,
+   * aberta ou não. `null` = número sem contato ou sem conversa. Só para o envio
+   * que ainda não tem a conversa gravada (os de antes de 2026-10-21).
+   */
+  conversaMaisRecente(telefone: string): Promise<ConversaDoContato | null>
 }
 
 /**

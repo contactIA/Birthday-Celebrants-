@@ -21,6 +21,49 @@ import type { MensagemNaPlataforma } from '@/providers/mensageria'
 //
 // COM O MOTIVO. A falha vem com a frase da plataforma, e ela é guardada junto
 // com o status: sem ela, 161 falhas da Oral Foz não diziam nada aqui.
+//
+// COM O HORÁRIO E A CONVERSA (2026-10-21), para a ficha do envio. A plataforma
+// não guarda quando cada passo aconteceu, só quando a mensagem mudou pela
+// última vez: esse horário vai para a coluna do status encontrado. Passo pulado
+// entre duas execuções fica sem horário. A conversa (`sessionId`) alimenta o
+// "Abrir conversa". A mesma regra do app de lembretes.
+
+/** A coluna do horário de cada passo da linha do tempo. */
+export const COLUNA_DO_PASSO = {
+  sent: 'enviado_em',
+  delivered: 'entregue_em',
+  read: 'lido_em',
+  failed: 'falhou_em',
+  canceled: 'cancelado_em',
+} as const satisfies Partial<Record<StatusEnvio, string>>
+
+export type ColunaDoPasso = (typeof COLUNA_DO_PASSO)[keyof typeof COLUNA_DO_PASSO]
+
+/** O que gravar quando o status muda. */
+export interface MudancaDeStatus {
+  status: StatusEnvio
+  /** Só em `failed`; nos outros status é `null`. */
+  motivoDaFalha: string | null
+  /** `null` = a plataforma não disse; a conversa já gravada fica. */
+  conversaId: string | null
+  /** A coluna do passo e o horário dele. `null` = status sem passo (`processed`). */
+  passo: { coluna: ColunaDoPasso; quando: string } | null
+}
+
+/**
+ * A mudança a gravar para uma mensagem cujo status mudou. O horário é o da
+ * plataforma; sem ele, o da execução, que erra por no máximo 15 minutos.
+ */
+export function mudancaDoStatus(mensagem: MensagemNaPlataforma, agora: Date): MudancaDeStatus {
+  const { status } = mensagem
+  const coluna = status in COLUNA_DO_PASSO ? COLUNA_DO_PASSO[status as keyof typeof COLUNA_DO_PASSO] : null
+  return {
+    status,
+    motivoDaFalha: status === 'failed' ? mensagem.motivoDaFalha : null,
+    conversaId: mensagem.conversaId,
+    passo: coluna ? { coluna, quando: mensagem.atualizadaEm ?? agora.toISOString() } : null,
+  }
+}
 
 /**
  * Por quantos dias, depois do horário de envio, uma mensagem `sent` ou
@@ -68,7 +111,7 @@ export interface DependenciasDaReconciliacao {
   buscarPendentes: () => Promise<EnvioPendente[]>
   listarNaPlataforma: (janela: { de: string; ate: string }) => Promise<MensagemNaPlataforma[]>
   /** `motivoDaFalha` só vem em `failed`; nos outros status é `null`. */
-  atualizarStatus: (envioId: string, status: StatusEnvio, motivoDaFalha: string | null) => Promise<void>
+  atualizarStatus: (envioId: string, mudanca: MudancaDeStatus) => Promise<void>
 }
 
 /**
@@ -127,13 +170,12 @@ export async function reconciliarStatus(
       naoEncontrados++
       continue
     }
-    const { status } = mensagem
     // Só escreve o que mudou: um `update` por envio a cada execução diária
     // encheria o banco de escrita sem informação nova.
-    if (status === envio.statusAtual) continue
+    if (mensagem.status === envio.statusAtual) continue
 
     try {
-      await deps.atualizarStatus(envio.id, status, status === 'failed' ? mensagem.motivoDaFalha : null)
+      await deps.atualizarStatus(envio.id, mudancaDoStatus(mensagem, agora))
       atualizados++
     } catch (err) {
       falhas.push(`${envio.id}: ${(err as Error).message}`)

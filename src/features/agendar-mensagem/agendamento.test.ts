@@ -84,6 +84,16 @@ describe('o paciente vem do prontuário, nunca do pedido', () => {
     })
     await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
     expect(d.agendar).toHaveBeenCalledWith(expect.objectContaining({ parametros: { Nome: 'Maria', ANIVERSÁRIO: '20/10' } }))
+    // A ficha do envio mostra este texto: se o modelo mudar depois, ele não muda.
+    expect(d.registrarEnvio).toHaveBeenCalledWith(expect.objectContaining({ texto: 'Oi, *Maria*! 20/10' }))
+  })
+
+  it('modelo fora da listagem: o texto não é conhecido e fica nulo', async () => {
+    const d = deps({
+      listarDaPlataforma: vi.fn(async () => ({ modelos: [], canais: [], filtradoPorTipo: true })),
+    })
+    await agendarMensagens({ modeloConfigId: 'config-1', pacienteIds: ['p1'] }, CONTEXTO, d)
+    expect(d.registrarEnvio).toHaveBeenCalledWith(expect.objectContaining({ texto: null }))
   })
 
   it('o nome enviado nos parâmetros vem do prontuário', async () => {

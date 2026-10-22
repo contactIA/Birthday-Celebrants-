@@ -98,6 +98,13 @@ export const CONTRATO = {
     'created_at',
     'remetente',
     'motivo_da_falha',
+    'texto',
+    'conversa_id',
+    'enviado_em',
+    'entregue_em',
+    'lido_em',
+    'falhou_em',
+    'cancelado_em',
   ],
   aniversariantes_pacientes_cache: [
     'id',

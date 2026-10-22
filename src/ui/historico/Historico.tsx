@@ -7,6 +7,7 @@ import { IconeWhatsApp } from '@/ui/NumeroDeEnvio'
 import { SituacaoDoEnvio } from '@/ui/SituacaoDoEnvio'
 import { aoClicarNaLinha, BotaoAtualizar, CampoDeBusca, Contato, ESTILO_CONTROLE, Marcador } from '@/ui/tabela'
 import { formatarTelefoneBR } from '@/shared/telefone/e164'
+import { FichaDoEnvio } from './FichaDoEnvio'
 
 // O histórico de envios, paginado e filtrável.
 //
@@ -84,8 +85,11 @@ export function Historico() {
   const [selecionados, setSelecionados] = useState<Set<string>>(() => new Set())
   const [confirmando, setConfirmando] = useState(false)
   const [cancelando, setCancelando] = useState(false)
+  /** O envio com a ficha aberta. */
+  const [aberto, setAberto] = useState<string | null>(null)
 
   const recarregar = useCallback(() => setTentativa((n) => n + 1), [])
+  const fecharFicha = useCallback(() => setAberto(null), [])
 
   /** Filtro novo: volta à primeira página e esquece a seleção, que era de outra lista. */
   function aoFiltrar(aplicar: () => void) {
@@ -308,11 +312,10 @@ export function Historico() {
             {dados.itens.map((item) => (
               <li
                 key={item.id}
-                onClick={aoClicarNaLinha(item.podeCancelar, () => alternar(item.id))}
+                onClick={aoClicarNaLinha(true, () => setAberto(item.id))}
                 className={clsx(
-                  'rounded-[14px] border border-line-soft px-4 py-3',
-                  item.podeCancelar && 'cursor-pointer',
-                  selecionados.has(item.id) ? 'bg-accent-soft/60' : 'bg-surface'
+                  'cursor-pointer rounded-[14px] border border-line-soft px-4 py-3',
+                  selecionados.has(item.id) || aberto === item.id ? 'bg-accent-soft/60' : 'bg-surface'
                 )}
               >
                 <div className="flex items-start gap-3">
@@ -362,16 +365,23 @@ export function Historico() {
               </thead>
               <tbody>
                 {dados.itens.map((item) => (
+                  // A linha abre a ficha do envio. Marcar para cancelar em lote
+                  // fica na coluna da caixa, que toda ela marca e desmarca.
                   <tr
                     key={item.id}
-                    onClick={aoClicarNaLinha(item.podeCancelar, () => alternar(item.id))}
+                    onClick={aoClicarNaLinha(true, () => setAberto(item.id))}
                     className={clsx(
-                      'border-b border-line-soft align-middle last:border-b-0',
-                      item.podeCancelar && 'cursor-pointer',
-                      selecionados.has(item.id) ? 'bg-accent-soft/60' : 'hover:bg-sunk/40'
+                      'cursor-pointer border-b border-line-soft align-middle last:border-b-0',
+                      selecionados.has(item.id) || aberto === item.id ? 'bg-accent-soft/60' : 'hover:bg-sunk/40'
                     )}
                   >
-                    <td className="py-3 pl-4">
+                    <td
+                      className="py-3 pl-4"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (item.podeCancelar && !(e.target as HTMLElement).closest('input')) alternar(item.id)
+                      }}
+                    >
                       {item.podeCancelar && (
                         <Marcador
                           marcado={selecionados.has(item.id)}
@@ -429,6 +439,8 @@ export function Historico() {
           </nav>
         </div>
       )}
+
+      <FichaDoEnvio envioId={aberto} aoFechar={fecharFicha} aoMudar={recarregar} aoAbrirOutro={setAberto} />
     </div>
   )
 }
