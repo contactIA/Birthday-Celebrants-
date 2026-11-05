@@ -22,7 +22,7 @@ os crons, que executam e não devolvem dados.
    ```json
    { "modulo": "aniversariantes", "geradoEm": "2026-11-05T12:00:00.000Z",
      "clinicas": [ { "companyId": "…", "nome": "…", "ligado": true,
-         "setupUrl": null,
+         "setupId": "<id local>", "setupUrl": null,
          "unidades": [ { "id": "…", "nome": "…" } ],
          "envios": { "total": 0,
                      "porSituacao": { "agendado": 0, "processando": 0, "enviado": 0,
@@ -59,12 +59,17 @@ os crons, que executam e não devolvem dados.
    unidades que o painel usa; na clínica fora da lista, as da tabela local. Os
    envios somam todas as unidades da clínica.
 
-6. **`setupUrl` sai nulo.** A fonte da resposta é a tela de setup da clínica
-   (`/setup/clinicas/<id local>`), mas o app não guarda a própria origem pública
-   em configuração nenhuma (o domínio está só em `deploy/`), e a Mensageria chama
-   pela rede interna da VPS, onde o `Host` é o nome do container. A função pura
-   já recebe a origem (`baseUrl`): o dia em que houver uma variável com ela, o
-   link passa a sair.
+6. **A fonte: `setupId` e `setupUrl`.** A fonte da resposta é a tela de setup
+   da clínica, `/setup/clinicas/<id local>`.
+   - `setupId` é esse id local (`null` só sem linha local), em toda clínica, ligada
+     ou não: com ele a Mensageria monta o link sozinha.
+   - `setupUrl` é `<URL_PUBLICA sem a barra final>/setup/clinicas/<setupId>`. A
+     `URL_PUBLICA` é uma variável opcional e não é segredo (em produção,
+     `https://aniversariantes.contactia.com.br`). Sem ela, `setupUrl` sai nulo. Também sai nulo na
+     clínica desligada, que a tela de setup não abre.
+   - A origem não sai do `Host` da requisição, como no link do painel: a
+     Mensageria chama pela rede interna da VPS, onde o `Host` é o nome do
+     container.
 
 7. **Fatia vertical:** `src/features/resumo-de-uso/`. `resumo.ts` é a regra,
    pura e testada (o instante entra por parâmetro); `dados.ts` lê, só colunas
@@ -73,8 +78,8 @@ os crons, que executam e não devolvem dados.
 
 ## Consequências
 
-- Uma chave nova no `.env` deste app e no da Mensageria. Sem ela a rota responde
-  503 e nada mais muda.
+- Uma chave nova no `.env` deste app e no da Mensageria, e a `URL_PUBLICA`
+  opcional. Sem a chave a rota responde 503 e nada mais muda.
 - A rota lê todos os envios a cada chamada. Com dezenas de clínicas são poucas
   dezenas de páginas no pior caso; se a tabela crescer muito, o caminho é uma
   visão agregada no banco, com migração.

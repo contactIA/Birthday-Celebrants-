@@ -73,6 +73,7 @@ describe('resumirUso', () => {
       companyId: CONTA_A,
       nome: 'Clínica A',
       ligado: true,
+      setupId: A,
       setupUrl: null,
       unidades: [{ id: 'u1', nome: 'Centro' }],
       envios: {
@@ -135,6 +136,8 @@ describe('resumirUso', () => {
     )
     const desligada = r.clinicas.find((c) => c.companyId === CONTA_B)!
     expect(desligada.ligado).toBe(false)
+    // O id local sai mesmo desligada; o link não, porque a tela de setup não a abre.
+    expect(desligada.setupId).toBe(B)
     expect(desligada.setupUrl).toBeNull()
     expect(desligada.unidades).toEqual([
       { id: 'b1', nome: 'Norte' },
@@ -154,15 +157,29 @@ describe('resumirUso', () => {
     expect(r.clinicas.map((c) => [c.companyId, c.ligado])).toEqual([[CONTA_C, true]])
   })
 
-  it('o setupUrl usa o id local, sem barra dobrada', () => {
+  it('com a URL_PUBLICA, o setupUrl usa o id local, sem barra dobrada', () => {
     const [c] = resumirUso(
       entrada({
-        baseUrl: 'https://app.exemplo/',
+        baseUrl: ' https://app.exemplo/ ',
         clinicasDoSetup: [{ id: A, companyId: CONTA_A, nome: 'A', unidades: [] }],
         contasLigadas: [CONTA_A],
       })
     ).clinicas
+    expect(c!.setupId).toBe(A)
     expect(c!.setupUrl).toBe(`https://app.exemplo/setup/clinicas/${A}`)
+  })
+
+  it('sem a URL_PUBLICA (nula ou vazia), setupUrl nulo e setupId presente', () => {
+    for (const baseUrl of [null, '', '   ']) {
+      const [c] = resumirUso(
+        entrada({
+          baseUrl,
+          clinicasDoSetup: [{ id: A, companyId: CONTA_A, nome: 'A', unidades: [] }],
+          contasLigadas: [CONTA_A],
+        })
+      ).clinicas
+      expect(c).toMatchObject({ setupId: A, setupUrl: null })
+    }
   })
 
   it('compara conta e id sem caixa, e devolve a conta em minúsculas', () => {

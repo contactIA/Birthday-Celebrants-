@@ -12,9 +12,10 @@ import { buscarResumoDeUso } from '@/features/resumo-de-uso/dados'
 // Fica fora do gate de acesso (ver o matcher em `proxy.ts`), como `api/cron`:
 // autentica pela chave própria, INTEGRACAO_USO_CHAVE, e lê todas as clínicas.
 //
-// `setupUrl` sai nulo: o app não guarda a própria origem pública em nenhuma
-// configuração, e a Mensageria chama pela rede interna da VPS, onde o `Host`
-// da requisição é o nome do container, e não o domínio.
+// O `setupUrl` usa a URL_PUBLICA (opcional, não é segredo), e não o `Host` da
+// requisição: a Mensageria chama pela rede interna da VPS, onde o `Host` é o
+// nome do container, e não o domínio. Sem a variável, `setupUrl` sai nulo e o
+// `setupId` basta para a Mensageria montar o link.
 
 export const maxDuration = 60
 
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const resumo = await buscarResumoDeUso(new Date(), null)
+    const resumo = await buscarResumoDeUso(new Date(), process.env.URL_PUBLICA || null)
     return NextResponse.json(resumo, { headers: { 'cache-control': 'no-store' } })
   } catch (err) {
     return responderErro('api/integracao/uso', err)

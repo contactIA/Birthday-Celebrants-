@@ -44,13 +44,21 @@ describe('GET /api/integracao/uso', () => {
     expect(buscarResumoDeUso).not.toHaveBeenCalled()
   })
 
-  it('200 com o resumo, sem cache e sem setupUrl', async () => {
+  it('200 com o resumo, sem cache; sem a URL_PUBLICA, a origem vai nula', async () => {
     vi.stubEnv('INTEGRACAO_USO_CHAVE', CHAVE)
+    vi.stubEnv('URL_PUBLICA', '')
     const res = await pedir(`Bearer ${CHAVE}`)
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('no-store')
     expect(await res.json()).toEqual(RESUMO)
     expect(buscarResumoDeUso).toHaveBeenCalledWith(expect.any(Date), null)
+  })
+
+  it('com a URL_PUBLICA, a origem vai para o resumo', async () => {
+    vi.stubEnv('INTEGRACAO_USO_CHAVE', CHAVE)
+    vi.stubEnv('URL_PUBLICA', 'https://app.exemplo')
+    expect((await pedir(`Bearer ${CHAVE}`)).status).toBe(200)
+    expect(buscarResumoDeUso).toHaveBeenCalledWith(expect.any(Date), 'https://app.exemplo')
   })
 
   it('500 genérico quando a leitura falha', async () => {

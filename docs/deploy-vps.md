@@ -55,6 +55,7 @@ nano .env
 | `LINK_SECRET` | **o mesmo valor do Clinic Control** — senão todo link é recusado |
 | `CRON_SECRET` | segredo novo: `openssl rand -hex 32` |
 | `INTEGRACAO_USO_CHAVE` | a chave com que a Mensageria lê o resumo de uso (ADR 0008 da Mensageria; ver a seção 10): segredo novo, `openssl rand -hex 32`, o mesmo valor no `.env` da Mensageria; vazia, só a rota `/api/integracao/uso` responde 503 |
+| `URL_PUBLICA` | `https://aniversariantes.contactia.com.br`; não é segredo e é opcional: dá o `setupUrl` do resumo de uso (seção 10); vazia, o link sai nulo |
 | `EMBED_HOSTS` | deixar vazio se o host do white label for `app.fluxodonto.com` |
 | `CADASTRO_UNIFICADO` | vazio até o cadastro comum do CRM estar pronto; `1` liga a leitura por ele ([cadastro-unificado.md](cadastro-unificado.md)) |
 | `CADASTRO_CHAVE_CIFRAGEM` | **a mesma do `.env` do CRM**; obrigatória só com o `CADASTRO_UNIFICADO` ligado |
@@ -231,8 +232,11 @@ contrato e o que conta como enviado estão no
 
 1. **Com o OK da equipe**, gerar a chave e gravá-la sem mostrar, no `.env` deste
    app (`INTEGRACAO_USO_CHAVE`) e no da Mensageria, com o mesmo valor.
-2. `./deploy/deploy.sh`.
-3. Conferir de dentro da rede, sem pôr a chave na linha de comando (o header vai
+2. No mesmo `.env`, `URL_PUBLICA=https://aniversariantes.contactia.com.br` (não é segredo; opcional).
+   Com ela, cada clínica da resposta leva o link da tela de setup (`setupUrl`);
+   sem ela, o link sai nulo e a Mensageria o monta pelo `setupId`.
+3. `./deploy/deploy.sh`.
+4. Conferir de dentro da rede, sem pôr a chave na linha de comando (o header vai
    por stdin, como no `deploy/cron.sh`):
 
 ```bash

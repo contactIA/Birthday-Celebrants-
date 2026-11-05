@@ -71,7 +71,7 @@ export interface EnvioDoResumo {
 export interface EntradaDoResumo {
   modulo: Modulo
   agora: Date
-  /** A origem pública do app, sem barra no fim. `null`: o `setupUrl` sai nulo. */
+  /** A origem pública do app (`URL_PUBLICA`); a barra no fim não conta. `null`: o `setupUrl` sai nulo. */
   baseUrl: string | null
   clinicasLocais: ClinicaLocal[]
   unidadesLocais: UnidadeLocal[]
@@ -95,6 +95,9 @@ export interface ClinicaNoResumo {
   companyId: string
   nome: string
   ligado: boolean
+  /** O id local da clínica neste app: o de `/setup/clinicas/<id>`. `null`: sem linha local. */
+  setupId: string | null
+  /** A tela de setup da clínica, com a `URL_PUBLICA`. `null` sem a variável, ou fora da lista do setup. */
   setupUrl: string | null
   unidades: { id: string; nome: string }[]
   envios: EnviosNoResumo
@@ -170,7 +173,9 @@ function somarEnvios(envios: EnvioDoResumo[], agora: Date): Map<string, EnviosNo
  *   delas é a que teve o módulo desligado: entra com `ligado: false`, para os
  *   envios antigos aparecerem.
  * - **`unidades`:** as da lista do setup; fora dela, as da tabela local.
- * - **`setupUrl`:** só para a clínica que a lista do setup mostra, e só com a
+ * - **`setupId`:** o id local, de qualquer clínica que tenha a linha local.
+ * - **`setupUrl`:** `<origem>/setup/clinicas/<setupId>`, só para a clínica que a
+ *   lista do setup mostra (a tela de setup não abre a desligada) e só com a
  *   origem pública conhecida.
  * - **`envios`:** todos os da clínica, de todas as unidades.
  */
@@ -179,7 +184,7 @@ export function resumirUso(entrada: EntradaDoResumo): ResumoDeUso {
   const doSetup = new Map(entrada.clinicasDoSetup.map((c) => [c.id.toLowerCase(), c]))
   const locais = new Map(entrada.clinicasLocais.map((c) => [c.id.toLowerCase(), c]))
   const envios = somarEnvios(entrada.envios, entrada.agora)
-  const base = entrada.baseUrl ? entrada.baseUrl.replace(/\/+$/, '') : null
+  const base = entrada.baseUrl?.trim().replace(/\/+$/, '') || null
 
   const unidadesLocais = new Map<string, { id: string; nome: string }[]>()
   for (const u of entrada.unidadesLocais) {
@@ -192,10 +197,12 @@ export function resumirUso(entrada: EntradaDoResumo): ResumoDeUso {
     const setup = doSetup.get(id)
     const local = locais.get(id)
     const companyId = (setup?.companyId ?? local!.companyId).toLowerCase()
+    const setupId = setup?.id ?? local?.id ?? null
     return {
       companyId,
       nome: setup?.nome ?? local!.nome,
       ligado: ligadas.has(companyId),
+      setupId,
       setupUrl: setup && base ? `${base}/setup/clinicas/${setup.id}` : null,
       unidades: setup
         ? setup.unidades.map((u) => ({ id: u.id, nome: u.nome }))
