@@ -32,14 +32,16 @@ const HOSTS_PERMITIDOS = (process.env.EMBED_HOSTS || 'app.fluxodonto.com')
   .map((h) => h.trim().toLowerCase())
   .filter(Boolean)
 
-// Cobre tudo menos assets e a rota de cron. O negative match é obrigatório: sem
-// `matcher`, o gate rodaria em `_next/static` e derrubaria o CSS e o JS da
-// própria página de erro.
+// Cobre tudo menos assets e as rotas de máquina (cron e integração). O negative
+// match é obrigatório: sem `matcher`, o gate rodaria em `_next/static` e
+// derrubaria o CSS e o JS da própria página de erro.
 //
 // `api/cron` fica fora porque tem autenticação própria (CRON_SECRET) e roda para
-// todas as clínicas de uma vez, não no escopo de uma.
+// todas as clínicas de uma vez, não no escopo de uma. `api/integracao` fica fora
+// pelo mesmo motivo: quem chama é outro sistema nosso (a Mensageria), com a
+// chave própria INTEGRACAO_USO_CHAVE (docs/adr/0006-resumo-de-uso-para-a-mensageria.md).
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/cron).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/cron|api/integracao).*)'],
 }
 
 /**

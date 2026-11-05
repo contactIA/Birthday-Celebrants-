@@ -10,6 +10,7 @@ decisão é cara de reverter ou quando alguém vai questioná-la depois.
 | [0003](0003-area-de-setup.md) | Área de setup própria, com senha da equipe | Aceito |
 | [0004](0004-unidades.md) | Unidades: várias por clínica | Aceito |
 | [0005](0005-cadastro-comum.md) | A clínica do cadastro comum do CRM, atrás de uma variável | Aceito |
+| [0006](0006-resumo-de-uso-para-a-mensageria.md) | Resumo de uso para a Mensageria (`/api/integracao/uso`) | Aceito |
 
 Decisões herdadas, que vivem no repositório vizinho e continuam valendo aqui:
 
