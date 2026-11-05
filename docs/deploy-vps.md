@@ -54,6 +54,7 @@ nano .env
 | `SUPABASE_SERVICE_ROLE_KEY` | service role do mesmo projeto |
 | `LINK_SECRET` | **o mesmo valor do Clinic Control** — senão todo link é recusado |
 | `CRON_SECRET` | segredo novo: `openssl rand -hex 32` |
+| `INTEGRACAO_USO_CHAVE` | a chave com que a Mensageria lê o resumo de uso (ADR 0008 da Mensageria; ver a seção 10): segredo novo, `openssl rand -hex 32`, o mesmo valor no `.env` da Mensageria; vazia, só a rota `/api/integracao/uso` responde 503 |
 | `EMBED_HOSTS` | deixar vazio se o host do white label for `app.fluxodonto.com` |
 | `CADASTRO_UNIFICADO` | vazio até o cadastro comum do CRM estar pronto; `1` liga a leitura por ele ([cadastro-unificado.md](cadastro-unificado.md)) |
 | `CADASTRO_CHAVE_CIFRAGEM` | **a mesma do `.env` do CRM**; obrigatória só com o `CADASTRO_UNIFICADO` ligado |
@@ -219,6 +220,32 @@ Como root, uma vez:
 cp /home/contactia/birthday-celebrants/app/deploy/logrotate/birthday-celebrants /etc/logrotate.d/
 logrotate --debug /etc/logrotate.d/birthday-celebrants
 ```
+
+## 10. Resumo de uso para a Mensageria
+
+`GET /api/integracao/uso` devolve, por clínica, se os Aniversariantes estão
+ligados e os envios (total, por situação, o último e os de 30 e 90 dias). Quem
+lê é o agente da Mensageria (ADR 0008 de lá), pela rede interna da VPS. O
+contrato e o que conta como enviado estão no
+[ADR 0006](adr/0006-resumo-de-uso-para-a-mensageria.md).
+
+1. **Com o OK da equipe**, gerar a chave e gravá-la sem mostrar, no `.env` deste
+   app (`INTEGRACAO_USO_CHAVE`) e no da Mensageria, com o mesmo valor.
+2. `./deploy/deploy.sh`.
+3. Conferir de dentro da rede, sem pôr a chave na linha de comando (o header vai
+   por stdin, como no `deploy/cron.sh`):
+
+```bash
+cd ~/birthday-celebrants/app
+chave=$(grep -E '^INTEGRACAO_USO_CHAVE=' .env | tail -1 | cut -d= -f2- | sed -E "s/^([\"'])(.*)\1$/\2/")
+printf 'Authorization: Bearer %s\n' "$chave" | curl -sS -o /dev/null -w '%{http_code}\n' \
+  --resolve aniversariantes.contactia.com.br:443:127.0.0.1 -H @- \
+  https://aniversariantes.contactia.com.br/api/integracao/uso
+```
+
+`200` = ok; `503` = a variável não chegou ao container; `401` = o valor do
+`.env` mudou e o deploy não foi rodado depois. A rota é só de leitura e fica
+fora do gate de clínica, como os crons.
 
 ## Deploys seguintes
 
