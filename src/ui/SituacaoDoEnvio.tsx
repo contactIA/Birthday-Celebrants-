@@ -1,11 +1,15 @@
+import { naoSaiu } from '@/shared/data/envio-que-nao-saiu'
 import { Estado } from '@/ui/primitivos'
 import { estadoDoEnvio, type IconeDoEstado, type TomDoEstado } from '@/ui/statusDoEnvio'
 
 // A situação de um envio: rótulo, cor e ícone, o mesmo mapa na Agenda e no
 // Histórico (ver ui/statusDoEnvio.ts).
 
-export function SituacaoDoEnvio({ status }: { status: string }) {
-  const { rotulo, tom, icone } = estadoDoEnvio(status)
+/** Com `agendadoPara`, a "Agendada" que passou do horário aparece como "Não saiu". */
+export function SituacaoDoEnvio({ status, agendadoPara }: { status: string; agendadoPara?: string | null }) {
+  const { rotulo, tom, icone } = estadoDoEnvio(
+    agendadoPara !== undefined && naoSaiu(status, agendadoPara, new Date()) ? 'nao_saiu' : status
+  )
   return (
     <EstadoComIcone tom={tom} icone={icone}>
       {rotulo}

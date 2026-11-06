@@ -40,12 +40,13 @@ interface Pagina {
   remetente: string | null
 }
 
-type Situacao = '' | 'agendadas' | 'enviadas' | 'canceladas' | 'falhas'
+type Situacao = '' | 'agendadas' | 'nao_sairam' | 'enviadas' | 'canceladas' | 'falhas'
 type Ordem = 'envio' | 'criacao'
 
 const SITUACOES: { valor: Situacao; rotulo: string }[] = [
   { valor: '', rotulo: 'Todas as situações' },
   { valor: 'agendadas', rotulo: 'Agendadas' },
+  { valor: 'nao_sairam', rotulo: 'Não saíram' },
   { valor: 'enviadas', rotulo: 'Enviadas, entregues e lidas' },
   { valor: 'canceladas', rotulo: 'Canceladas' },
   { valor: 'falhas', rotulo: 'Com falha' },
@@ -325,7 +326,7 @@ export function Historico() {
                   <div className="min-w-0 flex-1">
                     <Contato nome={item.pacienteNome} detalhe={formatarTelefoneBR(item.pacienteTelefone)} />
                   </div>
-                  <SituacaoDoEnvio status={item.status} />
+                  <SituacaoDoEnvio status={item.status} agendadoPara={item.agendadoPara} />
                 </div>
                 <div className="mt-2 flex flex-col gap-0.5 pl-12 text-xs text-ink-2">
                   <MotivoDaFalha motivo={item.motivoDaFalha} />
@@ -394,7 +395,7 @@ export function Historico() {
                       <Contato nome={item.pacienteNome} detalhe={formatarTelefoneBR(item.pacienteTelefone)} />
                     </td>
                     <td className="px-3 py-3">
-                      <SituacaoDoEnvio status={item.status} />
+                      <SituacaoDoEnvio status={item.status} agendadoPara={item.agendadoPara} />
                       <MotivoDaFalha motivo={item.motivoDaFalha} />
                     </td>
                     <td className="px-3 py-3">
