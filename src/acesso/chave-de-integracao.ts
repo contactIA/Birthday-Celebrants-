@@ -11,6 +11,13 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 export const VARIAVEL_DA_CHAVE_DE_USO = 'INTEGRACAO_USO_CHAVE'
 
 /**
+ * A chave da API de integração (`/api/integracao/v1`, docs/adr/0007-api-de-integracao.md).
+ * Outra chave, e não a de uso: esta lê dados de paciente e escreve. No `.env`
+ * fica só o SHA-256 dela, em hexadecimal; a chave mesmo fica com quem chama.
+ */
+export const VARIAVEL_DO_HASH_DA_API = 'INTEGRACAO_API_CHAVE_HASH'
+
+/**
  * - `nao-configurada`: a variável está vazia. É configuração, não ataque, e a
  *   rota responde 503, não 401 (a mesma distinção do CRON_SECRET).
  * - `negar`: sem `Authorization: Bearer`, ou com outra chave.
@@ -38,4 +45,24 @@ export function conferirChaveDeIntegracao(authorization: string | null, chave: s
   if (!informada) return 'negar'
 
   return timingSafeEqual(resumo(informada), resumo(esperada)) ? 'liberar' : 'negar'
+}
+
+const HASH_HEX = /^[0-9a-f]{64}$/i
+
+/**
+ * Confere o header `Authorization` contra o SHA-256 (hex) guardado no ambiente.
+ *
+ * O `.env` deste app não guarda a chave: quem lê o arquivo não ganha acesso. A
+ * comparação é em tempo constante, entre o SHA-256 da chave informada e o
+ * guardado. Hash vazio ou fora do formato (64 caracteres hexadecimais) é
+ * configuração, não ataque: `nao-configurada`.
+ */
+export function conferirChavePeloHash(authorization: string | null, hash: string | undefined): DecisaoDaChave {
+  const esperado = (hash || '').trim()
+  if (!HASH_HEX.test(esperado)) return 'nao-configurada'
+
+  const informada = /^Bearer (.+)$/.exec(authorization ?? '')?.[1]
+  if (!informada) return 'negar'
+
+  return timingSafeEqual(resumo(informada), Buffer.from(esperado, 'hex')) ? 'liberar' : 'negar'
 }

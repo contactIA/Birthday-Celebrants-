@@ -1,7 +1,7 @@
 import { limiteDoNaoSaiu, naoSaiu, O_QUE_FAZER_QUANDO_NAO_SAIU } from '@/shared/data/envio-que-nao-saiu'
 import { db, type EnvioRow } from '@/shared/db'
 import type { Clinica } from '@/shared/clinica/repositorio'
-import { SITUACOES, type FiltrosDoHistorico } from './filtros'
+import { limitesDoPeriodo, SITUACOES, type FiltrosDoHistorico } from './filtros'
 import { linhaDoTempo, oQueFazer, type PassoDaLinhaDoTempo } from './ficha'
 
 /** Página padrão e teto. O app anterior devolvia a tabela inteira, sem limite. */
@@ -23,6 +23,8 @@ export interface ItemDoHistorico {
   remetente: string | null
   /** Por que a plataforma diz que falhou. Só em falha; `null` nas falhas de antes de 2026-10-21. */
   motivoDaFalha: string | null
+  /** Agendada que passou do horário sem sair ("Não saiu"). */
+  naoSaiu: boolean
 }
 
 export interface PaginaDoHistorico {
@@ -72,9 +74,15 @@ export async function buscarHistorico(
 
   if (filtros.situacao) consulta = consulta.in('status', [...SITUACOES[filtros.situacao]])
   // "Agendadas" e "Não saíram" têm os mesmos status: o horário separa as duas.
-  const limite = limiteDoNaoSaiu(new Date())
+  const agora = new Date()
+  const limite = limiteDoNaoSaiu(agora)
   if (filtros.situacao === 'nao_sairam') consulta = consulta.lt('scheduled_for', limite)
   if (filtros.situacao === 'agendadas') consulta = consulta.or(`scheduled_for.gte.${limite},scheduled_for.is.null`)
+  if (filtros.periodo) {
+    const { desde, antesDe } = limitesDoPeriodo(filtros.periodo, clinica.timezone)
+    if (desde) consulta = consulta.gte('scheduled_for', desde)
+    if (antesDe) consulta = consulta.lt('scheduled_for', antesDe)
+  }
   if (filtros.busca) {
     // `filtros.busca` já vem sem vírgula e parênteses (ver lerFiltros): é o que
     // impede a busca de virar outra condição dentro do `or`.
@@ -106,6 +114,7 @@ export async function buscarHistorico(
       podeCancelar: CANCELAVEIS.has(linha.status) && linha.scheduled_message_id !== null,
       remetente: linha.remetente,
       motivoDaFalha: linha.status === 'failed' ? linha.motivo_da_falha : null,
+      naoSaiu: naoSaiu(linha.status, linha.scheduled_for, agora),
     })),
     total: count ?? 0,
     pagina,

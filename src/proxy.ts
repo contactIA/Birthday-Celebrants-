@@ -38,8 +38,9 @@ const HOSTS_PERMITIDOS = (process.env.EMBED_HOSTS || 'app.fluxodonto.com')
 //
 // `api/cron` fica fora porque tem autenticação própria (CRON_SECRET) e roda para
 // todas as clínicas de uma vez, não no escopo de uma. `api/integracao` fica fora
-// pelo mesmo motivo: quem chama é outro sistema nosso (a Mensageria), com a
-// chave própria INTEGRACAO_USO_CHAVE (docs/adr/0006-resumo-de-uso-para-a-mensageria.md).
+// pelo mesmo motivo: quem chama é outro sistema nosso (a Mensageria), com chave
+// própria: INTEGRACAO_USO_CHAVE no resumo de uso (docs/adr/0006-resumo-de-uso-para-a-mensageria.md)
+// e INTEGRACAO_API_CHAVE_HASH na API v1, com a clínica no caminho (docs/adr/0007-api-de-integracao.md).
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|api/cron|api/integracao).*)'],
 }

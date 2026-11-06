@@ -19,7 +19,7 @@ type EnvioLido = Pick<EnvioRow, 'id' | 'clinica_id' | 'status' | 'enviado_em' | 
  * não por clínica. É um parabéns por paciente por ano: com dezenas de clínicas,
  * poucas dezenas de páginas no pior caso.
  */
-async function lerEnvios(): Promise<EnvioDoResumo[]> {
+async function lerEnvios(soDaClinica: string | null): Promise<EnvioDoResumo[]> {
   const envios: EnvioDoResumo[] = []
   let ultimoId: string | null = null
 
@@ -27,6 +27,7 @@ async function lerEnvios(): Promise<EnvioDoResumo[]> {
     let consulta = db()
       .from('aniversariantes_envios')
       .select('id, clinica_id, status, enviado_em, scheduled_for, created_at')
+    if (soDaClinica) consulta = consulta.eq('clinica_id', soDaClinica)
     if (ultimoId) consulta = consulta.gt('id', ultimoId)
     const { data, error } = await consulta.order('id').limit(PAGINA).returns<EnvioLido[]>()
     if (error) throw new Error(`Erro ao ler os envios: ${error.message}`)
@@ -73,17 +74,24 @@ async function lerUnidadesLocais(): Promise<UnidadeLocal[]> {
  * cadastradas neste app. Os ids locais e as unidades vêm da lista do setup
  * (`listarClinicasNoSetup`); com o cadastro ligado, essa leitura também cria a
  * linha local que faltar, como já faz para o setup e os crons (ADR 0005).
+ *
+ * `soDaClinica` (o id local) é a leitura da API de integração, que fala de uma
+ * clínica só: os envios lidos são só os dela, e a resposta só a traz.
  */
-export async function buscarResumoDeUso(agora: Date, baseUrl: string | null): Promise<ResumoDeUso> {
+export async function buscarResumoDeUso(
+  agora: Date,
+  baseUrl: string | null,
+  soDaClinica: string | null = null
+): Promise<ResumoDeUso> {
   const [clinicasDoSetup, contasLigadas, clinicasLocais, unidadesLocais, envios] = await Promise.all([
     listarClinicasNoSetup(),
     companyIdsCadastrados(),
     lerClinicasLocais(),
     lerUnidadesLocais(),
-    lerEnvios(),
+    lerEnvios(soDaClinica),
   ])
 
-  return resumirUso({
+  const resumo = resumirUso({
     modulo: 'aniversariantes',
     agora,
     baseUrl,
@@ -98,4 +106,7 @@ export async function buscarResumoDeUso(agora: Date, baseUrl: string | null): Pr
     contasLigadas,
     envios,
   })
+  if (!soDaClinica) return resumo
+  const id = soDaClinica.toLowerCase()
+  return { ...resumo, clinicas: resumo.clinicas.filter((c) => c.setupId?.toLowerCase() === id) }
 }
