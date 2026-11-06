@@ -2,29 +2,14 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { exigirCompanyId, unidadeDaRequisicao } from '@/acesso/escopo'
 import { buscarClinica } from '@/shared/clinica/repositorio'
 import { ParametroInvalidoError, responderErro } from '@/shared/http'
-import { mensageriaDe } from '@/providers/mensageria'
-import { listarModelos, salvarConfiguracao } from '@/features/configurar-modelo/modelos'
-import {
-  buscarConfiguracoes,
-  gravarConfiguracao,
-  limparPadrao,
-} from '@/features/configurar-modelo/dados'
+import { modelosDaUnidade, salvarModeloDaUnidade } from '@/features/configurar-modelo/servico'
 
 // GET  /api/modelos — modelos aprovados na plataforma + a configuração salva
 // POST /api/modelos — salva a configuração de um modelo
 export async function GET(request: NextRequest) {
   try {
     const clinica = await buscarClinica(exigirCompanyId(request), unidadeDaRequisicao(request))
-    const mensageria = mensageriaDe(clinica)
-
-    return NextResponse.json(
-      await listarModelos({
-        listarDaPlataforma: () => mensageria.listarModelos(),
-        listarEquipes: () => mensageria.listarEquipes(),
-        buscarConfiguracoes: () => buscarConfiguracoes(clinica),
-        unidade: clinica.credenciais.mensageria,
-      })
-    )
+    return NextResponse.json(await modelosDaUnidade(clinica))
   } catch (err) {
     return responderErro('api/modelos', err)
   }
@@ -89,15 +74,7 @@ export async function POST(request: NextRequest) {
       throw new ParametroInvalidoError('Corpo da requisição inválido')
     })
 
-    const mensageria = mensageriaDe(clinica)
-
-    await salvarConfiguracao(lerCorpo(corpo as CorpoRecebido), {
-      listarDaPlataforma: () => mensageria.listarModelos(),
-      listarEquipes: () => mensageria.listarEquipes(),
-      unidade: clinica.credenciais.mensageria,
-      limparPadrao: () => limparPadrao(clinica),
-      gravar: (config) => gravarConfiguracao(clinica, config),
-    })
+    await salvarModeloDaUnidade(clinica, lerCorpo(corpo as CorpoRecebido))
 
     return NextResponse.json({ ok: true })
   } catch (err) {

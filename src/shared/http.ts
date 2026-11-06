@@ -9,13 +9,13 @@ import { NextResponse } from 'next/server'
 // repassá-lo.
 
 /** Erro que sabe como quer ser respondido. */
-interface ErroDeDominio {
+export interface ErroDeDominio {
   status: number
   codigo: string
   message: string
 }
 
-function ehErroDeDominio(err: unknown): err is ErroDeDominio {
+export function ehErroDeDominio(err: unknown): err is ErroDeDominio {
   return (
     typeof err === 'object' &&
     err !== null &&

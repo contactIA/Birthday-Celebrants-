@@ -14,7 +14,7 @@ export type Modulo = 'lembretes' | 'aniversariantes'
 /** As situações de um envio, no vocabulário da resposta. */
 export type SituacaoNoResumo = 'agendado' | 'processando' | 'enviado' | 'entregue' | 'lido' | 'cancelado' | 'falhou'
 
-const SITUACAO_DO_STATUS: Record<StatusEnvio, SituacaoNoResumo> = {
+export const SITUACAO_DO_STATUS: Record<StatusEnvio, SituacaoNoResumo> = {
   scheduled: 'agendado',
   processed: 'processando',
   sent: 'enviado',

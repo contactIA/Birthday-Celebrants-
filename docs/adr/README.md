@@ -11,6 +11,7 @@ decisão é cara de reverter ou quando alguém vai questioná-la depois.
 | [0004](0004-unidades.md) | Unidades: várias por clínica | Aceito |
 | [0005](0005-cadastro-comum.md) | A clínica do cadastro comum do CRM, atrás de uma variável | Aceito |
 | [0006](0006-resumo-de-uso-para-a-mensageria.md) | Resumo de uso para a Mensageria (`/api/integracao/uso`) | Aceito |
+| [0007](0007-api-de-integracao.md) | API de integração versionada (`/api/integracao/v1`), com contrato OpenAPI | Aceito |
 
 Decisões herdadas, que vivem no repositório vizinho e continuam valendo aqui:
 

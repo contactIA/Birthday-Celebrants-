@@ -54,6 +54,7 @@ nano .env
 | `SUPABASE_SERVICE_ROLE_KEY` | service role do mesmo projeto |
 | `LINK_SECRET` | **o mesmo valor do Clinic Control** — senão todo link é recusado |
 | `CRON_SECRET` | segredo novo: `openssl rand -hex 32` |
+| `INTEGRACAO_API_CHAVE_HASH` | o SHA-256 (hex) da chave da API de integração (`/api/integracao/v1`, ADR 0007; ver a seção 11). A chave fica só no `.env` da Mensageria. Vazia, só a API de integração responde 503 |
 | `INTEGRACAO_USO_CHAVE` | a chave com que a Mensageria lê o resumo de uso (ADR 0008 da Mensageria; ver a seção 10): segredo novo, `openssl rand -hex 32`, o mesmo valor no `.env` da Mensageria; vazia, só a rota `/api/integracao/uso` responde 503 |
 | `URL_PUBLICA` | `https://aniversariantes.contactia.com.br`; não é segredo e é opcional: dá o `setupUrl` do resumo de uso (seção 10); vazia, o link sai nulo |
 | `EMBED_HOSTS` | deixar vazio se o host do white label for `app.fluxodonto.com` |
@@ -250,6 +251,32 @@ printf 'Authorization: Bearer %s\n' "$chave" | curl -sS -o /dev/null -w '%{http_
 `200` = ok; `503` = a variável não chegou ao container; `401` = o valor do
 `.env` mudou e o deploy não foi rodado depois. A rota é só de leitura e fica
 fora do gate de clínica, como os crons.
+
+## 11. API de integração (`/api/integracao/v1`)
+
+A API com que o agente da Mensageria lê e, com a confirmação de uma pessoa,
+muda o que a tela muda, clínica por clínica ([ADR 0007](adr/0007-api-de-integracao.md)).
+O contrato fica em `/api/integracao/v1/openapi.json`, sem chave.
+
+1. **Com o OK da equipe**, gerar a chave e o hash sem mostrar a chave na tela:
+   a chave vai para o `.env` da Mensageria, e só o hash para o `.env` deste
+   app, em `INTEGRACAO_API_CHAVE_HASH`.
+
+```bash
+node -e "const c=require('crypto');const k=c.randomBytes(32).toString('base64url');require('fs').writeFileSync('/tmp/chave-aniversariantes',k,{mode:0o600});console.log(c.createHash('sha256').update(k).digest('hex'))"
+# a linha impressa é o hash (vai para este .env); a chave ficou em /tmp/chave-aniversariantes:
+# levar para o .env da Mensageria e apagar o arquivo.
+```
+
+2. `./deploy/deploy.sh`.
+3. Conferir de dentro da rede (sem chave, o contrato; com a chave errada, 401):
+
+```bash
+docker exec birthday-celebrants wget -qO- http://127.0.0.1:3000/api/integracao/v1/openapi.json | head -c 200
+```
+
+Pela rede `contactia_default`, a Mensageria chama
+`http://birthday-celebrants:3000/api/integracao/v1/...`.
 
 ## Deploys seguintes
 
