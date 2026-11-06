@@ -497,7 +497,7 @@ function Linha({
         {agendado ? (
           // O status real (Agendada, Enviada, Entregue, Lida), o mesmo do
           // Histórico, e não "Agendado" para qualquer um deles.
-          <SituacaoDoEnvio status={paciente.envio!.status} />
+          <SituacaoDoEnvio status={paciente.envio!.status} agendadoPara={paciente.envio!.scheduledFor} />
         ) : paciente.envio?.status === 'failed' ? (
           // Falhou: selecionável de novo, e a etiqueta diz por que está aqui.
           <SituacaoDoEnvio status="failed" />

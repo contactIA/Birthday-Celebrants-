@@ -35,5 +35,6 @@ describe('lerFiltros', () => {
 
   it('"enviadas" junta enviada, entregue e lida', () => {
     expect(SITUACOES.enviadas).toEqual(['sent', 'delivered', 'read'])
+    expect(SITUACOES.nao_sairam).toEqual(['scheduled', 'processed'])
   })
 })

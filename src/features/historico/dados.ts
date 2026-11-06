@@ -1,3 +1,4 @@
+import { limiteDoNaoSaiu, naoSaiu, O_QUE_FAZER_QUANDO_NAO_SAIU } from '@/shared/data/envio-que-nao-saiu'
 import { db, type EnvioRow } from '@/shared/db'
 import type { Clinica } from '@/shared/clinica/repositorio'
 import { SITUACOES, type FiltrosDoHistorico } from './filtros'
@@ -70,6 +71,10 @@ export async function buscarHistorico(
     .eq('unidade_id', clinica.unidade.id)
 
   if (filtros.situacao) consulta = consulta.in('status', [...SITUACOES[filtros.situacao]])
+  // "Agendadas" e "Não saíram" têm os mesmos status: o horário separa as duas.
+  const limite = limiteDoNaoSaiu(new Date())
+  if (filtros.situacao === 'nao_sairam') consulta = consulta.lt('scheduled_for', limite)
+  if (filtros.situacao === 'agendadas') consulta = consulta.or(`scheduled_for.gte.${limite},scheduled_for.is.null`)
   if (filtros.busca) {
     // `filtros.busca` já vem sem vírgula e parênteses (ver lerFiltros): é o que
     // impede a busca de virar outra condição dentro do `or`.
@@ -131,6 +136,8 @@ export interface FichaDoEnvio {
   motivoDaFalha: string | null
   /** O passo que resolve a falha, quando a frase é conhecida. */
   oQueFazer: string | null
+  /** Agendada que passou do horário sem sair. */
+  naoSaiu: boolean
   agendadoPara: string | null
   criadoEm: string
   modeloNome: string | null
@@ -198,6 +205,7 @@ export async function buscarFicha(clinica: Clinica, envioId: string): Promise<Fi
 
   if (erroDosOutros) throw new Error(`Erro ao buscar os outros envios: ${erroDosOutros.message}`)
 
+  const parado = naoSaiu(l.status, l.scheduled_for, new Date())
   return {
     id: l.id,
     pacienteNome: l.paciente_nome,
@@ -206,7 +214,8 @@ export async function buscarFicha(clinica: Clinica, envioId: string): Promise<Fi
     ano: l.ano,
     status: l.status,
     motivoDaFalha: l.motivo_da_falha,
-    oQueFazer: l.status === 'failed' ? oQueFazer(l.motivo_da_falha) : null,
+    oQueFazer: l.status === 'failed' ? oQueFazer(l.motivo_da_falha) : parado ? O_QUE_FAZER_QUANDO_NAO_SAIU : null,
+    naoSaiu: parado,
     agendadoPara: l.scheduled_for,
     criadoEm: l.created_at,
     modeloNome: l.aniversariantes_templates?.nome ?? null,
@@ -223,6 +232,7 @@ export async function buscarFicha(clinica: Clinica, envioId: string): Promise<Fi
       lidoEm: l.lido_em,
       falhouEm: l.falhou_em,
       canceladoEm: l.cancelado_em,
+      naoSaiu: parado,
     }),
     outros: (outros ?? []).map((o) => ({ id: o.id, status: o.status, ano: o.ano, agendadoPara: o.scheduled_for })),
   }

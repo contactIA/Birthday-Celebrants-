@@ -15,6 +15,8 @@ export interface HorariosDoEnvio {
   lidoEm: string | null
   falhouEm: string | null
   canceladoEm: string | null
+  /** Agendada que passou do horário sem sair (shared/data/envio-que-nao-saiu.ts). */
+  naoSaiu?: boolean
 }
 
 export type EstadoDoPasso = 'feito' | 'pendente' | 'falhou' | 'cancelado'
@@ -52,6 +54,11 @@ export function linhaDoTempo(h: HorariosDoEnvio): PassoDaLinhaDoTempo[] {
 
   if (h.status === 'canceled') {
     passos.push({ chave: 'cancelado', rotulo: 'Cancelado', estado: 'cancelado', quando: h.canceladoEm })
+    return passos
+  }
+
+  if (h.naoSaiu) {
+    passos.push({ chave: 'falhou', rotulo: 'Não saiu', estado: 'falhou', quando: h.agendadoPara, detalhe: 'Era o horário previsto' })
     return passos
   }
 

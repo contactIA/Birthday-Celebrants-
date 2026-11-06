@@ -7,6 +7,8 @@ import type { StatusEnvio } from '@/shared/db'
 /** Grupos de situação, como a pessoa pensa neles, e os status que cada um junta. */
 export const SITUACOES = {
   agendadas: ['scheduled', 'processed'],
+  /** As agendadas que passaram do horário sem sair (shared/data/envio-que-nao-saiu.ts): o horário separa das `agendadas`. */
+  nao_sairam: ['scheduled', 'processed'],
   enviadas: ['sent', 'delivered', 'read'],
   canceladas: ['canceled'],
   falhas: ['failed'],

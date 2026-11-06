@@ -141,8 +141,8 @@ function ConteudoDaFicha({
               <>
                 <span className="text-line-strong">/</span>
                 <span className="flex items-center gap-1.5">
-                  <span aria-hidden className={clsx('h-[7px] w-[7px] rounded-full', PONTO_DO_TOM[estadoDoEnvio(ficha.status).tom])} />
-                  {estadoDoEnvio(ficha.status).rotulo}
+                  <span aria-hidden className={clsx('h-[7px] w-[7px] rounded-full', PONTO_DO_TOM[estadoDoEnvio(situacaoDa(ficha)).tom])} />
+                  {estadoDoEnvio(situacaoDa(ficha)).rotulo}
                 </span>
               </>
             )}
@@ -317,6 +317,7 @@ function Corpo({ ficha, aoAbrirOutro }: { ficha: Ficha; aoAbrirOutro: (id: strin
   return (
     <>
       {ficha.status === 'failed' && <PorQueFalhou ficha={ficha} />}
+      {ficha.naoSaiu && <NaoSaiu ficha={ficha} />}
 
       <Secao titulo="Linha do tempo">
         <LinhaDoTempo passos={ficha.linhaDoTempo} />
@@ -366,6 +367,20 @@ function Detalhe({ rotulo, children }: { rotulo: string; children: React.ReactNo
       <dt className="text-muted">{rotulo}</dt>
       <dd className="min-w-0 text-ink">{children}</dd>
     </>
+  )
+}
+
+/** O status que a ficha mostra: a "Agendada" que passou do horário é "Não saiu". */
+function situacaoDa(ficha: Ficha): string {
+  return ficha.naoSaiu ? 'nao_saiu' : ficha.status
+}
+
+function NaoSaiu({ ficha }: { ficha: Ficha }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-[12px] border border-erro/25 bg-erro-soft px-4 py-3.5">
+      <p className="text-[13px] font-semibold text-erro">Não saiu no horário</p>
+      <p className="text-sm leading-relaxed text-ink-2">{ficha.oQueFazer}</p>
+    </div>
   )
 }
 
@@ -487,7 +502,7 @@ function OutroEnvio({ outro, aoAbrir }: { outro: OutroEnvioDoPaciente; aoAbrir: 
             {outro.agendadoPara ? `Envio: ${formatarDataHora(outro.agendadoPara)}` : 'Sem data de envio'}
           </span>
         </span>
-        <SituacaoDoEnvio status={outro.status} />
+        <SituacaoDoEnvio status={outro.status} agendadoPara={outro.agendadoPara} />
       </button>
     </li>
   )

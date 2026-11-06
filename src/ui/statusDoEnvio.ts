@@ -20,6 +20,9 @@ const STATUS: Record<string, { rotulo: string; tom: TomDoEstado; icone: IconeDoE
   read: { rotulo: 'Lida', tom: 'info', icone: 'check-duplo' },
   canceled: { rotulo: 'Cancelada', tom: 'atencao', icone: 'x' },
   failed: { rotulo: 'Falhou', tom: 'erro', icone: 'alerta' },
+  // Não é status da coluna: "agendada" que passou do horário sem sair
+  // (shared/data/envio-que-nao-saiu.ts).
+  nao_saiu: { rotulo: 'Não saiu', tom: 'erro', icone: 'alerta' },
 }
 
 export function estadoDoEnvio(status: string): { rotulo: string; tom: TomDoEstado; icone: IconeDoEstado } {

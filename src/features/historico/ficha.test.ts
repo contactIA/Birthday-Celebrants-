@@ -25,6 +25,14 @@ describe('linhaDoTempo', () => {
     expect(linhaDoTempo(base)[1]!.detalhe).toBe('Previsto')
   })
 
+  it('não saiu: a linha para no horário previsto, como falha', () => {
+    expect(resumo({ ...base, naoSaiu: true })).toEqual([
+      'agendado:feito:2026-10-20T13:14:00.000Z',
+      'falhou:falhou:2026-10-21T13:20:00.000Z',
+    ])
+    expect(linhaDoTempo({ ...base, naoSaiu: true })[1]!.rotulo).toBe('Não saiu')
+  })
+
   it('lido: os passos anteriores ficam feitos, mesmo sem horário', () => {
     const lido = { ...base, status: 'read' as const, lidoEm: '2026-10-21T13:25:52.000Z' }
     expect(resumo(lido)).toEqual([
